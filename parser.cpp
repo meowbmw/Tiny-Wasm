@@ -78,6 +78,7 @@ public:
         {
             perror("mmap");
             free(charArray);
+            return;
         }
         // copy code to buffer
         memcpy(reinterpret_cast<void *>(func), charArray, arraySize);
@@ -86,6 +87,7 @@ public:
                                 reinterpret_cast<char *>(func) + arraySize);
         func();
         munmap(reinterpret_cast<void *>(func), arraySize);
+        free(charArray); 
     }
 };
 int main()
