@@ -1,7 +1,9 @@
 Run command:
+
 aarch64-linux-gnu-g++ parser.cpp -o parser && qemu-aarch64 -L /usr/aarch64-linux-gnu ./parser
 
 Example output:
+
 Full Binary: 0061736d010000000104016000000302010007070103666f6f00000a050103000f0b
 Initial checking..
 Magic number: Matched
