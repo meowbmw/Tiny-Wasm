@@ -7,6 +7,8 @@ set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
 # 设置生成目标架构
 set(CMAKE_SYSTEM_PROCESSOR aarch64)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+
 set(CMAKE_CXX_CLANG_TIDY clang-tidy --config-file ${CMAKE_CURRENT_LIST_DIR}/.clang-tidy)
 
 project(ARM64)
