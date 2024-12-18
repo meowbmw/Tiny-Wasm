@@ -1,6 +1,5 @@
 Checks:
 '-*,
-
 bugprone-lambda-function-name,
 bugprone-macro-parentheses,
 bugprone-macro-repeated-side-effects,
@@ -115,7 +114,6 @@ cppcoreguidelines-slicing,
 cppcoreguidelines-pro-type-vararg,
 cppcoreguidelines-special-member-functions,
 cppcoreguidelines-avoid-goto,
-cppcoreguidelines-pro-type-reinterpret-cast,
 
 google-default-arguments,
 google-explicit-constructor,

@@ -50,7 +50,7 @@ public:
   }
   static void excuteInst(string s) {
     const size_t arraySize = s.length() / 2;
-    unsigned char *charArray = static_cast<unsigned char *>(malloc(arraySize));
+    unsigned char *const charArray = static_cast<unsigned char *>(malloc(arraySize));
     for (size_t i = 0; i < arraySize; i++) {
       const string byteStr =
           s.substr(arraySize * 2 - i * 2 - 2, 2); // little endian on arm so we need to do this reversely!! no need to do this on x86
