@@ -1,0 +1,32 @@
+name: C/C++ CI
+ 
+on:
+  pull_request:
+    branches: [ "name" ]
+  push:
+    branches: [ "name" ]
+  workflow_dispatch:
+ 
+jobs:
+  test-on-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: install build essentials
+        run:
+          sudo apt update &&
+          sudo apt install gcc g++ libgtest-dev cmake make build-essential sed gcc-aarch64-linux-gnu g++-aarch64-linux-gnu  
+      
+      -
+        name: install qemu
+        run:
+          sudo apt install qemu-user
+        
+      -
+        uses: actions/checkout@v3
+      -
+        name: cmake make and run
+        run: |
+          cmake -S . -B build && cmake --build build 
+ 
+ 
