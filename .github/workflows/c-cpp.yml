@@ -27,6 +27,7 @@ jobs:
       -
         name: cmake make and run
         run: |
-          cmake -S . -B build && cmake --build build 
+          cmake -S . -B build && cmake --build build && qemu-aarch64 -L /usr/aarch64-linux-gnu ./parser
+
  
  
