@@ -5,13 +5,20 @@
 #include <stdexcept>
 #include <type_traits>
 #include <typeinfo>
-#include "../vector_print.h"
-
+#include <string>
+#include <cstring>
+#include <fstream>
+#include <iomanip>
+#include <iterator>
+#include <sstream>
+#include <sys/mman.h>
+#include <cstdint>
 using namespace std;
+
 class VariantArray {
 public:
     // 定义一个可以存储 int, double 和 std::string 的 variant
-    using VarType = std::variant<int, double, std::string>;
+    using VarType = std::variant<int32_t, int64_t, float, double>;
 
     // 函数模板，用于将不同类型的变量 push 到数组中
     template <typename T>
@@ -55,37 +62,49 @@ private:
     // 定义一个 vector 来存储 VarType
     std::vector<VarType> varArray;
 };
+// Helper function to convert a single hex character to its integer value
+int hexCharToInt(char ch) {
+  if (ch >= '0' && ch <= '9')
+    return ch - '0';
+  if (ch >= 'a' && ch <= 'f')
+    return ch - 'a' + 10;
+  if (ch >= 'A' && ch <= 'F')
+    return ch - 'A' + 10;
+  throw std::invalid_argument("Invalid hex character");
+}
 
-int main() {
-  vector<int> v={1, 2, 3, 4};
-  cout << v;
-  // VariantArray va;
-  // va.push(42);            // push int
-  // va.push(3.14);          // push double
-  // va.push("Hello World"); // push std::string
+// Function to convert hex string to ASCII string
+string hexToAscii(const std::string &hex) {
+  if (hex.length() % 2 != 0) {
+    throw invalid_argument("Hex string length must be even");
+  }
 
-  // std::cout << "Contents of the array:" << std::endl;
-  // va.print();
+  string ascii;
+  ascii.reserve(hex.length() / 2);
 
-  // std::cout << "Accessing elements by index:" << std::endl;
-  // try {
-  //     std::cout << "Element at index 0: " << va.get<int>(0) << std::endl;
-  //     std::cout << "Element at index 1: " << va.get<double>(1) << std::endl;
-  //     std::cout << "Element at index 2: " << va.get<std::string>(2) << std::endl;
-  // } catch (const std::bad_variant_access& e) {
-  //     std::cerr << "Bad variant access: " << e.what() << std::endl;
-  // } catch (const std::out_of_range& e) {
-  //     std::cerr << "Index out of range: " << e.what() << std::endl;
-  // }
+  for (size_t i = 0; i < hex.length(); i += 2) {
+    char high = hexCharToInt(hex[i]);
+    char low = hexCharToInt(hex[i + 1]);
+    ascii.push_back((high << 4) | low);
+  }
 
-  // std::cout << "Instantiating variables by index:" << std::endl;
-  // try {
-  //     va.instantiateVariable(0); // 实例化索引 0 处的变量
-  //     va.instantiateVariable(1); // 实例化索引 1 处的变量
-  //     va.instantiateVariable(2); // 实例化索引 2 处的变量
-  // } catch (const std::out_of_range& e) {
-  //     std::cerr << "Index out of range: " << e.what() << std::endl;
-  // }
+  return ascii;
+}
 
-  // return 0;
+string readBinary(string wasm_source) {
+  ifstream file(wasm_source, ios::binary);
+  stringstream ss;
+  char byte;
+  while (file.get(byte)) {
+    ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(static_cast<unsigned char>(byte));
+  }
+  file.close();
+  return ss.str();
+}
+
+void printHexArray(unsigned char *charArray, int arraySize) {
+    for (size_t i = 0; i < arraySize; i++) {
+      std::cout << std::hex << setw(2) << setfill('0') << static_cast<unsigned int>(charArray[i]) << " ";
+    }
+    cout << endl;
 }
