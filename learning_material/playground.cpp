@@ -5,7 +5,10 @@
 #include <stdexcept>
 #include <type_traits>
 #include <typeinfo>
-#include "../vector_print.h"
+#include <sstream>
+#include <iomanip>
+#include <cstdint>
+#include <cstring>
 
 using namespace std;
 class VariantArray {
@@ -56,9 +59,47 @@ private:
     std::vector<VarType> varArray;
 };
 
+double hexToDouble(const std::string& hexStr) {
+    uint64_t intVal;
+    std::stringstream ss;
+    ss << std::hex << hexStr;
+    ss >> intVal;
+    double doubleVal;
+    std::memcpy(&doubleVal, &intVal, sizeof(doubleVal));
+    return doubleVal;
+}
+
+
+float hexToFloat(const std::string& hexStr) {
+    uint32_t intVal;
+    std::stringstream ss;
+    ss << std::hex << hexStr;
+    ss >> intVal;
+    float floatVal;
+    std::memcpy(&floatVal, &intVal, sizeof(floatVal));
+    return floatVal;
+}
+
+string floatToHex(float floatVal) {
+    uint32_t intVal;
+    std::memcpy(&intVal, &floatVal, sizeof(floatVal));
+
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0') << std::setw(8) << intVal;
+    return ss.str();
+}
+
+string doubleToHex(double doubleVal) {
+    uint64_t intVal;
+    std::memcpy(&intVal, &doubleVal, sizeof(doubleVal));
+
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0') << std::setw(16) << intVal;
+    return ss.str();
+}
+
 int main() {
-  vector<int> v={1, 2, 3, 4};
-  cout << v;
+  cout << hexToDouble(string("3FF0000000000000")) << endl;
   // VariantArray va;
   // va.push(42);            // push int
   // va.push(3.14);          // push double

@@ -1,0 +1,7 @@
+cheatsheet
+
+mov r0, r1   r0<-r1
+ldr r0, [r1] r0<-[r1]
+str r0, [r1] r0->[r1]
+str r0, [r1], 8 r0->[r1], r1+8->r1
+str r0, [r1, 8] r0->[r1+8]

@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -15,12 +16,13 @@
 #include <vector>
 
 #include "container_print.h"
+#include "utils.h"
 using namespace std;
 class Instructions {
 public:
   void processOpcodes() {
     int offset = 0;
-    int total_process_var_count = 0;
+    u_int64_t total_process_var_count = 0;
     for (int i = 0; i < local_var_declare_count; ++i) {
       const unsigned int var_count_in_this_declare = stoul(instr_vec[offset], nullptr, 16);
       const string var_type_in_this_declare = instr_vec[offset + 1];
@@ -46,19 +48,58 @@ public:
       }
       offset += 2;
     }
-    cout << local_int32 << local_int64 << local_f32 << local_f64;
+    cout << "local_int32: " << local_int32 << "local_int64: " << local_int64 << "local_f32: " << local_f32 << "local_f64: " << local_f64;
     cout << local_var_indexer << local_var_type_getter;
-    for (int i = offset; i < instr_vec.size();++i){
-      cout << instr_vec[i] << " ";
-    }
-    // while (i < instr_vec.size()) {
-    //   if (instr_vec[i] == "0f") { // ret
-    //     emitRet();
-    //   } else if (instr_vec[i] == "0b") { // end
-    //     emitRet();
-    //   }
-    //   ++i;
+    return; // todo: not finished hereafter
+    // for (int i = offset; i < instr_vec.size(); ++i) {
+    //   cout << instr_vec[i] << " ";
     // }
+    int i = offset;
+    while (i < instr_vec.size()) {
+      if (instr_vec[i] == "0f") { // ret
+        emitRet();
+        ++i;
+      } else if (instr_vec[i] == "0b") { // end
+        emitRet();
+        ++i;
+      } else if (instr_vec[i] == "20") { // local.get
+        const u_int64_t local_var_to_get = stoul(instr_vec[i + 1], nullptr, 16);
+        int index_in_vector = local_var_indexer[local_var_to_get];
+        string type_of_vector = local_var_type_getter[local_var_to_get];
+        if (type_of_vector == "i32") {
+          stack_int32.push_back(local_int32[index_in_vector]);
+        } else if (type_of_vector == "i64") {
+          stack_int64.push_back(local_int64[index_in_vector]);
+        } else if (type_of_vector == "f32") {
+          stack_f32.push_back(local_f32[index_in_vector]);
+        } else if (type_of_vector == "f64") {
+          stack_f64.push_back(local_f64[index_in_vector]);
+        }
+        stack_status.push_back(type_of_vector);
+        i += 2;
+      } else if (instr_vec[i] == "21") { // local.set
+        const u_int64_t local_var_to_set = stoul(instr_vec[i + 1], nullptr, 16);
+
+        i += 2;
+      } else if (instr_vec[i] == "22") { // local.tee
+        i += 2;
+      } else if (instr_vec[i] == "41") { // i32.const
+        stack_int32.push_back(stoul(instr_vec[i + 1], nullptr, 16));
+        stack_status.push_back("i32");
+        i += 2;
+      } else if (instr_vec[i] == "42") { // i64.const
+        stack_int64.push_back(stoul(instr_vec[i + 1], nullptr, 16));
+        stack_status.push_back("i64");
+        i += 2;
+      } else if (instr_vec[i] == "43") { // f32.const
+        stack_f32.push_back(hexToFloat(instr_vec[i + 1] + instr_vec[i + 2] + instr_vec[i + 3] + instr_vec[i + 4]));
+        i += 5;
+      } else if (instr_vec[i] == "44") { // f64.const
+        stack_f64.push_back(hexToDouble(instr_vec[i + 1] + instr_vec[i + 2] + instr_vec[i + 3] + instr_vec[i + 4] + instr_vec[i + 5] +
+                                        instr_vec[i + 6] + instr_vec[i + 7]));
+        i += 9;
+      }
+    }
   }
   void emitRet() {
     // cout << "Emitting Return" << endl;
@@ -116,8 +157,13 @@ private:
   vector<int64_t> local_int64;
   vector<float> local_f32;
   vector<double> local_f64;
-  map<int, int> local_var_indexer;
-  map<int, string> local_var_type_getter;
+  vector<int32_t> stack_int32;
+  vector<int64_t> stack_int64;
+  vector<float> stack_f32;
+  vector<double> stack_f64;
+  vector<string> stack_status;
+  map<u_int64_t, int> local_var_indexer;
+  map<u_int64_t, string> local_var_type_getter;
   /**
    * we have 4 vectors
    * vector<int>, vector<double> ..
@@ -128,5 +174,4 @@ private:
    * like, index in locals 04, corresponding vector index 01
    * store this in an unordered_map
    */
-  unordered_map<std::string, std::string> number_type_table = {{"7F", "int"}, {"7E", "long"}, {"7D", "float"}, {"7C", "double"}};
 };

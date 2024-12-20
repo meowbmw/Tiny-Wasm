@@ -1,6 +1,5 @@
-#include "utils.h"
-#include "json.hpp"
-#include "Instuctions.hpp"
+#include "include/json.hpp"
+#include "include/Instuctions.hpp"
 
 using namespace std;
 using json = nlohmann::json;

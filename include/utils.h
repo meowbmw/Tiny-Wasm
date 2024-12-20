@@ -91,6 +91,45 @@ string hexToAscii(const std::string &hex) {
   return ascii;
 }
 
+double hexToDouble(const std::string& hexStr) {
+    uint64_t intVal;
+    std::stringstream ss;
+    ss << std::hex << hexStr;
+    ss >> intVal;
+    double doubleVal;
+    std::memcpy(&doubleVal, &intVal, sizeof(doubleVal));
+    return doubleVal;
+}
+
+
+float hexToFloat(const std::string& hexStr) {
+    uint32_t intVal;
+    std::stringstream ss;
+    ss << std::hex << hexStr;
+    ss >> intVal;
+    float floatVal;
+    std::memcpy(&floatVal, &intVal, sizeof(floatVal));
+    return floatVal;
+}
+
+string floatToHex(float floatVal) {
+    uint32_t intVal;
+    std::memcpy(&intVal, &floatVal, sizeof(floatVal));
+
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0') << std::setw(8) << intVal;
+    return ss.str();
+}
+
+string doubleToHex(double doubleVal) {
+    uint64_t intVal;
+    std::memcpy(&intVal, &doubleVal, sizeof(doubleVal));
+
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0') << std::setw(16) << intVal;
+    return ss.str();
+}
+
 string readBinary(string wasm_source) {
   ifstream file(wasm_source, ios::binary);
   stringstream ss;

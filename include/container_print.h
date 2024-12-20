@@ -26,7 +26,7 @@ std::ostream& operator<<(std::ostream& os, const std::map<K, V>& m) {
             os << ", ";
         }
     }
-    os << "}" << endl;
+    os << "}" << std::endl;
     return os;
 }
 
@@ -41,6 +41,6 @@ std::ostream& operator<<(std::ostream& os, const std::unordered_map<K, V>& um) {
             os << ", ";
         }
     }
-    os << "}" << endl;
+    os << "}" << std::endl;
     return os;
 }
