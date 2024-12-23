@@ -18,42 +18,32 @@
 #include "container_print.h"
 #include "utils.h"
 using namespace std;
+using wasm_type = std::variant<int32_t, int64_t, float, double>;
 class Instructions {
 public:
   void processOpcodes() {
     int offset = 0;
-    u_int64_t total_process_var_count = 0;
     for (int i = 0; i < local_var_declare_count; ++i) {
       const unsigned int var_count_in_this_declare = stoul(instr_vec[offset], nullptr, 16);
       const string var_type_in_this_declare = instr_vec[offset + 1];
       for (int j = 0; j < var_count_in_this_declare; ++j) {
         if (var_type_in_this_declare == "7f") {
-          local_int32.push_back(0);
-          local_var_indexer[total_process_var_count] = local_int32.size() - 1;
-          local_var_type_getter[total_process_var_count] = "i32";
+          local_data.push_back(static_cast<int32_t>(0));
         } else if (var_type_in_this_declare == "7e") {
-          local_int64.push_back(0);
-          local_var_indexer[total_process_var_count] = local_int64.size() - 1;
-          local_var_type_getter[total_process_var_count] = "i64";
+          local_data.push_back(static_cast<int64_t>(0));
         } else if (var_type_in_this_declare == "7d") {
-          local_f32.push_back(0);
-          local_var_indexer[total_process_var_count] = local_f32.size() - 1;
-          local_var_type_getter[total_process_var_count] = "f32";
+          local_data.push_back(static_cast<float>(0));
         } else if (var_type_in_this_declare == "7c") {
-          local_f64.push_back(0);
-          local_var_indexer[total_process_var_count] = local_f64.size() - 1;
-          local_var_type_getter[total_process_var_count] = "f64";
+          local_data.push_back(static_cast<double>(0));
         }
-        total_process_var_count += 1;
       }
       offset += 2;
     }
-    cout << "local_int32: " << local_int32 << "local_int64: " << local_int64 << "local_f32: " << local_f32 << "local_f64: " << local_f64;
-    cout << local_var_indexer << local_var_type_getter;
-    return; // todo: not finished hereafter
-    // for (int i = offset; i < instr_vec.size(); ++i) {
-    //   cout << instr_vec[i] << " ";
-    // }
+    cout << "Executing instructions: ";
+    for (int i = offset; i < instr_vec.size(); ++i) {
+      cout << instr_vec[i] << " ";
+    }
+    cout << endl;
     int i = offset;
     while (i < instr_vec.size()) {
       if (instr_vec[i] == "0f") { // ret
@@ -64,42 +54,50 @@ public:
         ++i;
       } else if (instr_vec[i] == "20") { // local.get
         const u_int64_t local_var_to_get = stoul(instr_vec[i + 1], nullptr, 16);
-        int index_in_vector = local_var_indexer[local_var_to_get];
-        string type_of_vector = local_var_type_getter[local_var_to_get];
-        if (type_of_vector == "i32") {
-          stack_int32.push_back(local_int32[index_in_vector]);
-        } else if (type_of_vector == "i64") {
-          stack_int64.push_back(local_int64[index_in_vector]);
-        } else if (type_of_vector == "f32") {
-          stack_f32.push_back(local_f32[index_in_vector]);
-        } else if (type_of_vector == "f64") {
-          stack_f64.push_back(local_f64[index_in_vector]);
+        if (local_var_to_get >= local_data.size()) {
+          cout << "Too big index {" + to_string(local_var_to_get)  + "} for local data; skipping current op;" << endl;
+          i += 2;
+          continue;
         }
-        stack_status.push_back(type_of_vector);
+        stack.push_back(local_data[local_var_to_get]);
         i += 2;
       } else if (instr_vec[i] == "21") { // local.set
         const u_int64_t local_var_to_set = stoul(instr_vec[i + 1], nullptr, 16);
-
+        if (local_var_to_set >= local_data.size()) {
+          cout << "Too big index {" + to_string(local_var_to_set) + "} for local data; skipping current op;" << endl;
+          i += 2;
+          continue;
+        }
+        local_data[local_var_to_set] = stack.back();
+        stack.pop_back();
         i += 2;
       } else if (instr_vec[i] == "22") { // local.tee
+        const u_int64_t local_var_to_set = stoul(instr_vec[i + 1], nullptr, 16);
+        if (local_var_to_set >= local_data.size()) {
+          cout << "Too big index {" + to_string(local_var_to_set) + "} for local data; skipping current op;" << endl;
+          i += 2;
+          continue;
+        }
+        local_data[local_var_to_set] = stack.back();
+        // not pop back here since it's tee
         i += 2;
       } else if (instr_vec[i] == "41") { // i32.const
-        stack_int32.push_back(stoul(instr_vec[i + 1], nullptr, 16));
-        stack_status.push_back("i32");
+        stack.push_back(static_cast<int32_t>(stoul(instr_vec[i + 1], nullptr, 16)));
         i += 2;
       } else if (instr_vec[i] == "42") { // i64.const
-        stack_int64.push_back(stoul(instr_vec[i + 1], nullptr, 16));
-        stack_status.push_back("i64");
+        stack.push_back(static_cast<int64_t>(stoul(instr_vec[i + 1], nullptr, 16)));
         i += 2;
       } else if (instr_vec[i] == "43") { // f32.const
-        stack_f32.push_back(hexToFloat(instr_vec[i + 1] + instr_vec[i + 2] + instr_vec[i + 3] + instr_vec[i + 4]));
+        stack.push_back(hexToFloat(instr_vec[i + 1] + instr_vec[i + 2] + instr_vec[i + 3] + instr_vec[i + 4]));
         i += 5;
       } else if (instr_vec[i] == "44") { // f64.const
-        stack_f64.push_back(hexToDouble(instr_vec[i + 1] + instr_vec[i + 2] + instr_vec[i + 3] + instr_vec[i + 4] + instr_vec[i + 5] +
-                                        instr_vec[i + 6] + instr_vec[i + 7]));
+        stack.push_back(hexToDouble(instr_vec[i + 1] + instr_vec[i + 2] + instr_vec[i + 3] + instr_vec[i + 4] + instr_vec[i + 5] + instr_vec[i + 6] +
+                                    instr_vec[i + 7]));
         i += 9;
       }
     }
+    print_local_data();
+    print_stack();
   }
   void emitRet() {
     // cout << "Emitting Return" << endl;
@@ -137,6 +135,28 @@ public:
     free(charArray);
   }
 
+  void print_local_data() {
+    cout << "--- Printing local data---" << endl;
+    for (auto &elem : local_data) {
+      std::visit(
+          [](auto &&value) {
+            // value 的类型会被自动推断为四种之一
+            std::cout << value << " is type: " << typeid(value).name() << std::endl;
+          },
+          elem);
+    }
+  }
+  void print_stack() {
+    cout << "--- Printing stack---" << endl;
+    for (auto &elem : stack) {
+      std::visit(
+          [](auto &&value) {
+            // value 的类型会被自动推断为四种之一
+            std::cout << value << " is type: " << typeid(value).name() << std::endl;
+          },
+          elem);
+    }
+  }
   Instructions(vector<string> &v, size_t l = 0) {
     instr_vec = v;
     local_var_declare_count = l;
@@ -153,17 +173,8 @@ private:
   u_int64_t local_var_declare_count = 0;
   vector<void (*)()> functions;
   vector<int> functions_size;
-  vector<int32_t> local_int32;
-  vector<int64_t> local_int64;
-  vector<float> local_f32;
-  vector<double> local_f64;
-  vector<int32_t> stack_int32;
-  vector<int64_t> stack_int64;
-  vector<float> stack_f32;
-  vector<double> stack_f64;
-  vector<string> stack_status;
-  map<u_int64_t, int> local_var_indexer;
-  map<u_int64_t, string> local_var_type_getter;
+  vector<wasm_type> local_data;
+  vector<wasm_type> stack;
   /**
    * we have 4 vectors
    * vector<int>, vector<double> ..
