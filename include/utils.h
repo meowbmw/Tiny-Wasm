@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <variant>
 #include <vector>
@@ -7,61 +8,30 @@
 #include <typeinfo>
 #include <string>
 #include <cstring>
+#include <map>
+#include <memory>
 #include <fstream>
 #include <iomanip>
 #include <iterator>
 #include <sstream>
 #include <sys/mman.h>
 #include <cstdint>
+#include <variant>
 using namespace std;
-
-class VariantArray {
-public:
-    // 定义一个可以存储 int, double 和 std::string 的 variant
-    using VarType = std::variant<int32_t, int64_t, float, double>;
-
-    // 函数模板，用于将不同类型的变量 push 到数组中
-    template <typename T>
-    void push(T value) {
-        varArray.push_back(value);
+using wasm_type = std::variant<int32_t, int64_t, float, double>;
+enum class TypeCategory { PARAM, RESULT, LOCAL };
+string type_category_to_string(TypeCategory category) {
+    switch (category) {
+    case TypeCategory::PARAM:
+      return "PARAM";
+    case TypeCategory::RESULT:
+      return "RESULT";
+    case TypeCategory::LOCAL:
+      return "LOCAL";
+    default:
+      return "UNKNOWN";
     }
-
-    // 函数模板，用于通过索引访问 VarType 中存储的值
-    template <typename T>
-    T get(size_t index) const {
-        if (index >= varArray.size()) {
-            throw std::out_of_range("Index out of range");
-        }
-        return std::get<T>(varArray[index]);
-    }
-
-    // 函数模板，用于通过索引访问 VarType 中存储的值并实例化一个对应的变量
-    void instantiateVariable(size_t index) const {
-        if (index >= varArray.size()) {
-            throw std::out_of_range("Index out of range");
-        }
-
-        // 使用 std::visit 访问 variant 中的值并实例化一个对应的变量
-        std::visit([](auto&& value) {
-            using T = std::decay_t<decltype(value)>;
-            T variable = value; // 实例化一个对应类型的变量
-            std::cout << "Instantiated variable of type " << typeid(T).name() << " with value: " << variable << std::endl;
-        }, varArray[index]);
-    }
-
-    // 函数用于打印 VarType 中存储的值
-    void print() const {
-        for (const auto& var : varArray) {
-            std::visit([](const auto& value) {
-                std::cout << value << std::endl;
-            }, var);
-        }
-    }
-
-private:
-    // 定义一个 vector 来存储 VarType
-    std::vector<VarType> varArray;
-};
+  }
 // Helper function to convert a single hex character to its integer value
 int hexCharToInt(char ch) {
   if (ch >= '0' && ch <= '9')
