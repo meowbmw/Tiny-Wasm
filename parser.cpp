@@ -52,10 +52,10 @@ public:
     cout << "Total function count: " << function_count << endl;
     uint64_t base_offset = 0;
     for (int i = 0; i < function_count; ++i) {
-      cout << "--- Info for function " << i << " ---" << endl;
+      // cout << "--- Info for function " << i << " ---" << endl;
       auto function_type = stoul(s.substr(base_offset + 2 * i + 2, 2), nullptr, 16);
       funcTypeVec.push_back(function_type);
-      cout << "Type is: " << function_type << endl;
+      // cout << "Type is: " << function_type << endl;
     }
   }
   void parse_export() {
@@ -149,5 +149,8 @@ int main() {
     parser.wasmFunctionVec[i].result_data = parser.wasmTypeVec[parser.funcTypeVec[i]].result_data;
     cout << "---Running function: " << i << "---" << endl;
     parser.wasmFunctionVec[i].processCodeVec();
+    for (auto &func: parser.wasmFunctionVec){
+      func.executeInstr(); // execute machine code here
+    }
   }
 }

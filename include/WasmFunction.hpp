@@ -20,11 +20,14 @@ public:
     }
     cout << endl;
     int i = offset;
+    prepareStack();
     while (i < code_vec.size()) {
       if (code_vec[i] == "0f") { // ret
+        restoreStack();
         emitRet();
         ++i;
       } else if (code_vec[i] == "0b") { // end
+        restoreStack();
         emitRet();
         ++i;
       } else if (code_vec[i] == "20") { // local.get
@@ -89,40 +92,51 @@ public:
     }
     print_data(TypeCategory::LOCAL);
     print_data(TypeCategory::PARAM);
+    // executeInstr();
     // print_stack();
+  }
+  void prepareStack(){
+    const string instr = "ff8304d1"; // sub sp, sp, #288, todo: hardcoded stack size for now, 288 should be large enough
+    construct_instr(instr);
+  }
+  void restoreStack(){
+    const string instr = "ff830491"; //  add sp, sp, 288
+    construct_instr(instr);
   }
   void emitRet() {
     // cout << "Emitting Return" << endl;
     const string instr = "c0035fd6";
-    loadInstr(instr);
+    construct_instr(instr);
     // cout << "Executed" << endl;
   }
-  void loadInstr(string s) {
+  void construct_instr(string sub_instr){
+    instructions = instructions + sub_instr;
+  }
+  void executeInstr() {
     /**
      * Allocate memory with execute permission
      * And load machine code into that
-     * Save address pointer to self.functions
+     * Save address pointer to self.instructions
      */
-    const size_t arraySize = s.length() / 2;
+    const size_t arraySize = instructions.length() / 2;
     auto charArray = make_unique<unsigned char[]>(arraySize); // use smart pointer here so we don't need to free it manually
     for (size_t i = 0; i < arraySize; i++) {
-      const string byteStr = s.substr(i * 2, 2);
+      const string byteStr = instructions.substr(i * 2, 2);
       charArray[i] = static_cast<unsigned char>(stoul(byteStr, nullptr, 16));
     }
-    void (*func)() = nullptr;
+    void (*instruction_set)() = nullptr;
     // allocate executable buffer
-    func = reinterpret_cast<void (*)()>(mmap(nullptr, arraySize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-    if (func == MAP_FAILED) {
+    instruction_set = reinterpret_cast<void (*)()>(mmap(nullptr, arraySize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+    if (instruction_set == MAP_FAILED) {
       perror("mmap");
       return;
     }
     // copy code to buffer
-    memcpy(reinterpret_cast<void *>(func), charArray.get(), arraySize);
+    memcpy(reinterpret_cast<void *>(instruction_set), charArray.get(), arraySize);
     // ensure memcpy isn't optimized away as a dead store.
-    __builtin___clear_cache(reinterpret_cast<char *>(func), reinterpret_cast<char *>(func) + arraySize);
-    // func();
-    functions.push_back(func);
-    functions_size.push_back(arraySize);
+    __builtin___clear_cache(reinterpret_cast<char *>(instruction_set), reinterpret_cast<char *>(instruction_set) + arraySize);
+    instruction_set();
+    munmap(reinterpret_cast<void *>(instruction_set), arraySize);
   }
   void print_data(TypeCategory category) {
     cout << "--- Printing " + type_category_to_string(category) + " data---" << endl;
@@ -190,18 +204,9 @@ public:
     code_vec = v;
     local_var_declare_count = l;
   }
-  WasmFunction() {
-  }
-  ~WasmFunction() {
-    for (int i = 0; i < functions.size(); ++i) {
-      munmap(reinterpret_cast<void *>(functions[i]), functions_size[i]);
-    }
-  }
-
   vector<string> code_vec;
   u_int64_t local_var_declare_count = 0;
-  vector<void (*)()> functions;
-  vector<int> functions_size; // used only for destruction purpose
+  string instructions;
   vector<wasm_type> local_data;
   vector<wasm_type> param_data;
   vector<wasm_type> result_data;
