@@ -112,7 +112,7 @@ public:
     vector<wasm_type> *v = nullptr;
     if (category == TypeCategory::LOCAL) {
       v = &local_data;
-    } 
+    }
     for (auto &elem : *v) {
       std::visit(
           [](auto &&value) {
@@ -147,9 +147,19 @@ public:
       std::cerr << "Adding data failed. Unknown data type: " << type << std::endl;
       return;
     }
-    if (category == TypeCategory::LOCAL) {
+    if (category == TypeCategory::PARAM) {
+      param_data.push_back(data);
+    } else if (category == TypeCategory::RESULT) {
+      result_data.push_back(data);
+    } else if (category == TypeCategory::LOCAL) {
       local_data.push_back(data);
     }
+  }
+  void add_param(const std::string &type) {
+    add_data(TypeCategory::PARAM, type);
+  }
+  void add_result(const std::string &type) {
+    add_data(TypeCategory::RESULT, type);
   }
   void add_local(const std::string &type) {
     add_data(TypeCategory::LOCAL, type);
@@ -172,6 +182,8 @@ private:
   vector<void (*)()> functions;
   vector<int> functions_size; // used only for destruction purpose
   vector<wasm_type> local_data;
+  vector<wasm_type> param_data;
+  vector<wasm_type> result_data;
   vector<wasm_type> stack;
   /**
    * we have 4 vectors
