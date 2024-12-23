@@ -50,7 +50,6 @@ public:
     add_data(TypeCategory::RESULT, type);
   }
 
-private:
   vector<wasm_type> param_data;
   vector<wasm_type> result_data;
   /**

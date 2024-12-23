@@ -176,7 +176,6 @@ public:
     }
   }
 
-private:
   vector<string> code_vec;
   u_int64_t local_var_declare_count = 0;
   vector<void (*)()> functions;
@@ -185,6 +184,7 @@ private:
   vector<wasm_type> param_data;
   vector<wasm_type> result_data;
   vector<wasm_type> stack;
+  int type;
   /**
    * we have 4 vectors
    * vector<int>, vector<double> ..

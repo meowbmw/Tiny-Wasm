@@ -16,7 +16,9 @@ void initial_check(string &s) {
 }
 class Parser {
 public:
-  Parser(const std::string &str, const int &num) : s(str), length(num) {
+  void set(const std::string &str, const int &num) {
+    s = str;
+    length = num;
   }
   void parse_type() {
     // type section
@@ -105,9 +107,8 @@ public:
     }
   }
 
-private:
-  const string &s;                      // should be read-only
-  const unsigned int &length;           // should be read-only
+  string s;                             // should be read-only
+  unsigned int length = 0;              // should be read-only
   vector<WasmFunction> wasmFunctionVec; // used to store function code
   vector<WasmType> wasmTypeVec;         // used to store type definition
   vector<int> funcTypeVec;
@@ -121,12 +122,13 @@ int main() {
   cout << "Parsing wasm file: " << wasm_to_read << endl;
   string s = readBinary(wasm_to_read);
   initial_check(s);
+  Parser parser;
   while (s.size() > 0) {
     const string type = s.substr(0, 2);
     s = s.substr(2);                                                // crop type
     const unsigned int length = stoul(s.substr(0, 2), nullptr, 16); // Warn & TODO: we assume that the length is at max 1 byte!!!
     s = s.substr(2);                                                // crop length
-    Parser parser(s, length);
+    parser.set(s, length);
     if (type == "01") {
       parser.parse_type();
     }
@@ -141,5 +143,10 @@ int main() {
     }
     s = s.substr(length * 2); // move forward, remeber we need to times 2 because we are processing 2 char at a time; 2 char = 2 * 4 bits = 1 byte
     // cout << type << " " << length << endl;
+  }
+  for (int i = 0; i < parser.funcTypeVec.size();++i) {
+    parser.wasmFunctionVec[i].type = parser.funcTypeVec[i];
+    parser.wasmFunctionVec[i].param_data = parser.wasmTypeVec[parser.funcTypeVec[i]].param_data;
+    parser.wasmFunctionVec[i].result_data = parser.wasmTypeVec[parser.funcTypeVec[i]].result_data;
   }
 }
