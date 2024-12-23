@@ -14,7 +14,6 @@ public:
       }
       offset += 2;
     }
-    print_data(TypeCategory::LOCAL);
     cout << "Executing instructions: ";
     for (int i = offset; i < code_vec.size(); ++i) {
       cout << code_vec[i] << " ";
@@ -29,34 +28,50 @@ public:
         emitRet();
         ++i;
       } else if (code_vec[i] == "20") { // local.get
-        const u_int64_t local_var_to_get = stoul(code_vec[i + 1], nullptr, 16);
-        if (local_var_to_get >= local_data.size()) {
-          cout << "Too big index {" + to_string(local_var_to_get) + "} for local data; skipping current op;" << endl;
+        const u_int64_t var_to_get = stoul(code_vec[i + 1], nullptr, 16);
+        if (var_to_get < param_data.size() + local_data.size()) {
+          if (var_to_get < param_data.size()) {
+            // falls within boundry of param variable
+            stack.push_back(param_data[var_to_get]);
+          } else {
+            // must be local variable then.
+            stack.push_back(local_data[var_to_get - param_data.size()]);
+          }
+          i += 2;
+        } else {
+          cout << "Too big index {" + to_string(var_to_get) + "} for local data; skipping current op;" << endl;
           i += 2;
           continue;
         }
-        stack.push_back(local_data[local_var_to_get]);
-        i += 2;
       } else if (code_vec[i] == "21") { // local.set
-        const u_int64_t local_var_to_set = stoul(code_vec[i + 1], nullptr, 16);
-        if (local_var_to_set >= local_data.size()) {
-          cout << "Too big index {" + to_string(local_var_to_set) + "} for local data; skipping current op;" << endl;
+        const u_int64_t var_to_set = stoul(code_vec[i + 1], nullptr, 16);
+        if (var_to_set < param_data.size() + local_data.size()) {
+          if (var_to_set < param_data.size()) {
+            param_data[var_to_set] = stack.back();
+          } else {
+            local_data[var_to_set - param_data.size()] = stack.back();
+          }
+          stack.pop_back();
+          i += 2;
+        } else {
+          cout << "Too big index {" + to_string(var_to_set) + "} for local data; skipping current op;" << endl;
           i += 2;
           continue;
         }
-        local_data[local_var_to_set] = stack.back();
-        stack.pop_back();
-        i += 2;
       } else if (code_vec[i] == "22") { // local.tee
-        const u_int64_t local_var_to_set = stoul(code_vec[i + 1], nullptr, 16);
-        if (local_var_to_set >= local_data.size()) {
-          cout << "Too big index {" + to_string(local_var_to_set) + "} for local data; skipping current op;" << endl;
+        const u_int64_t var_to_set = stoul(code_vec[i + 1], nullptr, 16);
+        if (var_to_set < param_data.size() + local_data.size()) {
+          if (var_to_set < param_data.size()) {
+            param_data[var_to_set] = stack.back();
+          } else {
+            local_data[var_to_set - param_data.size()] = stack.back();
+          }
+          i += 2;
+        } else {
+          cout << "Too big index {" + to_string(var_to_set) + "} for local data; skipping current op;" << endl;
           i += 2;
           continue;
         }
-        local_data[local_var_to_set] = stack.back();
-        // not pop back here since it's tee
-        i += 2;
       } else if (code_vec[i] == "41") { // i32.const
         stack.push_back(static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16)));
         i += 2;
@@ -72,6 +87,8 @@ public:
         i += 9;
       }
     }
+    print_data(TypeCategory::LOCAL);
+    print_data(TypeCategory::PARAM);
     // print_stack();
   }
   void emitRet() {
@@ -112,6 +129,11 @@ public:
     vector<wasm_type> *v = nullptr;
     if (category == TypeCategory::LOCAL) {
       v = &local_data;
+    }
+    else if (category == TypeCategory::PARAM) {
+      v = &param_data;
+    } else if (category == TypeCategory::RESULT) {
+      v = &result_data;
     }
     for (auto &elem : *v) {
       std::visit(

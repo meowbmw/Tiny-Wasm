@@ -102,7 +102,6 @@ public:
       cout << endl;
       base_offset = base_offset + 2 * func_size + 2;
       curFunc.set_code_vec(opcodes, local_var_declare_count);
-      curFunc.processCodeVec();
       wasmFunctionVec.push_back(curFunc);
     }
   }
@@ -144,9 +143,11 @@ int main() {
     s = s.substr(length * 2); // move forward, remeber we need to times 2 because we are processing 2 char at a time; 2 char = 2 * 4 bits = 1 byte
     // cout << type << " " << length << endl;
   }
-  for (int i = 0; i < parser.funcTypeVec.size();++i) {
+  for (int i = 0; i < parser.funcTypeVec.size(); ++i) {
     parser.wasmFunctionVec[i].type = parser.funcTypeVec[i];
     parser.wasmFunctionVec[i].param_data = parser.wasmTypeVec[parser.funcTypeVec[i]].param_data;
     parser.wasmFunctionVec[i].result_data = parser.wasmTypeVec[parser.funcTypeVec[i]].result_data;
+    cout << "---Running function: " << i << "---" << endl;
+    parser.wasmFunctionVec[i].processCodeVec();
   }
 }
