@@ -90,10 +90,6 @@ public:
         i += 9;
       }
     }
-    // print_data(TypeCategory::LOCAL);
-    // print_data(TypeCategory::PARAM);
-    // executeInstr();
-    // print_stack();
   }
   void prepareStack(){
     const string instr = "ff8304d1"; // sub sp, sp, #288, todo: hardcoded stack size for now, 288 should be large enough

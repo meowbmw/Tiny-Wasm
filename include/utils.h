@@ -1,37 +1,45 @@
 #pragma once
-#include <iostream>
-#include <variant>
-#include <vector>
-#include <string>
-#include <stdexcept>
-#include <type_traits>
-#include <typeinfo>
-#include <string>
+#include <algorithm>
+#include <cstdint>
 #include <cstring>
-#include <map>
-#include <memory>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
+#include <bitset>
+#include <cassert>
 #include <iterator>
+#include <map>
+#include <memory>
 #include <sstream>
+#include <stdexcept>
+#include <string>
 #include <sys/mman.h>
-#include <cstdint>
+#include <type_traits>
+#include <typeinfo>
 #include <variant>
+#include <vector>
 using namespace std;
 using wasm_type = std::variant<int32_t, int64_t, float, double>;
 enum class TypeCategory { PARAM, RESULT, LOCAL };
 string type_category_to_string(TypeCategory category) {
-    switch (category) {
-    case TypeCategory::PARAM:
-      return "PARAM";
-    case TypeCategory::RESULT:
-      return "RESULT";
-    case TypeCategory::LOCAL:
-      return "LOCAL";
-    default:
-      return "UNKNOWN";
-    }
+  switch (category) {
+  case TypeCategory::PARAM:
+    return "PARAM";
+  case TypeCategory::RESULT:
+    return "RESULT";
+  case TypeCategory::LOCAL:
+    return "LOCAL";
+  default:
+    return "UNKNOWN";
   }
+}
+void erase_space(string &s) {
+  s.erase(remove_if(s.begin(), s.end(),
+                    [](unsigned char x) {
+                      return std::isspace(x);
+                    }),
+          s.end());
+}
 // Helper function to convert a single hex character to its integer value
 int hexCharToInt(char ch) {
   if (ch >= '0' && ch <= '9')
@@ -61,43 +69,138 @@ string hexToAscii(const std::string &hex) {
   return ascii;
 }
 
-double hexToDouble(const std::string& hexStr) {
-    uint64_t intVal;
-    std::stringstream ss;
-    ss << std::hex << hexStr;
-    ss >> intVal;
-    double doubleVal;
-    std::memcpy(&doubleVal, &intVal, sizeof(doubleVal));
-    return doubleVal;
+string HexToBinary(string s) {
+  string result;
+  for (auto &c : s) {
+    switch (c) {
+    case '0':
+      result += "0000";
+      continue;
+    case '1':
+      result += "0001";
+      continue;
+    case '2':
+      result += "0010";
+      continue;
+    case '3':
+      result += "0011";
+      continue;
+    case '4':
+      result += "0100";
+      continue;
+    case '5':
+      result += "0101";
+      continue;
+    case '6':
+      result += "0110";
+      continue;
+    case '7':
+      result += "0111";
+      continue;
+    case '8':
+      result += "1000";
+      continue;
+    case '9':
+      result += "1001";
+      continue;
+    case 'a':
+      result += "1010";
+      continue;
+    case 'b':
+      result += "1011";
+      continue;
+    case 'c':
+      result += "1100";
+      continue;
+    case 'd':
+      result += "1101";
+      continue;
+    case 'e':
+      result += "1110";
+      continue;
+    case 'f':
+      result += "1111";
+      continue;
+    case 'A':
+      result += "1010";
+      continue;
+    case 'B':
+      result += "1011";
+      continue;
+    case 'C':
+      result += "1100";
+      continue;
+    case 'D':
+      result += "1101";
+      continue;
+    case 'E':
+      result += "1110";
+      continue;
+    case 'F':
+      result += "1111";
+      continue;
+    default:
+      return "bad input";
+    }
+  }
+  return result;
 }
 
+string processHexCode(string &s) {
+  erase_space(s);
+  const size_t arraySize = s.length() / 2;
+  string result;
+  for (size_t i = 0; i < arraySize; i++) {
+      // result += HexToBinary(s.substr(i * 2, 2));
+      // 转换回去的时候注意要逆序读
+      result += HexToBinary(s.substr(arraySize * 2 - i * 2 - 2, 2));
+  }
+  return result;
+}
 
-float hexToFloat(const std::string& hexStr) {
-    uint32_t intVal;
-    std::stringstream ss;
-    ss << std::hex << hexStr;
-    ss >> intVal;
-    float floatVal;
-    std::memcpy(&floatVal, &intVal, sizeof(floatVal));
-    return floatVal;
+// Helper function to extract bits from a binary string
+unsigned int GetBits(const std::string& bits, int start, int end) {
+    assert(start >= 0 && end < bits.size() && start <= end);
+    std::string bitRange = bits.substr(bits.size() - end - 1, end - start + 1);
+    return std::bitset<32>(bitRange).to_ulong();
+}
+
+double hexToDouble(const std::string &hexStr) {
+  uint64_t intVal;
+  std::stringstream ss;
+  ss << std::hex << hexStr;
+  ss >> intVal;
+  double doubleVal;
+  std::memcpy(&doubleVal, &intVal, sizeof(doubleVal));
+  return doubleVal;
+}
+
+float hexToFloat(const std::string &hexStr) {
+  uint32_t intVal;
+  std::stringstream ss;
+  ss << std::hex << hexStr;
+  ss >> intVal;
+  float floatVal;
+  std::memcpy(&floatVal, &intVal, sizeof(floatVal));
+  return floatVal;
 }
 
 string floatToHex(float floatVal) {
-    uint32_t intVal;
-    std::memcpy(&intVal, &floatVal, sizeof(floatVal));
+  uint32_t intVal;
+  std::memcpy(&intVal, &floatVal, sizeof(floatVal));
 
-    std::stringstream ss;
-    ss << std::hex << std::setfill('0') << std::setw(8) << intVal;
-    return ss.str();
+  std::stringstream ss;
+  ss << std::hex << std::setfill('0') << std::setw(8) << intVal;
+  return ss.str();
 }
 
 string doubleToHex(double doubleVal) {
-    uint64_t intVal;
-    std::memcpy(&intVal, &doubleVal, sizeof(doubleVal));
+  uint64_t intVal;
+  std::memcpy(&intVal, &doubleVal, sizeof(doubleVal));
 
-    std::stringstream ss;
-    ss << std::hex << std::setfill('0') << std::setw(16) << intVal;
-    return ss.str();
+  std::stringstream ss;
+  ss << std::hex << std::setfill('0') << std::setw(16) << intVal;
+  return ss.str();
 }
 
 string readBinary(string wasm_source) {
@@ -112,8 +215,8 @@ string readBinary(string wasm_source) {
 }
 
 void printHexArray(unsigned char *charArray, int arraySize) {
-    for (size_t i = 0; i < arraySize; i++) {
-      std::cout << std::hex << setw(2) << setfill('0') << static_cast<unsigned int>(charArray[i]) << " ";
-    }
-    cout << endl;
+  for (size_t i = 0; i < arraySize; i++) {
+    std::cout << std::hex << setw(2) << setfill('0') << static_cast<unsigned int>(charArray[i]) << " ";
+  }
+  cout << endl;
 }

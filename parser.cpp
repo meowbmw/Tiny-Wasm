@@ -124,7 +124,21 @@ public:
       wasmFunctionVec.push_back(curFunc);
     }
   }
-
+  void funcBatchInit(){
+    // give function their respective param, result and local vec.
+    // generate respective machine code
+    for (int i = 0; i < funcTypeVec.size(); ++i) {
+    wasmFunctionVec[i].type = funcTypeVec[i];
+    wasmFunctionVec[i].param_data = wasmTypeVec[funcTypeVec[i]].param_data;
+    wasmFunctionVec[i].result_data = wasmTypeVec[funcTypeVec[i]].result_data;
+    cout << "---Processing function " << i << ": " << funcIndexNameMapper[i] << "---" << endl;
+    wasmFunctionVec[i].processCodeVec(); // this function will deal with local varaible initialization and machine code construction
+    cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
+    cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
+         << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
+    cout << "Total result count: " << wasmFunctionVec[i].result_data.size() << endl;
+  }
+  }
   string s;                             // should be read-only
   unsigned int length = 0;              // should be read-only
   vector<WasmFunction> wasmFunctionVec; // used to store function code
@@ -160,17 +174,7 @@ int main() {
     s = s.substr(length * 2); // move forward, remeber we need to times 2 because we are processing 2 char at a time; 2 char = 2 * 4 bits = 1 byte
     // cout << type << " " << length << endl;
   }
-  for (int i = 0; i < parser.funcTypeVec.size(); ++i) {
-    parser.wasmFunctionVec[i].type = parser.funcTypeVec[i];
-    parser.wasmFunctionVec[i].param_data = parser.wasmTypeVec[parser.funcTypeVec[i]].param_data;
-    parser.wasmFunctionVec[i].result_data = parser.wasmTypeVec[parser.funcTypeVec[i]].result_data;
-    cout << "---Processing function " << i << ": " << parser.funcIndexNameMapper[i] << "---" << endl;
-    parser.wasmFunctionVec[i].processCodeVec(); // this function will deal with local varaible initialization and machine code construction
-    cout << "Total param count: " << parser.wasmFunctionVec[i].param_data.size() << endl;
-    cout << "Total local count: " << parser.wasmFunctionVec[i].local_data.size()
-         << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
-    cout << "Total result count: " << parser.wasmFunctionVec[i].result_data.size() << endl;
-  }
+  parser.funcBatchInit();
   cout << "---Executing Functions---" << endl;
   for (int i = 0; i < parser.wasmFunctionVec.size(); ++i) {
     cout << "Executing function " << i << ": " << parser.funcIndexNameMapper[i] << endl;
