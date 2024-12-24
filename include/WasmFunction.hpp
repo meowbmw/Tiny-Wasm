@@ -14,7 +14,7 @@ public:
       }
       offset += 2;
     }
-    cout << "Executing instructions: ";
+    cout << "Origin WASM Opcode: ";
     for (int i = offset; i < code_vec.size(); ++i) {
       cout << code_vec[i] << " ";
     }
@@ -90,8 +90,8 @@ public:
         i += 9;
       }
     }
-    print_data(TypeCategory::LOCAL);
-    print_data(TypeCategory::PARAM);
+    // print_data(TypeCategory::LOCAL);
+    // print_data(TypeCategory::PARAM);
     // executeInstr();
     // print_stack();
   }
@@ -118,6 +118,7 @@ public:
      * And load machine code into that
      * Save address pointer to self.instructions
      */
+    cout << "Machine instruction to load: " << instructions << endl;
     const size_t arraySize = instructions.length() / 2;
     auto charArray = make_unique<unsigned char[]>(arraySize); // use smart pointer here so we don't need to free it manually
     for (size_t i = 0; i < arraySize; i++) {

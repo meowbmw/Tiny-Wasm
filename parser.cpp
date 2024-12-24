@@ -4,7 +4,13 @@
 
 using namespace std;
 using json = nlohmann::json;
-
+// aarch64-linux-gnu-g++ -c arm64.s && aarch64-linux-gnu-objdump -d arm64.o
+// aarch64-linux-gnu-g++ parser.cpp -o parser && qemu-aarch64 -L /usr/aarch64-linux-gnu ./parser
+// qemu-aarch64 -g 1234 -L /usr/aarch64-linux-gnu ./parser
+bool debug_export_section = false;
+bool debug_function_section = false;
+bool debug_type_section = false;
+bool debug_code_section = false;
 void initial_check(string &s) {
   // check magic number and version
   cout << "Full Binary: " << s << endl;
@@ -27,20 +33,26 @@ public:
     cout << "Total type count: " << type_count << endl;
     uint64_t base_offset = 2; // Warn: skip one byte: 60 (function type identifier) as it is fixed
     for (int i = 0; i < type_count; ++i) {
-      cout << "--- Info for type " << i << " ---" << endl;
+      if (debug_type_section) {
+        cout << "--- Info for type " << i << " ---" << endl;
+      }
       WasmType curType;
       const uint64_t param_count = stoul(s.substr(base_offset + 2, 2), nullptr, 16);
       base_offset = base_offset + 2;
       for (int j = 0; j < param_count; ++j) {
         curType.add_param(s.substr(base_offset + 2 + 2 * j, 2));
       }
-      curType.print_data(TypeCategory::PARAM);
+      if (debug_type_section) {
+        curType.print_data(TypeCategory::PARAM);
+      }
       base_offset = base_offset + 2 + 2 * param_count;
       const uint64_t result_count = stoul(s.substr(base_offset, 2), nullptr, 16);
       for (int j = 0; j < result_count; ++j) {
         curType.add_result(s.substr(base_offset + 2 + 2 * j, 2));
       }
-      curType.print_data(TypeCategory::RESULT);
+      if (debug_type_section) {
+        curType.print_data(TypeCategory::RESULT);
+      }
       base_offset = base_offset + 2 + 2 * result_count;
       wasmTypeVec.push_back(curType);
     }
@@ -88,18 +100,22 @@ public:
       const u_int64_t local_var_declare_count =
           stoul(s.substr(base_offset + 4, 2), nullptr,
                 16); // Warn!!! One declare could imply multiple variables so this does not really equal to the real variable count!!!
-      cout << "--- Info for function " << i << " ---" << endl;
-      cout << "Func size: " << func_size << endl;
-      cout << "Local variable declare count: " << local_var_declare_count << endl;
+      if (debug_code_section) {
+        cout << "--- Info for function " << i << " ---" << endl;
+        cout << "Func size: " << func_size << endl;
+        cout << "Local variable declare count: " << local_var_declare_count << endl;
+      }
       vector<string> opcodes;
       for (int i = 0; i < func_size - 1; ++i) {
         opcodes.push_back(s.substr(base_offset + 6 + i * 2, 2));
       }
-      cout << "Opcode: ";
-      for (auto &c : opcodes) {
-        cout << c << " ";
+      if (debug_code_section) {
+        cout << "Opcode: ";
+        for (auto &c : opcodes) {
+          cout << c << " ";
+        }
+        cout << endl;
       }
-      cout << endl;
       base_offset = base_offset + 2 * func_size + 2;
       curFunc.set_code_vec(opcodes, local_var_declare_count);
       wasmFunctionVec.push_back(curFunc);
@@ -114,9 +130,6 @@ public:
 };
 
 int main() {
-  // aarch64-linux-gnu-g++ -c arm64.s && aarch64-linux-gnu-objdump -d arm64.o
-  // aarch64-linux-gnu-g++ parser.cpp -o parser && qemu-aarch64 -L /usr/aarch64-linux-gnu ./parser
-  // qemu-aarch64 -g 1234 -L /usr/aarch64-linux-gnu ./parser
   string wasm_to_read = "test/local.2.wasm";
   cout << "Parsing wasm file: " << wasm_to_read << endl;
   string s = readBinary(wasm_to_read);
@@ -147,10 +160,15 @@ int main() {
     parser.wasmFunctionVec[i].type = parser.funcTypeVec[i];
     parser.wasmFunctionVec[i].param_data = parser.wasmTypeVec[parser.funcTypeVec[i]].param_data;
     parser.wasmFunctionVec[i].result_data = parser.wasmTypeVec[parser.funcTypeVec[i]].result_data;
-    cout << "---Running function: " << i << "---" << endl;
-    parser.wasmFunctionVec[i].processCodeVec();
-    for (auto &func: parser.wasmFunctionVec){
-      func.executeInstr(); // execute machine code here
-    }
+    cout << "---Processing function: " << i << "---" << endl;
+    parser.wasmFunctionVec[i].processCodeVec(); // this function will deal with local varaible initialization and machine code construction
+    cout << "Total param count: " << parser.wasmFunctionVec[i].param_data.size() << endl;
+    cout << "Total local count: " << parser.wasmFunctionVec[i].local_data.size() << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
+    cout << "Total result count: " << parser.wasmFunctionVec[i].result_data.size() << endl;
+  }
+  cout << "---Executing Functions---" << endl;
+  for (int i = 0; i < parser.wasmFunctionVec.size(); ++i) {
+    cout << "Executing Function: " << i << endl;
+    parser.wasmFunctionVec[i].executeInstr();
   }
 }
