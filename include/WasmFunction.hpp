@@ -1,3 +1,4 @@
+#include "Opcode.hpp"
 #include "container_print.h"
 #include "utils.h"
 using namespace std;
@@ -20,6 +21,9 @@ public:
     }
     cout << endl;
     int i = offset;
+    print_data(TypeCategory::PARAM);
+    print_data(TypeCategory::LOCAL);
+    getStackPreallocateSize();
     prepareStack();
     while (i < code_vec.size()) {
       if (code_vec[i] == "0f") { // ret
@@ -91,21 +95,77 @@ public:
       }
     }
   }
-  void prepareStack(){
-    const string instr = "ff8304d1"; // sub sp, sp, #288, todo: hardcoded stack size for now, 288 should be large enough
-    construct_instr(instr);
+  void addSize(const wasm_type &elem, int &allocate_size) {
+    std::visit(
+        [&allocate_size](auto &&value) {
+          // value 的类型会被自动推断为四种之一
+          char typeInfo = typeid(value).name()[0];
+          if (typeInfo == 'f') {
+            allocate_size += 4;
+          } else if (typeInfo == 'd') {
+            allocate_size += 8;
+          } else if (typeInfo == 'l') {
+            allocate_size += 4;
+          } else if (typeInfo == 'i') {
+            allocate_size += 4;
+          }
+        },
+        elem);
   }
-  void restoreStack(){
-    const string instr = "ff830491"; //  add sp, sp, 288
-    construct_instr(instr);
+  void getStackPreallocateSize() {
+    /**
+     * calculate how much size should be allocated for stack
+     */
+    int allocate_size = 0;
+    param_stack_start_location = 0;
+    param_stack_end_location = 0;
+    for (const auto &c : param_data) {
+      addSize(typeid(c).name()[0], param_stack_end_location);
+    }
+    local_stack_start_location = param_stack_end_location + 8;
+    local_stack_end_location = local_stack_start_location;
+    for (auto c : local_data) {
+      addSize(typeid(c).name()[0], local_stack_end_location);
+    }
+    // align to neaest 16 byte
+    if (local_stack_end_location % 16 != 0) {
+      allocate_size = 16 * (local_stack_end_location / 16 + 1);
+    }
+    stack_size = allocate_size;
+    cout << "Param start location: " << param_stack_start_location << endl;
+    cout << "Param end location: " << param_stack_end_location << endl;
+    cout << "Local start location: " << local_stack_start_location << endl;
+    cout << "Local end location: " << local_stack_end_location << endl;
+    cout << "Stack allocate size estimated to be: " << stack_size << endl;
+  }
+  void prepareStack() {
+    string instr = toHexString(encodeAddSubImm(true, 31, 31, stack_size, false)).substr(2); // sub sp, sp, stack_size, substr to remove 0x prefix
+    constructFullinstr(instr);
+  }
+  void loadParam() {
+    /**
+     * todo: only support up to 8 params now
+     * warn: not supporting reading param from stack yet!!
+     */
+    int offset = 0;
+    // for (int i = param_data)
+  }
+  void loadLocal() {
+    /**
+     * or better named initLocal?
+     */
+    int offset = 0;
+  }
+  void restoreStack() {
+    const string instr =
+        toHexString(encodeAddSubImm(false, 31, 31, stack_size, false)).substr(2); // add sp, sp, stack_size, substr to remove 0x prefix
+    constructFullinstr(instr);
   }
   void emitRet() {
-    // cout << "Emitting Return" << endl;
-    const string instr = "c0035fd6";
-    construct_instr(instr);
-    // cout << "Executed" << endl;
+    const string instr = "C0035FD6";
+    constructFullinstr(instr);
   }
-  void construct_instr(string sub_instr){
+  void constructFullinstr(string sub_instr) {
     instructions = instructions + sub_instr;
   }
   void executeInstr() {
@@ -137,14 +197,27 @@ public:
   }
   void print_data(TypeCategory category) {
     cout << "--- Printing " + type_category_to_string(category) + " data---" << endl;
+    bool empty_flag = false;
     vector<wasm_type> *v = nullptr;
     if (category == TypeCategory::LOCAL) {
       v = &local_data;
-    }
-    else if (category == TypeCategory::PARAM) {
+      if (local_data.size() == 0) {
+        empty_flag = true;
+      }
+    } else if (category == TypeCategory::PARAM) {
       v = &param_data;
+      if (param_data.size() == 0) {
+        empty_flag = true;
+      }
     } else if (category == TypeCategory::RESULT) {
       v = &result_data;
+      if (result_data.size() == 0) {
+        empty_flag = true;
+      }
+    }
+    if (empty_flag == true) {
+      cout << "Empty! Nothing here" << endl;
+      return;
     }
     for (auto &elem : *v) {
       std::visit(
@@ -208,6 +281,13 @@ public:
   vector<wasm_type> param_data;
   vector<wasm_type> result_data;
   vector<wasm_type> stack;
+  map<pair<TypeCategory, int>, int> var_stack_locater;
+  map<int, pair<TypeCategory, int>> var_stack_getter;
+  int stack_size = 0;
+  int param_stack_start_location = 0;
+  int param_stack_end_location = 0;
+  int local_stack_start_location = 0;
+  int local_stack_end_location = 0;
   int type;
   /**
    * we have 4 vectors

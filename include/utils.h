@@ -1,12 +1,12 @@
 #pragma once
 #include <algorithm>
+#include <bitset>
+#include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <bitset>
-#include <cassert>
 #include <iterator>
 #include <map>
 #include <memory>
@@ -146,25 +146,89 @@ string HexToBinary(string s) {
   return result;
 }
 
-string processHexCode(string &s) {
+// 将32位浮点数转换为其二进制表示
+uint32_t float_to_bits(float value) {
+  uint32_t result;
+  std::memcpy(&result, &value, sizeof(value));
+  return result;
+}
+
+// 将 uint32_t 类型的二进制表示转换回 float
+float bits_to_float(uint32_t bits) {
+    float result;
+    std::memcpy(&result, &bits, sizeof(bits));
+    return result;
+}
+
+// 将64位浮点数转换为其二进制表示
+uint64_t double_to_bits(double value) {
+  uint64_t result;
+  std::memcpy(&result, &value, sizeof(value));
+  return result;
+}
+
+// 将 uint32_t 类型的二进制表示转换回 float
+double bits_to_float(uint64_t bits) {
+    double result;
+    std::memcpy(&result, &bits, sizeof(bits));
+    return result;
+}
+
+string processHexCode(string &s, bool endian = false) {
+  /**
+   * Big endian -> true
+   * Small endian -> false
+   */
   erase_space(s);
   const size_t arraySize = s.length() / 2;
   string result;
   for (size_t i = 0; i < arraySize; i++) {
-      // result += HexToBinary(s.substr(i * 2, 2));
+    if (endian == false) {
       // 转换回去的时候注意要逆序读
       result += HexToBinary(s.substr(arraySize * 2 - i * 2 - 2, 2));
+    } else {
+      result += HexToBinary(s.substr(i * 2, 2));
+    }
   }
   return result;
 }
 
 // Helper function to extract bits from a binary string
-unsigned int GetBits(const std::string& bits, int start, int end) {
-    assert(start >= 0 && end < bits.size() && start <= end);
-    std::string bitRange = bits.substr(bits.size() - end - 1, end - start + 1);
-    return std::bitset<32>(bitRange).to_ulong();
+unsigned int GetBits(const std::string &bits, int start, int end) {
+  assert(start >= 0 && end < bits.size() && start <= end);
+  std::string bitRange = bits.substr(bits.size() - end - 1, end - start + 1);
+  return std::bitset<32>(bitRange).to_ulong();
 }
 
+std::string toBinaryString(uint32_t value) {
+  std::ostringstream oss;
+  for (int i = 31; i >= 0; i--) {
+    oss << ((value >> i) & 1);
+    if (i % 4 == 0 && i != 0) {
+      // 每4位加个空格，只是为了看得更清晰
+      oss << " ";
+    }
+  }
+  return oss.str();
+}
+
+// 将二进制字符串格式化为每 4 位一个空格
+std::string formatBinaryString(const std::string &binaryString) {
+    std::stringstream formatted;
+    for (size_t i = 0; i < binaryString.size(); ++i) {
+        formatted << binaryString[i];
+        if ((i + 1) % 4 == 0 && (i + 1) != binaryString.size()) {
+            formatted << ' ';
+        }
+    }
+    return formatted.str();
+}
+
+std::string toHexString(uint32_t value) {
+  std::ostringstream oss;
+  oss << "0x" << std::uppercase << std::hex << std::setw(8) << std::setfill('0') << value;
+  return oss.str();
+}
 double hexToDouble(const std::string &hexStr) {
   uint64_t intVal;
   std::stringstream ss;

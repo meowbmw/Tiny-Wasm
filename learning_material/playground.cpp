@@ -14,9 +14,11 @@
 
 using namespace std;
 int main() {
-  string s = "e1 0b 00 b9  ";
-  string bits = processHexCode(s);
+  string s = "e0 0f 00 b9 ";
+  string bits = processHexCode(s, false);
+  cout << "str w0, [sp, #12]" << endl;
   cout << bits << endl;
+  return 0;
   // Extracting values
   unsigned int Rd = GetBits(bits, 0, 4);
   unsigned int imm12 = GetBits(bits, 10, 21);

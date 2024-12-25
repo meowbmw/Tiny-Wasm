@@ -11,7 +11,7 @@ const bool DEBUG_EXPORT_SECTION = false;
 const bool DEBUG_FUNCTION_SECTION = false;
 const bool DEBUG_TYPE_SECTION = false;
 const bool DEBUG_CODE_SECTION = false;
-const string WASM_TO_READ = "test/local.2.wasm";
+const string WASM_TO_READ = "test/local.1.wasm";
 void initial_check(string &s) {
   // check magic number and version
   cout << "Full Binary: " << s << endl;
@@ -124,20 +124,27 @@ public:
       wasmFunctionVec.push_back(curFunc);
     }
   }
-  void funcBatchInit(){
+  void funcBatchInit() {
     // give function their respective param, result and local vec.
     // generate respective machine code
     for (int i = 0; i < funcTypeVec.size(); ++i) {
-    wasmFunctionVec[i].type = funcTypeVec[i];
-    wasmFunctionVec[i].param_data = wasmTypeVec[funcTypeVec[i]].param_data;
-    wasmFunctionVec[i].result_data = wasmTypeVec[funcTypeVec[i]].result_data;
-    cout << "---Processing function " << i << ": " << funcIndexNameMapper[i] << "---" << endl;
-    wasmFunctionVec[i].processCodeVec(); // this function will deal with local varaible initialization and machine code construction
-    cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
-    cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
-         << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
-    cout << "Total result count: " << wasmFunctionVec[i].result_data.size() << endl;
+      wasmFunctionVec[i].type = funcTypeVec[i];
+      wasmFunctionVec[i].param_data = wasmTypeVec[funcTypeVec[i]].param_data;
+      wasmFunctionVec[i].result_data = wasmTypeVec[funcTypeVec[i]].result_data;
+      cout << "---Processing function " << i << ": " << funcIndexNameMapper[i] << "---" << endl;
+      wasmFunctionVec[i].processCodeVec(); // this function will deal with local varaible initialization and machine code construction
+      cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
+      cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
+           << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
+      cout << "Total result count: " << wasmFunctionVec[i].result_data.size() << endl;
+    }
   }
+  void funcBatchExec() {
+    cout << "---Executing Functions---" << endl;
+    for (int i = 0; i < wasmFunctionVec.size(); ++i) {
+      cout << "Executing function " << i << ": " << funcIndexNameMapper[i] << endl;
+      wasmFunctionVec[i].executeInstr();
+    }
   }
   string s;                             // should be read-only
   unsigned int length = 0;              // should be read-only
@@ -175,9 +182,5 @@ int main() {
     // cout << type << " " << length << endl;
   }
   parser.funcBatchInit();
-  cout << "---Executing Functions---" << endl;
-  for (int i = 0; i < parser.wasmFunctionVec.size(); ++i) {
-    cout << "Executing function " << i << ": " << parser.funcIndexNameMapper[i] << endl;
-    parser.wasmFunctionVec[i].executeInstr();
-  }
+  // parser.funcBatchExec();
 }
