@@ -59,7 +59,9 @@
         "ranges": "cpp",
         "span": "cpp",
         "valarray": "cpp",
-        "bitset": "cpp"
+        "bitset": "cpp",
+        "format": "cpp",
+        "charconv": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

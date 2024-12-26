@@ -4,48 +4,41 @@
  * TODO: work in progress
  * only implement very basic instruction format
  * currently support add/sub immediate; ldr/str unsigned offset
- * 
+ *
  */
 // 用来区分load/store及其宽度
 enum class LdStType {
   STR_32, // store w
   LDR_32, // load w
   STR_64, // store x
-  LDR_64  // load x
+  LDR_64,  // load x
+  STR_F32, // store s
+  LDR_F32, // load s
+  STR_F64, // store d
+  LDR_F64  // load d
 };
 
-enum RegType {
-    W_REG,
-    X_REG
-};
-
+enum RegType { W_REG, X_REG };
 
 // 将立即数转换为MOVZ指令的机器码
-uint32_t encode_movz(uint8_t rd, uint64_t imm, RegType regType, uint8_t hw) {
-    // 检查立即数是否在有效范围内
-    if ((imm & 0xFFFF) != imm) {
-        throw std::invalid_argument("Immediate value out of range for MOVZ instruction");
-    }
-
-    uint32_t instruction = 0;
-
-    // 基本的MOVZ指令编码
-    if (regType == X_REG) {
-        instruction = 0xD2800000; // MOVZ for X registers
-    } else {
-        instruction = 0x52800000; // MOVZ for W registers
-    }
-
-    // 设置hw字段
-    instruction |= (hw & 0x3) << 21;
-
-    // 设置立即数
-    instruction |= (imm & 0xFFFF) << 5;
-
-    // 设置目标寄存器
-    instruction |= (rd & 0x1F);
-
-    return instruction;
+uint32_t encode_movz(uint8_t rd, uint16_t imm16, RegType regType, uint8_t hw) {
+  if (hw > 3) {
+    throw std::invalid_argument("hw must be between 0 and 3");
+  }
+  uint32_t instruction = 0;
+  // 基本的MOVZ指令编码
+  if (regType == X_REG) {
+    instruction = 0xD2800000; // MOVZ for X registers
+  } else {
+    instruction = 0x52800000; // MOVZ for W registers
+  }
+  // 设置hw字段
+  instruction |= (hw & 0x3) << 21;
+  // 设置立即数
+  instruction |= (imm16 & 0xFFFF) << 5;
+  // 设置目标寄存器
+  instruction |= (rd & 0x1F);
+  return instruction;
 }
 
 uint32_t encodeAddSubImm(bool isSub, uint8_t rd, uint8_t rn, uint16_t imm, bool shift12, bool smallEndian = true) {
@@ -112,6 +105,19 @@ uint32_t encodeLoadStoreUnsignedImm(LdStType type, uint8_t rt, uint8_t rn, uint1
   case LdStType::LDR_64:
     base = 0xF9400000; // ldr x
     break;
+  case LdStType::STR_F32:
+    base = 0xBD000000; // ldr s
+    break;
+  case LdStType::STR_F64:
+    base = 0xFD000000; // ldr d
+    break;
+  case LdStType::LDR_F32:
+    base = 0xBD400000; // ldr s
+    break;
+  case LdStType::LDR_F64:
+    base = 0xFD400000; // ldr d
+    break;
+  
   }
 
   // imm12 -> bits [21..10]

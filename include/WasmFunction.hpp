@@ -1,5 +1,6 @@
 #include "Opcode.hpp"
 #include "container_print.h"
+#include "float_utils.h"
 #include "utils.h"
 using namespace std;
 
@@ -25,6 +26,8 @@ public:
     print_data(TypeCategory::LOCAL);
     getStackPreallocateSize();
     prepareStack();
+    initParam();
+    initLocal();
     while (i < code_vec.size()) {
       if (code_vec[i] == "0f") { // ret
         restoreStack();
@@ -95,19 +98,19 @@ public:
       }
     }
   }
-  void addSize(const wasm_type &elem, int &allocate_size) {
+  void allocateVar(const wasm_type &elem, int &stack_location) {
     std::visit(
-        [&allocate_size](auto &&value) {
+        [&stack_location](auto &&value) {
           // value 的类型会被自动推断为四种之一
           char typeInfo = typeid(value).name()[0];
           if (typeInfo == 'f') {
-            allocate_size += 4;
+            stack_location += 4;
           } else if (typeInfo == 'd') {
-            allocate_size += 8;
+            stack_location += 8;
           } else if (typeInfo == 'l') {
-            allocate_size += 4;
+            stack_location += 4;
           } else if (typeInfo == 'i') {
-            allocate_size += 4;
+            stack_location += 4;
           }
         },
         elem);
@@ -116,22 +119,22 @@ public:
     /**
      * calculate how much size should be allocated for stack
      */
-    int allocate_size = 0;
     param_stack_start_location = 0;
-    param_stack_end_location = 0;
+    param_stack_end_location = param_stack_start_location;
     for (const auto &c : param_data) {
-      addSize(typeid(c).name()[0], param_stack_end_location);
+      allocateVar(c, param_stack_end_location);
     }
     local_stack_start_location = param_stack_end_location + 8;
     local_stack_end_location = local_stack_start_location;
-    for (auto c : local_data) {
-      addSize(typeid(c).name()[0], local_stack_end_location);
+    for (const auto &c : local_data) {
+      allocateVar(c, local_stack_end_location);
     }
     // align to neaest 16 byte
     if (local_stack_end_location % 16 != 0) {
-      allocate_size = 16 * (local_stack_end_location / 16 + 1);
+      stack_size = 16 * (local_stack_end_location / 16 + 1);
+    } else {
+      stack_size = local_stack_end_location;
     }
-    stack_size = allocate_size;
     cout << "Param start location: " << param_stack_start_location << endl;
     cout << "Param end location: " << param_stack_end_location << endl;
     cout << "Local start location: " << local_stack_start_location << endl;
@@ -140,29 +143,87 @@ public:
   }
   void prepareStack() {
     string instr = toHexString(encodeAddSubImm(true, 31, 31, stack_size, false)).substr(2); // sub sp, sp, stack_size, substr to remove 0x prefix
+    cout << format("Emit: sub sp, sp, {} | {}", stack_size, convertEndian(instr)) << endl;
     constructFullinstr(instr);
   }
-  void loadParam() {
+  void initParam() {
     /**
-     * todo: only support up to 8 params now
-     * warn: not supporting reading param from stack yet!!
+     * Todo: only support 8 params for now!! need to support load from stack if we want to support more params
      */
-    int offset = 0;
-    // for (int i = param_data)
+    string instr;
+    int offset = param_stack_end_location;
+    int fp_reg_used = 0;
+    int general_reg_used = 0;
+    for (int i = 0; i < param_data.size(); ++i) {
+      std::visit(
+          [&offset, &general_reg_used, &fp_reg_used, &instr](auto &&value) {
+            // value 的类型会被自动推断为四种之一
+            char typeInfo = typeid(value).name()[0];
+            if (typeInfo == 'f') {
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F32, fp_reg_used, 31, offset >> 2, false)).substr(2);
+              cout << format("Emit: str s{}, [sp, #{}] | {}", fp_reg_used, offset, instr) << endl;
+              offset -= 4;
+              fp_reg_used += 1;
+            } else if (typeInfo == 'd') {
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F64, fp_reg_used, 31, offset >> 3, false)).substr(2);
+              cout << format("Emit: str d{}, [sp, #{}] | {}", fp_reg_used, offset, instr) << endl;
+              offset -= 8;
+              fp_reg_used += 1;
+            } else if (typeInfo == 'l') {
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, general_reg_used, 31, offset >> 3, false)).substr(2);
+              cout << format("Emit: str x{}, [sp, #{}] | {}", general_reg_used, offset, instr) << endl;
+              offset -= 4;
+              general_reg_used += 1;
+            } else if (typeInfo == 'i') {
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, general_reg_used, 31, offset >> 2, false)).substr(2);
+              cout << format("Emit: str w{}, [sp, #{}] | {}", general_reg_used, offset, instr) << endl;
+              offset -= 4;
+              general_reg_used += 1;
+            }
+          },
+          param_data[i]);
+      constructFullinstr(instr);
+    }
   }
-  void loadLocal() {
-    /**
-     * or better named initLocal?
-     */
-    int offset = 0;
+  void initLocal() {
+    string instr;
+    int offset = local_stack_end_location + 8;
+    for (int i = 0; i < local_data.size(); ++i) {
+      std::visit(
+          [&offset, &instr](auto &&value) {
+            // value 的类型会被自动推断为四种之一
+            char typeInfo = typeid(value).name()[0];
+            if (typeInfo == 'f') {
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F32, 31, 31, offset >> 2, false)).substr(2);
+              cout << format("Emit: str wzr, [sp, #{}] | {}", offset, instr) << endl;
+              offset -= 4;
+            } else if (typeInfo == 'd') {
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F64, 31, 31, offset >> 3, false)).substr(2);
+              cout << format("Emit: str xzr, [sp, #{}] | {}", offset, instr) << endl;
+              offset -= 8;
+            } else if (typeInfo == 'l') {
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 31, 31, offset >> 3, false)).substr(2);
+              cout << format("Emit: str xzr, [sp, #{}] | {}", offset, instr) << endl;
+              offset -= 4;
+            } else if (typeInfo == 'i') {
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 31, 31, offset >> 2, false)).substr(2);
+              cout << format("Emit: str wzr, [sp, #{}] | {}", offset, instr) << endl;
+              offset -= 4;
+            }
+          },
+          local_data[i]);
+      constructFullinstr(instr);
+    }
   }
   void restoreStack() {
     const string instr =
         toHexString(encodeAddSubImm(false, 31, 31, stack_size, false)).substr(2); // add sp, sp, stack_size, substr to remove 0x prefix
+    cout << format("Emit: add sp, sp, {} | {}", stack_size, convertEndian(instr)) << endl;
     constructFullinstr(instr);
   }
   void emitRet() {
     const string instr = "C0035FD6";
+    cout << format("Emit: ret | {}", convertEndian(instr)) << endl;
     constructFullinstr(instr);
   }
   void constructFullinstr(string sub_instr) {

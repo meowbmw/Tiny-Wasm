@@ -74,6 +74,29 @@
             "postDebugTask": "print output",
             "miDebuggerPath": "/usr/bin/gdb-multiarch",
             "miDebuggerServerAddress": "localhost:1234"
+        }, 
+        {
+            "name": "Arm64 parser (With Realtime output, slow to launch)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/home/meow/wasm_compiler_learn/parser",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "/home/meow/wasm_compiler_learn/",
+            "environment": [],
+            "externalConsole": false,
+            "targetArchitecture": "arm64",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "qemu-static-output",
+            "miDebuggerPath": "/usr/bin/gdb-multiarch",
+            "miDebuggerServerAddress": "localhost:1234"
         }
     ]
 }
