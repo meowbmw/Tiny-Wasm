@@ -160,23 +160,23 @@ public:
             // value 的类型会被自动推断为四种之一
             char typeInfo = typeid(value).name()[0];
             if (typeInfo == 'f') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F32, fp_reg_used, 31, offset >> 2, false)).substr(2);
-              cout << format("Emit: str s{}, [sp, #{}] | {}", fp_reg_used, offset, instr) << endl;
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F32, fp_reg_used, 31, offset >> 2)).substr(2);
+              cout << format("Emit: str s{}, [sp, #{}] | {}", fp_reg_used, offset, convertEndian(instr)) << endl;
               offset -= 4;
               fp_reg_used += 1;
             } else if (typeInfo == 'd') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F64, fp_reg_used, 31, offset >> 3, false)).substr(2);
-              cout << format("Emit: str d{}, [sp, #{}] | {}", fp_reg_used, offset, instr) << endl;
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F64, fp_reg_used, 31, offset >> 3)).substr(2);
+              cout << format("Emit: str d{}, [sp, #{}] | {}", fp_reg_used, offset, convertEndian(instr)) << endl;
               offset -= 8;
               fp_reg_used += 1;
             } else if (typeInfo == 'l') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, general_reg_used, 31, offset >> 3, false)).substr(2);
-              cout << format("Emit: str x{}, [sp, #{}] | {}", general_reg_used, offset, instr) << endl;
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, general_reg_used, 31, offset >> 3)).substr(2);
+              cout << format("Emit: str x{}, [sp, #{}] | {}", general_reg_used, offset, convertEndian(instr)) << endl;
               offset -= 4;
               general_reg_used += 1;
             } else if (typeInfo == 'i') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, general_reg_used, 31, offset >> 2, false)).substr(2);
-              cout << format("Emit: str w{}, [sp, #{}] | {}", general_reg_used, offset, instr) << endl;
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, general_reg_used, 31, offset >> 2)).substr(2);
+              cout << format("Emit: str w{}, [sp, #{}] | {}", general_reg_used, offset, convertEndian(instr)) << endl;
               offset -= 4;
               general_reg_used += 1;
             }
@@ -194,20 +194,22 @@ public:
             // value 的类型会被自动推断为四种之一
             char typeInfo = typeid(value).name()[0];
             if (typeInfo == 'f') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F32, 31, 31, offset >> 2, false)).substr(2);
-              cout << format("Emit: str wzr, [sp, #{}] | {}", offset, instr) << endl;
+              // NOTE: we are only moving zeros, so treat them like int here
+              // xzr/wzr have same number as sp (31)
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 31, 31, offset >> 2)).substr(2);
+              cout << format("Emit: str wzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
               offset -= 4;
             } else if (typeInfo == 'd') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F64, 31, 31, offset >> 3, false)).substr(2);
-              cout << format("Emit: str xzr, [sp, #{}] | {}", offset, instr) << endl;
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 31, 31, offset >> 3)).substr(2);
+              cout << format("Emit: str xzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
               offset -= 8;
             } else if (typeInfo == 'l') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 31, 31, offset >> 3, false)).substr(2);
-              cout << format("Emit: str xzr, [sp, #{}] | {}", offset, instr) << endl;
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 31, 31, offset >> 3)).substr(2);
+              cout << format("Emit: str xzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
               offset -= 4;
             } else if (typeInfo == 'i') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 31, 31, offset >> 2, false)).substr(2);
-              cout << format("Emit: str wzr, [sp, #{}] | {}", offset, instr) << endl;
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 31, 31, offset >> 2)).substr(2);
+              cout << format("Emit: str wzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
               offset -= 4;
             }
           },
@@ -242,9 +244,10 @@ public:
       const string byteStr = instructions.substr(i * 2, 2);
       charArray[i] = static_cast<unsigned char>(stoul(byteStr, nullptr, 16));
     }
-    void (*instruction_set)() = nullptr;
+    void (*instruction_set)(int, int, int) = nullptr;
     // allocate executable buffer
-    instruction_set = reinterpret_cast<void (*)()>(mmap(nullptr, arraySize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+    instruction_set = reinterpret_cast<void (*)(int, int, int)>(
+        mmap(nullptr, arraySize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
     if (instruction_set == MAP_FAILED) {
       perror("mmap");
       return;
@@ -253,7 +256,7 @@ public:
     memcpy(reinterpret_cast<void *>(instruction_set), charArray.get(), arraySize);
     // ensure memcpy isn't optimized away as a dead store.
     __builtin___clear_cache(reinterpret_cast<char *>(instruction_set), reinterpret_cast<char *>(instruction_set) + arraySize);
-    instruction_set();
+    instruction_set(1, 2, 3);
     munmap(reinterpret_cast<void *>(instruction_set), arraySize);
   }
   void print_data(TypeCategory category) {
