@@ -11,7 +11,12 @@ const bool DEBUG_EXPORT_SECTION = false;
 const bool DEBUG_FUNCTION_SECTION = false;
 const bool DEBUG_TYPE_SECTION = false;
 const bool DEBUG_CODE_SECTION = false;
-const string WASM_TO_READ = "test/local.1.wasm";
+
+// const bool DEBUG_EXPORT_SECTION = true;
+// const bool DEBUG_FUNCTION_SECTION = true;
+// const bool DEBUG_TYPE_SECTION = true;
+// const bool DEBUG_CODE_SECTION = true;
+const string WASM_TO_READ = "test/local.0.wasm";
 void initial_check(string &s) {
   // check magic number and version
   cout << "Full Binary: " << s << endl;
@@ -156,6 +161,15 @@ public:
 };
 
 int main() {
+
+  /***
+   * TODO:
+   * （1） support multi param function pointer -> save to x0 (which is a pointer)
+   * also need to support int32/int64/void return
+   *  (2) move c++ vector to assembly; maybe save it to sp+offset?
+   * NEED TO EMIT MACHINE CODE FOR EVERY WASM LINE! 
+   * 
+   */
   cout << "Parsing wasm file: " << WASM_TO_READ << endl;
   string s = readBinary(WASM_TO_READ);
   initial_check(s);
@@ -182,5 +196,5 @@ int main() {
     // cout << type << " " << length << endl;
   }
   parser.funcBatchInit();
-  // parser.funcBatchExec();
+  parser.funcBatchExec();
 }
