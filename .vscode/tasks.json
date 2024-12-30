@@ -4,7 +4,7 @@
             "label": "qemu-static",
             "type": "shell",
             "isBackground": true,
-            "command": "rm -f /home/meow/wasm_compiler_learn/nohup.out && /usr/bin/aarch64-linux-gnu-g++ -std=c++20 -fdiagnostics-color=always -g /home/meow/wasm_compiler_learn/parser.cpp -o /home/meow/wasm_compiler_learn/parser && nohup qemu-aarch64 -g 1234 -L /usr/aarch64-linux-gnu /home/meow/wasm_compiler_learn/parser",
+            "command": "rm -f ${workspaceFolder}/nohup.out && /usr/bin/aarch64-linux-gnu-g++ -std=c++20 -fdiagnostics-color=always -g ${workspaceFolder}/parser.cpp -o ${workspaceFolder}/parser && nohup qemu-aarch64 -g 1234 -L /usr/aarch64-linux-gnu ${workspaceFolder}/parser",
             "problemMatcher": [
                 "$gcc",
                 {
@@ -28,7 +28,7 @@
             "label": "qemu-static-output",
             "type": "shell",
             "isBackground": true,
-            "command": "rm -f /home/meow/wasm_compiler_learn/nohup.out && /usr/bin/aarch64-linux-gnu-g++ -std=c++20 -fdiagnostics-color=always -g /home/meow/wasm_compiler_learn/parser.cpp -o /home/meow/wasm_compiler_learn/parser && nohup qemu-aarch64 -g 1234 -L /usr/aarch64-linux-gnu /home/meow/wasm_compiler_learn/parser > nohup.out 2>&1 & tail -f nohup.out",
+            "command": "rm -f ${workspaceFolder}/nohup.out && /usr/bin/aarch64-linux-gnu-g++ -std=c++20 -fdiagnostics-color=always -g ${workspaceFolder}/parser.cpp -o ${workspaceFolder}/parser && nohup qemu-aarch64 -g 1234 -L /usr/aarch64-linux-gnu ${workspaceFolder}/parser > nohup.out 2>&1 & tail -f nohup.out",
             "problemMatcher": [
                 "$gcc",
                 {
@@ -52,7 +52,7 @@
             "label": "print output",
             "type": "shell",
             "isBackground": true,
-            "command": "cat /home/meow/wasm_compiler_learn/nohup.out",
+            "command": "cat ${workspaceFolder}/nohup.out",
         },
         {
             "type": "cppbuild",
@@ -62,12 +62,12 @@
                 "-std=c++20",
                 "-fdiagnostics-color=always",
                 "-g",
-                "/home/meow/wasm_compiler_learn/parser.cpp",
+                "${workspaceFolder}/parser.cpp",
                 "-o",
-                "/home/meow/wasm_compiler_learn/parser"
+                "${workspaceFolder}/parser"
             ],
             "options": {
-                "cwd": "/home/meow/wasm_compiler_learn/"
+                "cwd": "${workspaceFolder}/"
             },
             "problemMatcher": [
                 "$gcc"

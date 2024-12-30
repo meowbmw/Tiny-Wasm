@@ -8,9 +8,9 @@
  */
 // 用来区分load/store及其宽度
 enum class LdStType {
-  STR_32, // store w
-  LDR_32, // load w
-  STR_64, // store x
+  STR_32,  // store w
+  LDR_32,  // load w
+  STR_64,  // store x
   LDR_64,  // load x
   STR_F32, // store s
   LDR_F32, // load s
@@ -19,9 +19,17 @@ enum class LdStType {
 };
 
 enum RegType { W_REG, X_REG };
+uint32_t encodeBranch(uint32_t imm26, bool smallEndian = true) {
+  uint32_t instruction = 0x14000000;
+  instruction |= (imm26 & 0x3FFFFFF);
+  if (smallEndian) {
+    instruction = __builtin_bswap32(instruction); // convert to small endian
+  }
+  return instruction;
+}
 
 // 将立即数转换为MOVZ指令的机器码
-uint32_t encode_movz(uint8_t rd, uint16_t imm16, RegType regType, uint8_t hw) {
+uint32_t encodeMovz(uint8_t rd, uint16_t imm16, RegType regType, uint8_t hw, bool smallEndian = true) {
   if (hw > 3) {
     throw std::invalid_argument("hw must be between 0 and 3");
   }
@@ -38,6 +46,9 @@ uint32_t encode_movz(uint8_t rd, uint16_t imm16, RegType regType, uint8_t hw) {
   instruction |= (imm16 & 0xFFFF) << 5;
   // 设置目标寄存器
   instruction |= (rd & 0x1F);
+  if (smallEndian) {
+    instruction = __builtin_bswap32(instruction); // convert to small endian
+  }
   return instruction;
 }
 
@@ -86,6 +97,12 @@ uint32_t encodeLoadStoreUnsignedImm(LdStType type, uint8_t rt, uint8_t rn, uint1
 
     - Rn：基址寄存器
     - Rt：目标寄存器
+
+    //   uint32_t inst = encodeLoadStoreUnsignedImm(LdStType::LDR_32,
+    //                                              rt=2,
+    //                                              rn=31,
+    //                                              imm12=1);
+    //   std::cout << "Instruction: ldr w2, [sp, #4]\n";
   */
   // imm12 up to 4095
   if (imm12 > 4095) {
@@ -117,7 +134,6 @@ uint32_t encodeLoadStoreUnsignedImm(LdStType type, uint8_t rt, uint8_t rn, uint1
   case LdStType::LDR_F64:
     base = 0xFD400000; // ldr d
     break;
-  
   }
 
   // imm12 -> bits [21..10]

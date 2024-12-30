@@ -187,7 +187,7 @@ public:
   }
   void initLocal() {
     string instr;
-    int offset = local_stack_end_location + 8;
+    int offset = local_stack_end_location + 8; // leave some space between param and local
     for (int i = 0; i < local_data.size(); ++i) {
       std::visit(
           [&offset, &instr](auto &&value) {
@@ -231,12 +231,46 @@ public:
   void constructFullinstr(string sub_instr) {
     instructions = instructions + sub_instr;
   }
+  void prepareParams() {
+    /**
+     * Store params to their respective location before calling our function
+     * param_data[0] -> x0
+     * param_data[1] -> x1
+     */
+    cout << "---Loading params to their respective registers---" << endl;
+    for (int i = 0; i < param_data.size(); ++i) {
+      std::visit(
+          [&i, this](auto &&value) {
+            // value 的类型会被自动推断为四种之一
+            char typeInfo = typeid(value).name()[0];
+            if (typeInfo == 'f') {
+              throw std::invalid_argument("Fmov not supported yet!");
+            } else if (typeInfo == 'd') {
+              throw std::invalid_argument("Fmov not supported yet!");
+            } else if (typeInfo == 'l') {
+              const string instr = toHexString(encodeMovz(i, value, X_REG, 0)).substr(2); // add sp, sp, stack_size, substr to remove 0x prefix
+              cout << format("Emit: mov x{}, {} | {}", i, value, convertEndian(instr)) << endl;
+              pre_instructions_for_param_loading += instr;
+            } else if (typeInfo == 'i') {
+              const string instr = toHexString(encodeMovz(i, value, W_REG, 0)).substr(2); // add sp, sp, stack_size, substr to remove 0x prefix
+              cout << format("Emit: mov s{}, {} | {}", i, value, convertEndian(instr)) << endl;
+              pre_instructions_for_param_loading += instr;
+            }
+          },
+          param_data[i]);
+    }
+    cout << "---Loading parameters finished---" << endl;
+  }
   void executeInstr() {
     /**
      * Allocate memory with execute permission
      * And load machine code into that
      * Save address pointer to self.instructions
      */
+    // Warn: Append pre instructions here
+    // Also add branch instruction here; we might need to support function call later
+    string branch_instr = toHexString(encodeBranch(1)).substr(2); // function will be right next to b instruction, so offset is 1 here
+    instructions = pre_instructions_for_param_loading + branch_instr + instructions;
     cout << "Machine instruction to load: " << instructions << endl;
     const size_t arraySize = instructions.length() / 2;
     auto charArray = make_unique<unsigned char[]>(arraySize); // use smart pointer here so we don't need to free it manually
@@ -244,10 +278,10 @@ public:
       const string byteStr = instructions.substr(i * 2, 2);
       charArray[i] = static_cast<unsigned char>(stoul(byteStr, nullptr, 16));
     }
-    void (*instruction_set)(int, int, int) = nullptr;
+    int64_t (*instruction_set)() = nullptr;
     // allocate executable buffer
-    instruction_set = reinterpret_cast<void (*)(int, int, int)>(
-        mmap(nullptr, arraySize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+    instruction_set =
+        reinterpret_cast<int64_t (*)()>(mmap(nullptr, arraySize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
     if (instruction_set == MAP_FAILED) {
       perror("mmap");
       return;
@@ -256,7 +290,8 @@ public:
     memcpy(reinterpret_cast<void *>(instruction_set), charArray.get(), arraySize);
     // ensure memcpy isn't optimized away as a dead store.
     __builtin___clear_cache(reinterpret_cast<char *>(instruction_set), reinterpret_cast<char *>(instruction_set) + arraySize);
-    instruction_set(1, 2, 3);
+    // !不需要做任何传参，因为参数已经放在寄存器里啦
+    int64_t ans = instruction_set();
     munmap(reinterpret_cast<void *>(instruction_set), arraySize);
   }
   void print_data(TypeCategory category) {
@@ -341,6 +376,7 @@ public:
   vector<string> code_vec;
   u_int64_t local_var_declare_count = 0;
   string instructions;
+  string pre_instructions_for_param_loading;
   vector<wasm_type> local_data;
   vector<wasm_type> param_data;
   vector<wasm_type> result_data;

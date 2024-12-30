@@ -16,7 +16,7 @@ const bool DEBUG_CODE_SECTION = false;
 // const bool DEBUG_FUNCTION_SECTION = true;
 // const bool DEBUG_TYPE_SECTION = true;
 // const bool DEBUG_CODE_SECTION = true;
-const string WASM_TO_READ = "test/local.0.wasm";
+const string WASM_TO_READ = "test/local.1.wasm";
 void initial_check(string &s) {
   // check magic number and version
   cout << "Full Binary: " << s << endl;
@@ -137,6 +137,7 @@ public:
       wasmFunctionVec[i].param_data = wasmTypeVec[funcTypeVec[i]].param_data;
       wasmFunctionVec[i].result_data = wasmTypeVec[funcTypeVec[i]].result_data;
       cout << "---Processing function " << i << ": " << funcIndexNameMapper[i] << "---" << endl;
+      wasmFunctionVec[i].prepareParams();
       wasmFunctionVec[i].processCodeVec(); // this function will deal with local varaible initialization and machine code construction
       cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
       cout << "Total local count: " << wasmFunctionVec[i].local_data.size()

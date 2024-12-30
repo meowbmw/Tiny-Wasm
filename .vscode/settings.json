@@ -63,5 +63,4 @@
         "format": "cpp",
         "charconv": "cpp"
     },
-    "C_Cpp.errorSquiggles": "disabled"
 }
