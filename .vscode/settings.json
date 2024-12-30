@@ -63,4 +63,5 @@
         "format": "cpp",
         "charconv": "cpp"
     },
+    "makefile.configureOnOpen": false,
 }
