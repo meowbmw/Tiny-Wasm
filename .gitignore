@@ -4,5 +4,6 @@
 !*.*
 # Unignore all dirs
 !*/
+!Makefile
 build
 nohup.out

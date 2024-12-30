@@ -2,9 +2,12 @@
     "tasks": [
         {
             "label": "qemu-static",
-            "type": "shell",
+            "command": "make",
+            "args": [
+                "qemu-gdb"
+            ],
+            "type": "process",
             "isBackground": true,
-            "command": "rm -f ${workspaceFolder}/nohup.out && /usr/bin/aarch64-linux-gnu-g++ -std=c++20 -fdiagnostics-color=always -g ${workspaceFolder}/parser.cpp -o ${workspaceFolder}/parser && nohup qemu-aarch64 -g 1234 -L /usr/aarch64-linux-gnu ${workspaceFolder}/parser",
             "problemMatcher": [
                 "$gcc",
                 {
@@ -23,36 +26,6 @@
                     }
                 }
             ]
-        },
-        {
-            "label": "qemu-static-output",
-            "type": "shell",
-            "isBackground": true,
-            "command": "rm -f ${workspaceFolder}/nohup.out && /usr/bin/aarch64-linux-gnu-g++ -std=c++20 -fdiagnostics-color=always -g ${workspaceFolder}/parser.cpp -o ${workspaceFolder}/parser && nohup qemu-aarch64 -g 1234 -L /usr/aarch64-linux-gnu ${workspaceFolder}/parser > nohup.out 2>&1 & tail -f nohup.out",
-            "problemMatcher": [
-                "$gcc",
-                {
-                    "pattern": [
-                        {
-                            "regexp": ".",
-                            "file": 1,
-                            "location": 2,
-                            "message": 3
-                        }
-                    ],
-                    "background": {
-                        "activeOnStart": true,
-                        "beginsPattern": ".",
-                        "endsPattern": "."
-                    }
-                }
-            ]
-        },
-        {
-            "label": "print output",
-            "type": "shell",
-            "isBackground": true,
-            "command": "cat ${workspaceFolder}/nohup.out",
         },
         {
             "type": "cppbuild",

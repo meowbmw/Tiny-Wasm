@@ -52,51 +52,22 @@
             "preLaunchTask": "C/C++: g++ build active file",
         },
         {
-            "name": "Arm64 parser",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/parser",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "targetArchitecture": "arm64",
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
+            "name": "LLDB Arm64 parser",
+            "type": "lldb",
+            "sourceLanguages": [
+                "cpp"
             ],
+            "request": "custom",
             "preLaunchTask": "qemu-static",
-            "postDebugTask": "print output",
-            "miDebuggerPath": "/usr/bin/gdb-multiarch",
-            "miDebuggerServerAddress": "localhost:1234"
-        }, 
-        {
-            "name": "Arm64 parser (With Realtime output, slow to launch)",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/parser",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "targetArchitecture": "arm64",
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
+            "targetCreateCommands": [
+                "target create ${workspaceFolder}/parser"
             ],
-            "preLaunchTask": "qemu-static-output",
-            "miDebuggerPath": "/usr/bin/gdb-multiarch",
-            "miDebuggerServerAddress": "localhost:1234"
-        }
+            "processCreateCommands": [
+                "gdb-remote localhost:1234"
+            ],
+            "initCommands": [
+                "process handle SIGTRAP -s false"
+            ]
+        },
     ]
 }
