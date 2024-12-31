@@ -21,82 +21,13 @@ public:
       cout << code_vec[i] << " ";
     }
     cout << endl;
-    int i = offset;
     print_data(TypeCategory::PARAM);
     print_data(TypeCategory::LOCAL);
-    getStackPreallocateSize();
+    getStackPreallocateSize(offset);
     prepareStack();
-    initParam();
+    initParam(); // initParam is storing to memory, prepareParams is storing to registers
     initLocal();
-    while (i < code_vec.size()) {
-      if (code_vec[i] == "0f") { // ret
-        restoreStack();
-        emitRet();
-        ++i;
-      } else if (code_vec[i] == "0b") { // end
-        restoreStack();
-        emitRet();
-        ++i;
-      } else if (code_vec[i] == "20") { // local.get
-        const u_int64_t var_to_get = stoul(code_vec[i + 1], nullptr, 16);
-        if (var_to_get < param_data.size() + local_data.size()) {
-          if (var_to_get < param_data.size()) {
-            // falls within boundry of param variable
-            stack.push_back(param_data[var_to_get]);
-          } else {
-            // must be local variable then.
-            stack.push_back(local_data[var_to_get - param_data.size()]);
-          }
-          i += 2;
-        } else {
-          cout << "Too big index {" + to_string(var_to_get) + "} for local data; skipping current op;" << endl;
-          i += 2;
-          continue;
-        }
-      } else if (code_vec[i] == "21") { // local.set
-        const u_int64_t var_to_set = stoul(code_vec[i + 1], nullptr, 16);
-        if (var_to_set < param_data.size() + local_data.size()) {
-          if (var_to_set < param_data.size()) {
-            param_data[var_to_set] = stack.back();
-          } else {
-            local_data[var_to_set - param_data.size()] = stack.back();
-          }
-          stack.pop_back();
-          i += 2;
-        } else {
-          cout << "Too big index {" + to_string(var_to_set) + "} for local data; skipping current op;" << endl;
-          i += 2;
-          continue;
-        }
-      } else if (code_vec[i] == "22") { // local.tee
-        const u_int64_t var_to_set = stoul(code_vec[i + 1], nullptr, 16);
-        if (var_to_set < param_data.size() + local_data.size()) {
-          if (var_to_set < param_data.size()) {
-            param_data[var_to_set] = stack.back();
-          } else {
-            local_data[var_to_set - param_data.size()] = stack.back();
-          }
-          i += 2;
-        } else {
-          cout << "Too big index {" + to_string(var_to_set) + "} for local data; skipping current op;" << endl;
-          i += 2;
-          continue;
-        }
-      } else if (code_vec[i] == "41") { // i32.const
-        stack.push_back(static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16)));
-        i += 2;
-      } else if (code_vec[i] == "42") { // i64.const
-        stack.push_back(static_cast<int64_t>(stoul(code_vec[i + 1], nullptr, 16)));
-        i += 2;
-      } else if (code_vec[i] == "43") { // f32.const
-        stack.push_back(hexToFloat(code_vec[i + 1] + code_vec[i + 2] + code_vec[i + 3] + code_vec[i + 4]));
-        i += 5;
-      } else if (code_vec[i] == "44") { // f64.const
-        stack.push_back(
-            hexToDouble(code_vec[i + 1] + code_vec[i + 2] + code_vec[i + 3] + code_vec[i + 4] + code_vec[i + 5] + code_vec[i + 6] + code_vec[i + 7]));
-        i += 9;
-      }
-    }
+    runningWasmCode(offset);
   }
   void allocateVar(const wasm_type &elem, int &stack_location) {
     std::visit(
@@ -115,7 +46,7 @@ public:
         },
         elem);
   }
-  void getStackPreallocateSize() {
+  void getStackPreallocateSize(const int offset) {
     /**
      * calculate how much size should be allocated for stack
      */
@@ -129,16 +60,23 @@ public:
     for (const auto &c : local_data) {
       allocateVar(c, local_stack_end_location);
     }
-    // align to neaest 16 byte
-    if (local_stack_end_location % 16 != 0) {
-      stack_size = 16 * (local_stack_end_location / 16 + 1);
-    } else {
-      stack_size = local_stack_end_location;
-    }
     cout << "Param start location: " << param_stack_start_location << endl;
     cout << "Param end location: " << param_stack_end_location << endl;
     cout << "Local start location: " << local_stack_start_location << endl;
     cout << "Local end location: " << local_stack_end_location << endl;
+    wasm_stack_start_location = local_stack_end_location + 8;
+    int wasm_stack_size = (code_vec.size() - offset) * 4;
+    wasm_stack_end_location = wasm_stack_start_location + wasm_stack_size;
+    cout << "Wasm stack start location: " << wasm_stack_start_location << endl;
+    cout << format("Adding maximum possible wasm stack size: (code_vec.size: {} - offset: {}) * 4 = {}", code_vec.size(), offset, wasm_stack_size)
+         << endl;
+    cout << "Wasm stack end location: " << wasm_stack_end_location << endl;
+    // align to neaest 16 byte
+    if (wasm_stack_end_location % 16 != 0) {
+      stack_size = 16 * (wasm_stack_end_location / 16 + 1);
+    } else {
+      stack_size = wasm_stack_end_location;
+    }
     cout << "Stack allocate size estimated to be: " << stack_size << endl;
   }
   void prepareStack() {
@@ -156,26 +94,32 @@ public:
     int general_reg_used = 0;
     for (int i = 0; i < param_data.size(); ++i) {
       std::visit(
-          [&offset, &general_reg_used, &fp_reg_used, &instr](auto &&value) {
+          [&offset, &general_reg_used, &fp_reg_used, &instr, &i, this](auto &&value) {
             // value 的类型会被自动推断为四种之一
             char typeInfo = typeid(value).name()[0];
+            vecToStack[{TypeCategory::PARAM, i}] = offset;
+            stackToVec[offset] = {TypeCategory::PARAM, i};
             if (typeInfo == 'f') {
               instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F32, fp_reg_used, 31, offset >> 2)).substr(2);
+              loadType[{TypeCategory::PARAM, i}] = LdStType::LDR_F32;
               cout << format("Emit: str s{}, [sp, #{}] | {}", fp_reg_used, offset, convertEndian(instr)) << endl;
               offset -= 4;
               fp_reg_used += 1;
             } else if (typeInfo == 'd') {
               instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F64, fp_reg_used, 31, offset >> 3)).substr(2);
+              loadType[{TypeCategory::PARAM, i}] = LdStType::LDR_F64;
               cout << format("Emit: str d{}, [sp, #{}] | {}", fp_reg_used, offset, convertEndian(instr)) << endl;
               offset -= 8;
               fp_reg_used += 1;
             } else if (typeInfo == 'l') {
               instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, general_reg_used, 31, offset >> 3)).substr(2);
+              loadType[{TypeCategory::PARAM, i}] = LdStType::LDR_64;
               cout << format("Emit: str x{}, [sp, #{}] | {}", general_reg_used, offset, convertEndian(instr)) << endl;
               offset -= 4;
               general_reg_used += 1;
             } else if (typeInfo == 'i') {
               instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, general_reg_used, 31, offset >> 2)).substr(2);
+              loadType[{TypeCategory::PARAM, i}] = LdStType::LDR_32;
               cout << format("Emit: str w{}, [sp, #{}] | {}", general_reg_used, offset, convertEndian(instr)) << endl;
               offset -= 4;
               general_reg_used += 1;
@@ -190,25 +134,31 @@ public:
     int offset = local_stack_end_location + 8; // leave some space between param and local
     for (int i = 0; i < local_data.size(); ++i) {
       std::visit(
-          [&offset, &instr](auto &&value) {
+          [&offset, &instr, &i, this](auto &&value) {
             // value 的类型会被自动推断为四种之一
             char typeInfo = typeid(value).name()[0];
+            vecToStack[{TypeCategory::LOCAL, i}] = offset;
+            stackToVec[offset] = {TypeCategory::LOCAL, i};
             if (typeInfo == 'f') {
               // NOTE: we are only moving zeros, so treat them like int here
               // xzr/wzr have same number as sp (31)
               instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 31, 31, offset >> 2)).substr(2);
+              loadType[{TypeCategory::LOCAL, i}] = LdStType::LDR_F32;
               cout << format("Emit: str wzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
               offset -= 4;
             } else if (typeInfo == 'd') {
               instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 31, 31, offset >> 3)).substr(2);
+              loadType[{TypeCategory::LOCAL, i}] = LdStType::LDR_F64;
               cout << format("Emit: str xzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
               offset -= 8;
             } else if (typeInfo == 'l') {
               instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 31, 31, offset >> 3)).substr(2);
+              loadType[{TypeCategory::LOCAL, i}] = LdStType::LDR_64;
               cout << format("Emit: str xzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
               offset -= 4;
             } else if (typeInfo == 'i') {
               instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 31, 31, offset >> 2)).substr(2);
+              loadType[{TypeCategory::LOCAL, i}] = LdStType::LDR_32;
               cout << format("Emit: str wzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
               offset -= 4;
             }
@@ -248,11 +198,11 @@ public:
             } else if (typeInfo == 'd') {
               throw std::invalid_argument("Fmov not supported yet!");
             } else if (typeInfo == 'l') {
-              const string instr = toHexString(encodeMovz(i, value, X_REG, 0)).substr(2); // add sp, sp, stack_size, substr to remove 0x prefix
+              const string instr = toHexString(encodeMovz(i, value, X_REG, 0)).substr(2);
               cout << format("Emit: mov x{}, {} | {}", i, value, convertEndian(instr)) << endl;
               pre_instructions_for_param_loading += instr;
             } else if (typeInfo == 'i') {
-              const string instr = toHexString(encodeMovz(i, value, W_REG, 0)).substr(2); // add sp, sp, stack_size, substr to remove 0x prefix
+              const string instr = toHexString(encodeMovz(i, value, W_REG, 0)).substr(2);
               cout << format("Emit: mov s{}, {} | {}", i, value, convertEndian(instr)) << endl;
               pre_instructions_for_param_loading += instr;
             }
@@ -373,6 +323,120 @@ public:
     code_vec = v;
     local_var_declare_count = l;
   }
+  void emitGet(const uint64_t var_to_get, TypeCategory vecType) {
+    /**
+     * Local.get i
+     * push to wasm stack memory[var[i]]
+     * var[i] -> x/w11 -> stack[top]
+     */
+    LdStType current_type = loadType[{vecType, var_to_get}];
+    int stack_offset = vecToStack[{vecType, var_to_get}];
+    cout << format("Local.get {}: {}", var_to_get, type_category_to_string(vecType)) << endl;
+    // Note: We use x11 as a bridge register for memory -> memory transfer!
+    string load_param_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, stack_offset, false)).substr(2);
+    // var[i] -> x/w11
+    cout << format("Emit: ldr x/w11, [sp, #{}] | {}", stack_offset, convertEndian(load_param_instr)) << endl;
+    string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, wasm_stack_pointer, false)).substr(2);
+    // x/w11 -> stack[top]
+    cout << format("Emit: str x/w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
+    wasm_stack_pointer += 8; // increase wasm stack after get
+    // constructFullinstr(instr);
+  }
+  void emitSet(const uint64_t var_to_get, TypeCategory vecType, bool isTee = false) {
+    /**
+     * Local.set 0
+     * Set memory[var[i]] to top value of wasm stack
+     * stack[top] -> x/w11 -> var[i]
+     */
+    LdStType current_type = loadType[{vecType, var_to_get}];
+    int stack_offset = vecToStack[{vecType, var_to_get}];
+    cout << format("Local.set {}: {}", var_to_get, type_category_to_string(vecType)) << endl;
+    wasm_stack_pointer -= 8;
+    string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, wasm_stack_pointer, false)).substr(2);
+    cout << format("Emit: ldr x/w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
+    string reg_to_mem_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, stack_offset, false)).substr(2);
+    cout << format("Emit: str x/w11, [sp, #{}] | {}", stack_offset, convertEndian(reg_to_mem_instr)) << endl;
+    if (isTee) {
+      wasm_stack_pointer += 8; //todo:!!
+    }
+    // constructFullinstr(instr);
+  }
+  void runningWasmCode(int i) {
+    wasm_stack_pointer = wasm_stack_start_location;
+    while (i < code_vec.size()) {
+      if (code_vec[i] == "0f") { // ret
+        restoreStack();
+        emitRet();
+        ++i;
+      } else if (code_vec[i] == "0b") { // end
+        restoreStack();
+        emitRet();
+        ++i;
+      } else if (code_vec[i] == "20") { // local.get
+        u_int64_t var_to_get = stoul(code_vec[i + 1], nullptr, 16);
+        if (var_to_get < param_data.size() + local_data.size()) {
+          if (var_to_get < param_data.size()) {
+            // falls within boundry of param variable
+            emitGet(var_to_get, TypeCategory::PARAM);
+            stack.push_back(param_data[var_to_get]);
+          } else {
+            // must be local variable then.
+            var_to_get -= param_data.size();
+            emitGet(var_to_get, TypeCategory::LOCAL);
+            stack.push_back(local_data[var_to_get]);
+          }
+          i += 2;
+        } else {
+          cout << "Too big index {" + to_string(var_to_get) + "} for local data; skipping current op;" << endl;
+          i += 2;
+          continue;
+        }
+      } else if (code_vec[i] == "21") { // local.set
+        const u_int64_t var_to_set = stoul(code_vec[i + 1], nullptr, 16);
+        if (var_to_set < param_data.size() + local_data.size()) {
+          if (var_to_set < param_data.size()) {
+            param_data[var_to_set] = stack.back();
+          } else {
+            local_data[var_to_set - param_data.size()] = stack.back();
+          }
+          stack.pop_back();
+          i += 2;
+        } else {
+          cout << "Too big index {" + to_string(var_to_set) + "} for local data; skipping current op;" << endl;
+          i += 2;
+          continue;
+        }
+      } else if (code_vec[i] == "22") { // local.tee
+        const u_int64_t var_to_set = stoul(code_vec[i + 1], nullptr, 16);
+        if (var_to_set < param_data.size() + local_data.size()) {
+          if (var_to_set < param_data.size()) {
+            param_data[var_to_set] = stack.back();
+          } else {
+            local_data[var_to_set - param_data.size()] = stack.back();
+          }
+          i += 2;
+        } else {
+          cout << "Too big index {" + to_string(var_to_set) + "} for local data; skipping current op;" << endl;
+          i += 2;
+          continue;
+        }
+      } else if (code_vec[i] == "41") { // i32.const
+        stack.push_back(static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16)));
+        i += 2;
+      } else if (code_vec[i] == "42") { // i64.const
+        stack.push_back(static_cast<int64_t>(stoul(code_vec[i + 1], nullptr, 16)));
+        i += 2;
+      } else if (code_vec[i] == "43") { // f32.const
+        stack.push_back(hexToFloat(code_vec[i + 1] + code_vec[i + 2] + code_vec[i + 3] + code_vec[i + 4]));
+        i += 5;
+      } else if (code_vec[i] == "44") { // f64.const
+        stack.push_back(
+            hexToDouble(code_vec[i + 1] + code_vec[i + 2] + code_vec[i + 3] + code_vec[i + 4] + code_vec[i + 5] + code_vec[i + 6] + code_vec[i + 7]));
+        i += 9;
+      }
+    }
+  }
+
   vector<string> code_vec;
   u_int64_t local_var_declare_count = 0;
   string instructions;
@@ -381,13 +445,17 @@ public:
   vector<wasm_type> param_data;
   vector<wasm_type> result_data;
   vector<wasm_type> stack;
-  map<pair<TypeCategory, int>, int> var_stack_locater;
-  map<int, pair<TypeCategory, int>> var_stack_getter;
+  map<pair<TypeCategory, int>, int> vecToStack;    // {TypeCategory::PARAM, 0} : 0x4
+  map<pair<TypeCategory, int>, LdStType> loadType; // {TypeCategory::PARAM, 0}: LDR32
+  map<int, pair<TypeCategory, int>> stackToVec;    // 0x4 : {TypeCategory::PARAM: 0}
   int stack_size = 0;
   int param_stack_start_location = 0;
   int param_stack_end_location = 0;
   int local_stack_start_location = 0;
   int local_stack_end_location = 0;
+  int wasm_stack_start_location = 0;
+  int wasm_stack_end_location = 0;
+  int wasm_stack_pointer = 0;
   int type;
   /**
    * we have 4 vectors

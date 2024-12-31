@@ -16,7 +16,7 @@ const bool DEBUG_CODE_SECTION = false;
 // const bool DEBUG_FUNCTION_SECTION = true;
 // const bool DEBUG_TYPE_SECTION = true;
 // const bool DEBUG_CODE_SECTION = true;
-const string WASM_TO_READ = "test/local.1.wasm";
+const string WASM_TO_READ = "test/add.wasm";
 void initial_check(string &s) {
   // check magic number and version
   cout << "Full Binary: " << s << endl;

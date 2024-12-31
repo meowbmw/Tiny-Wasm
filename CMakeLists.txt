@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 3.14)
 set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)
 set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
 
+set (CMAKE_CXX_STANDARD 20)
 # 设置生成目标架构
 set(CMAKE_SYSTEM_PROCESSOR aarch64)
 
@@ -20,5 +21,5 @@ add_executable(parser parser.cpp)
 target_link_libraries(parser)
 
 
-# cmake -S . -B build && cmake --build build
-# cmake -S . -B build && cmake --build build && cd ./build && ctest && cd .. 
+# rm -rf build && cmake -S . -B build && cmake --build build
+# rm -rf build && cmake -S . -B build && cmake --build build && cd ./build && ctest && cd .. 
