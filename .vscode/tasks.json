@@ -29,15 +29,15 @@
         },
         {
             "type": "cppbuild",
-            "label": "C/C++: g++ build parser",
+            "label": "C/C++: g++ build main",
             "command": "g++",
             "args": [
                 "-std=c++20",
                 "-fdiagnostics-color=always",
                 "-g",
-                "${workspaceFolder}/parser.cpp",
+                "${workspaceFolder}/main.cpp",
                 "-o",
-                "${workspaceFolder}/parser"
+                "${workspaceFolder}/main"
             ],
             "options": {
                 "cwd": "${workspaceFolder}/"

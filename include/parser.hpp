@@ -1,12 +1,7 @@
-#include "include/WasmFunction.hpp"
-#include "include/WasmType.hpp"
-#include "include/json.hpp"
-
+#include "WasmFunction.hpp"
+#include "WasmType.hpp"
 using namespace std;
-using json = nlohmann::json;
-// aarch64-linux-gnu-g++ -c arm64.s && aarch64-linux-gnu-objdump -d arm64.o
-// aarch64-linux-gnu-g++ parser.cpp -o parser && qemu-aarch64 -L /usr/aarch64-linux-gnu ./parser
-// qemu-aarch64 -g 1234 -L /usr/aarch64-linux-gnu ./parser
+
 const bool DEBUG_EXPORT_SECTION = false;
 const bool DEBUG_FUNCTION_SECTION = false;
 const bool DEBUG_TYPE_SECTION = false;
@@ -17,20 +12,49 @@ const bool DEBUG_CODE_SECTION = false;
 // const bool DEBUG_TYPE_SECTION = true;
 // const bool DEBUG_CODE_SECTION = true;
 const string WASM_TO_READ = "test/local.2.wasm";
-void initial_check(string &s) {
-  // check magic number and version
-  cout << "Full Binary: " << s << endl;
-  const string magic_number = s.substr(0, 8);
-  cout << "Initial checking..\nMagic number: " << ((magic_number == "0061736d") ? "Matched" : "Unmatched") << endl;
-  s = s.substr(8); // crop magic number
-  cout << "Webassembly version is: " << s.substr(0, 2) << endl;
-  s = s.substr(8); // crop version
-}
+
 class Parser {
 public:
-  void set(const std::string &str, const int &num) {
-    s = str;
-    length = num;
+  void parse(string WASM_PATH) {
+    s = readBinary(WASM_PATH);
+    cout << "Parsing wasm file: " << WASM_PATH << endl;
+    initial_check();
+    while (s.size() > 0) {
+      const string type = s.substr(0, 2);
+      s = s.substr(2);                             // crop type
+      length = stoul(s.substr(0, 2), nullptr, 16); // Warn & TODO: we assume that the length is at max 1 byte!!!
+      s = s.substr(2);                             // crop length
+      if (type == "01") {
+        parse_type();
+      }
+      if (type == "03") {
+        parse_function();
+      }
+      if (type == "07") {
+        parse_export();
+      }
+      if (type == "0a") {
+        parse_code();
+      }
+      s = s.substr(length * 2); // move forward, remeber we need to times 2 because we are processing 2 char at a time; 2 char = 2 * 4 bits = 1 byte
+      // cout << type << " " << length << endl;
+    }
+  }
+  void initial_check() {
+    // check magic number and version
+    cout << "Full Binary: " << s << endl;
+    const string magic_number = s.substr(0, 8);
+    if (magic_number == "0061736d") {
+      cout << "Initial checking..\nMagic number: Matched" << endl;
+    } else {
+      cout << "Initial checking..\nMagic number: Unmatched" << endl;
+      cout << "Aborting" << endl;
+      exit(-1);
+    }
+    cout << "Initial checking..\nMagic number: " << ((magic_number == "0061736d") ? "Matched" : "Unmatched") << endl;
+    s = s.substr(8); // crop magic number
+    cout << "Webassembly version is: " << s.substr(0, 2) << endl;
+    s = s.substr(8); // crop version
   }
   void parse_type() {
     // type section
@@ -149,48 +173,11 @@ public:
       }
     }
   }
-  string s;                             // should be read-only
-  unsigned int length = 0;              // should be read-only
+  string s;
+  unsigned int length = 0;
   vector<WasmFunction> wasmFunctionVec; // used to store function code
   vector<WasmType> wasmTypeVec;         // used to store type definition
   vector<int> funcTypeVec;
   map<string, int> funcNameIndexMapper;
   map<int, string> funcIndexNameMapper;
 };
-
-int main() {
-  /***
-   * TODO:
-   * （1） support multi param function pointer -> save to x0 (which is a pointer)
-   * also need to support int32/int64/void return
-   *  (2) move c++ vector to assembly; maybe save it to sp+offset?
-   * NEED TO EMIT MACHINE CODE FOR EVERY WASM LINE!
-   *
-   */
-  cout << "Parsing wasm file: " << WASM_TO_READ << endl;
-  string s = readBinary(WASM_TO_READ);
-  initial_check(s);
-  Parser parser;
-  while (s.size() > 0) {
-    const string type = s.substr(0, 2);
-    s = s.substr(2);                                                // crop type
-    const unsigned int length = stoul(s.substr(0, 2), nullptr, 16); // Warn & TODO: we assume that the length is at max 1 byte!!!
-    s = s.substr(2);                                                // crop length
-    parser.set(s, length);
-    if (type == "01") {
-      parser.parse_type();
-    }
-    if (type == "03") {
-      parser.parse_function();
-    }
-    if (type == "07") {
-      parser.parse_export();
-    }
-    if (type == "0a") {
-      parser.parse_code();
-    }
-    s = s.substr(length * 2); // move forward, remeber we need to times 2 because we are processing 2 char at a time; 2 char = 2 * 4 bits = 1 byte
-    // cout << type << " " << length << endl;
-  }
-  parser.funcBatchProcess(true);
-}
