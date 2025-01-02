@@ -1,4 +1,4 @@
-#include "Opcode.hpp"
+#include "../include/Opcode.hpp"
 int main() {
       uint32_t inst = encodeBranch(1);
       std::cout << "Instruction: B, #1\n";
