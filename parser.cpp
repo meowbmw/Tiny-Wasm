@@ -129,7 +129,7 @@ public:
       wasmFunctionVec.push_back(curFunc);
     }
   }
-  void funcBatchInit() {
+  void funcBatchProcess(bool execute = false) {
     // give function their respective param, result and local vec.
     // generate respective machine code
     for (int i = 0; i < funcTypeVec.size(); ++i) {
@@ -143,13 +143,10 @@ public:
       cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
            << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
       cout << "Total result count: " << wasmFunctionVec[i].result_data.size() << endl;
-    }
-  }
-  void funcBatchExec() {
-    cout << "---Executing Functions---" << endl;
-    for (int i = 0; i < wasmFunctionVec.size(); ++i) {
-      cout << "Executing function " << i << ": " << funcIndexNameMapper[i] << endl;
-      wasmFunctionVec[i].executeInstr();
+      if (execute) {
+        cout << "Executing function " << i << ": " << funcIndexNameMapper[i] << endl;
+        wasmFunctionVec[i].executeInstr();
+      }
     }
   }
   string s;                             // should be read-only
@@ -162,14 +159,13 @@ public:
 };
 
 int main() {
-
   /***
    * TODO:
    * （1） support multi param function pointer -> save to x0 (which is a pointer)
    * also need to support int32/int64/void return
    *  (2) move c++ vector to assembly; maybe save it to sp+offset?
-   * NEED TO EMIT MACHINE CODE FOR EVERY WASM LINE! 
-   * 
+   * NEED TO EMIT MACHINE CODE FOR EVERY WASM LINE!
+   *
    */
   cout << "Parsing wasm file: " << WASM_TO_READ << endl;
   string s = readBinary(WASM_TO_READ);
@@ -196,6 +192,5 @@ int main() {
     s = s.substr(length * 2); // move forward, remeber we need to times 2 because we are processing 2 char at a time; 2 char = 2 * 4 bits = 1 byte
     // cout << type << " " << length << endl;
   }
-  parser.funcBatchInit();
-  // parser.funcBatchExec();
+  parser.funcBatchProcess(true);
 }

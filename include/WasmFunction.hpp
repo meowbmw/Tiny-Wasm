@@ -345,11 +345,11 @@ public:
     int stack_offset = vecToStack[{vecType, var_to_get}];
     cout << format("Getting {}[{}]", type_category_to_string(vecType), var_to_get) << endl;
     // Note: We use x11 as a bridge register for memory -> memory transfer!
-    string load_param_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, stack_offset, false)).substr(2);
+    string load_param_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, stack_offset)).substr(2);
     // var[i] -> x/w11
     string reg11 = (current_type == LdStType::LDR_32) ? "w11" : ((current_type == LdStType::LDR_64) ? "x11" : "Unknown type");
     cout << format("Emit: ldr {}, [sp, #{}] | {}", reg11, stack_offset, convertEndian(load_param_instr)) << endl;
-    string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, wasm_stack_pointer, false)).substr(2);
+    string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, wasm_stack_pointer)).substr(2);
     // x/w11 -> stack[top]
     cout << format("Emit: str {}, [sp, #{}] | {}", reg11, wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
     wasm_stack_pointer -= 8; // decrease wasm stack after push
@@ -365,10 +365,10 @@ public:
     int stack_offset = vecToStack[{vecType, var_to_set}];
     cout << format("Assigning to {}[{}]", type_category_to_string(vecType), var_to_set) << endl;
     wasm_stack_pointer += 8;
-    string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, wasm_stack_pointer, false)).substr(2);
+    string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, wasm_stack_pointer)).substr(2);
     string reg11 = (current_type == LdStType::LDR_32) ? "w11" : ((current_type == LdStType::LDR_64) ? "x11" : "Unknown type");
     cout << format("Emit: ldr {}, [sp, #{}] | {}", reg11, wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
-    string reg_to_mem_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, stack_offset, false)).substr(2);
+    string reg_to_mem_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, stack_offset)).substr(2);
     cout << format("Emit: str {}, [sp, #{}] | {}", reg11, stack_offset, convertEndian(reg_to_mem_instr)) << endl;
     if (isTee) {
       wasm_stack_pointer -= 8; // todo:!!
@@ -395,14 +395,14 @@ public:
             cout << format("i32.const {}", value) << endl;
             string load_to_reg_instr = WrapperEncodeMovInt32(11, value, RegType::W_REG);
             cout << format("Emit: mov {}, w11 | {}", value, convertEndian(load_to_reg_instr)) << endl;
-            string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 11, 31, wasm_stack_pointer, false)).substr(2);
+            string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 11, 31, wasm_stack_pointer)).substr(2);
             cout << format("Emit: str w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
             constructFullinstr(load_to_reg_instr + store_to_stack_instr);
           } else if (typeInfo == 'l') {
             cout << format("i64.const {}", value) << endl;
             string load_to_reg_instr = WrapperEncodeMovInt64(11, value, RegType::X_REG);
             cout << format("Emit: mov {}, x11 | {}", value, convertEndian(load_to_reg_instr)) << endl;
-            string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 11, 31, wasm_stack_pointer, false)).substr(2);
+            string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 11, 31, wasm_stack_pointer)).substr(2);
             cout << format("Emit: str x11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
             constructFullinstr(load_to_reg_instr + store_to_stack_instr);
           }
