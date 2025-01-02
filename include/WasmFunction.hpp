@@ -27,7 +27,9 @@ public:
     prepareStack();
     initParam(); // initParam is storing to memory, prepareParams is storing to registers
     initLocal();
+    printInitStack();
     runningWasmCode(offset);
+    print_stack();
   }
   void allocateVar(const wasm_type &elem, int &stack_location) {
     std::visit(
@@ -60,6 +62,7 @@ public:
     for (const auto &c : local_data) {
       allocateVar(c, local_stack_end_location);
     }
+    cout << "--- Estimate stack allocation ---" << endl;
     cout << "Param start location: " << param_stack_start_location << endl;
     cout << "Param end location: " << param_stack_end_location << endl;
     cout << "Local start location: " << local_stack_start_location << endl;
@@ -84,6 +87,12 @@ public:
     cout << format("Emit: sub sp, sp, {} | {}", stack_size, convertEndian(instr)) << endl;
     constructFullinstr(instr);
   }
+  void printInitStack() {
+    cout << "--- Printing initial stack ---" << endl;
+    for (const auto &p : stackToVec) {
+      cout << format("[sp, #{}] = {}[{}]", p.first, type_category_to_string(p.second.first), p.second.second) << endl;
+    }
+  }
   void initParam() {
     /**
      * Todo: only support 8 params for now!! need to support load from stack if we want to support more params
@@ -95,7 +104,6 @@ public:
     for (int i = 0; i < param_data.size(); ++i) {
       std::visit(
           [&offset, &general_reg_used, &fp_reg_used, &instr, &i, this](auto &&value) {
-            // value 的类型会被自动推断为四种之一
             char typeInfo = typeid(value).name()[0];
             vecToStack[{TypeCategory::PARAM, i}] = offset;
             stackToVec[offset] = {TypeCategory::PARAM, i};
@@ -131,11 +139,10 @@ public:
   }
   void initLocal() {
     string instr;
-    int offset = local_stack_end_location + 8; // leave some space between param and local
+    int offset = local_stack_end_location;
     for (int i = 0; i < local_data.size(); ++i) {
       std::visit(
           [&offset, &instr, &i, this](auto &&value) {
-            // value 的类型会被自动推断为四种之一
             char typeInfo = typeid(value).name()[0];
             vecToStack[{TypeCategory::LOCAL, i}] = offset;
             stackToVec[offset] = {TypeCategory::LOCAL, i};
@@ -187,7 +194,10 @@ public:
      * param_data[0] -> x0
      * param_data[1] -> x1
      */
-    cout << "---Loading params to their respective registers---" << endl;
+    cout << "--- Loading params to their respective registers ---" << endl;
+    if (param_data.size() == 0) {
+      cout << "No params need to be load" << endl;
+    }
     for (int i = 0; i < param_data.size(); ++i) {
       std::visit(
           [&i, this](auto &&value) {
@@ -247,19 +257,19 @@ public:
   void print_data(TypeCategory category) {
     cout << "--- Printing " + type_category_to_string(category) + " data---" << endl;
     bool empty_flag = false;
-    vector<wasm_type> *v = nullptr;
+    vector<wasm_type> v;
     if (category == TypeCategory::LOCAL) {
-      v = &local_data;
+      v = local_data;
       if (local_data.size() == 0) {
         empty_flag = true;
       }
     } else if (category == TypeCategory::PARAM) {
-      v = &param_data;
+      v = param_data;
       if (param_data.size() == 0) {
         empty_flag = true;
       }
     } else if (category == TypeCategory::RESULT) {
-      v = &result_data;
+      v = result_data;
       if (result_data.size() == 0) {
         empty_flag = true;
       }
@@ -268,24 +278,26 @@ public:
       cout << "Empty! Nothing here" << endl;
       return;
     }
-    for (auto &elem : *v) {
+    for (size_t i = 0; i < v.size(); ++i) {
       std::visit(
-          [](auto &&value) {
+          [&category, &i](auto &&value) {
             // value 的类型会被自动推断为四种之一
-            std::cout << value << " is type: " << typeid(value).name() << std::endl;
+            cout << format("{}[{}]: ({}) = {}", type_category_to_string(category), i, typeid(value).name(), value) << endl;
           },
-          elem);
+          v[i]);
     }
   }
   void print_stack() {
     cout << "--- Printing stack---" << endl;
-    for (auto &elem : stack) {
+    if (stack.size() == 0) {
+      cout << "Empty stack!" << endl;
+    }
+    for (size_t i = 0; i < stack.size(); ++i) {
       std::visit(
-          [](auto &&value) {
-            // value 的类型会被自动推断为四种之一
-            std::cout << value << " is type: " << typeid(value).name() << std::endl;
+          [&i](auto &&value) {
+            cout << format("stack[{}]: ({}) = {}", i, typeid(value).name(), value) << endl;
           },
-          elem);
+          stack[i]);
     }
   }
   void add_data(TypeCategory category, const std::string &type) {
@@ -331,38 +343,78 @@ public:
      */
     LdStType current_type = loadType[{vecType, var_to_get}];
     int stack_offset = vecToStack[{vecType, var_to_get}];
-    cout << format("Local.get {}: {}", var_to_get, type_category_to_string(vecType)) << endl;
+    cout << format("Getting {}[{}]", type_category_to_string(vecType), var_to_get) << endl;
     // Note: We use x11 as a bridge register for memory -> memory transfer!
     string load_param_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, stack_offset, false)).substr(2);
     // var[i] -> x/w11
-    cout << format("Emit: ldr x/w11, [sp, #{}] | {}", stack_offset, convertEndian(load_param_instr)) << endl;
+    string reg11 = (current_type == LdStType::LDR_32) ? "w11" : ((current_type == LdStType::LDR_64) ? "x11" : "Unknown type");
+    cout << format("Emit: ldr {}, [sp, #{}] | {}", reg11, stack_offset, convertEndian(load_param_instr)) << endl;
     string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, wasm_stack_pointer, false)).substr(2);
     // x/w11 -> stack[top]
-    cout << format("Emit: str x/w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
-    wasm_stack_pointer += 8; // increase wasm stack after get
-    // constructFullinstr(instr);
+    cout << format("Emit: str {}, [sp, #{}] | {}", reg11, wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
+    wasm_stack_pointer -= 8; // decrease wasm stack after push
+    constructFullinstr(load_param_instr + store_to_stack_instr);
   }
-  void emitSet(const uint64_t var_to_get, TypeCategory vecType, bool isTee = false) {
+  void emitSet(const uint64_t var_to_set, TypeCategory vecType, bool isTee = false) {
     /**
      * Local.set 0
      * Set memory[var[i]] to top value of wasm stack
      * stack[top] -> x/w11 -> var[i]
      */
-    LdStType current_type = loadType[{vecType, var_to_get}];
-    int stack_offset = vecToStack[{vecType, var_to_get}];
-    cout << format("Local.set {}: {}", var_to_get, type_category_to_string(vecType)) << endl;
-    wasm_stack_pointer -= 8;
+    LdStType current_type = loadType[{vecType, var_to_set}];
+    int stack_offset = vecToStack[{vecType, var_to_set}];
+    cout << format("Assigning to {}[{}]", type_category_to_string(vecType), var_to_set) << endl;
+    wasm_stack_pointer += 8;
     string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, wasm_stack_pointer, false)).substr(2);
-    cout << format("Emit: ldr x/w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
+    string reg11 = (current_type == LdStType::LDR_32) ? "w11" : ((current_type == LdStType::LDR_64) ? "x11" : "Unknown type");
+    cout << format("Emit: ldr {}, [sp, #{}] | {}", reg11, wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
     string reg_to_mem_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, stack_offset, false)).substr(2);
-    cout << format("Emit: str x/w11, [sp, #{}] | {}", stack_offset, convertEndian(reg_to_mem_instr)) << endl;
+    cout << format("Emit: str {}, [sp, #{}] | {}", reg11, stack_offset, convertEndian(reg_to_mem_instr)) << endl;
     if (isTee) {
-      wasm_stack_pointer += 8; //todo:!!
+      wasm_stack_pointer -= 8; // todo:!!
     }
-    // constructFullinstr(instr);
+    constructFullinstr(store_to_stack_instr + reg_to_mem_instr);
+  }
+  void emitConst(wasm_type elem) {
+    /***
+     * push value $elem onto wasm Stack
+     * mov $elem, x11
+     * str x11, [sp+wasm_stack_pointer]
+     */
+    std::visit(
+        [this](auto &&value) {
+          char typeInfo = typeid(value).name()[0];
+          if (typeInfo == 'f') {
+            // todo: don't support fmov yet
+            throw std::invalid_argument("Don't support float const yet; need to properly implement fmov or store float first");
+            // string load_to_reg_instr=toHexString(encodeFmovz()).substr(2);
+            // string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F32, 11, 31, wasm_stack_pointer, false)).substr(2);
+          } else if (typeInfo == 'd') {
+            throw std::invalid_argument("Don't support double const yet; need to properly implement fmov or store double first");
+          } else if (typeInfo == 'i') {
+            cout << format("i32.const {}", value) << endl;
+            string load_to_reg_instr = WrapperEncodeMovInt32(11, value, RegType::W_REG);
+            cout << format("Emit: mov {}, w11 | {}", value, convertEndian(load_to_reg_instr)) << endl;
+            string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 11, 31, wasm_stack_pointer, false)).substr(2);
+            cout << format("Emit: str w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
+            constructFullinstr(load_to_reg_instr + store_to_stack_instr);
+          } else if (typeInfo == 'l') {
+            cout << format("i64.const {}", value) << endl;
+            string load_to_reg_instr = WrapperEncodeMovInt64(11, value, RegType::X_REG);
+            cout << format("Emit: mov {}, x11 | {}", value, convertEndian(load_to_reg_instr)) << endl;
+            string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 11, 31, wasm_stack_pointer, false)).substr(2);
+            cout << format("Emit: str x11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
+            constructFullinstr(load_to_reg_instr + store_to_stack_instr);
+          }
+        },
+        elem);
+    wasm_stack_pointer -= 8;
   }
   void runningWasmCode(int i) {
-    wasm_stack_pointer = wasm_stack_start_location;
+    cout << "--- Running wasm code ---" << endl;
+    wasm_stack_pointer = wasm_stack_end_location;
+    cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
+
     while (i < code_vec.size()) {
       if (code_vec[i] == "0f") { // ret
         restoreStack();
@@ -374,6 +426,7 @@ public:
         ++i;
       } else if (code_vec[i] == "20") { // local.get
         u_int64_t var_to_get = stoul(code_vec[i + 1], nullptr, 16);
+        cout << format("Local.get {}", var_to_get) << endl;
         if (var_to_get < param_data.size() + local_data.size()) {
           if (var_to_get < param_data.size()) {
             // falls within boundry of param variable
@@ -392,12 +445,16 @@ public:
           continue;
         }
       } else if (code_vec[i] == "21") { // local.set
-        const u_int64_t var_to_set = stoul(code_vec[i + 1], nullptr, 16);
+        u_int64_t var_to_set = stoul(code_vec[i + 1], nullptr, 16);
+        cout << format("Local.set {}", var_to_set) << endl;
         if (var_to_set < param_data.size() + local_data.size()) {
           if (var_to_set < param_data.size()) {
+            emitSet(var_to_set, TypeCategory::PARAM);
             param_data[var_to_set] = stack.back();
           } else {
-            local_data[var_to_set - param_data.size()] = stack.back();
+            var_to_set -= param_data.size();
+            emitSet(var_to_set, TypeCategory::LOCAL);
+            local_data[var_to_set] = stack.back();
           }
           stack.pop_back();
           i += 2;
@@ -407,33 +464,46 @@ public:
           continue;
         }
       } else if (code_vec[i] == "22") { // local.tee
-        const u_int64_t var_to_set = stoul(code_vec[i + 1], nullptr, 16);
-        if (var_to_set < param_data.size() + local_data.size()) {
-          if (var_to_set < param_data.size()) {
-            param_data[var_to_set] = stack.back();
+        u_int64_t var_to_tee = stoul(code_vec[i + 1], nullptr, 16);
+        cout << format("Local.tee {}", var_to_tee) << endl;
+        if (var_to_tee < param_data.size() + local_data.size()) {
+          if (var_to_tee < param_data.size()) {
+            emitSet(var_to_tee, TypeCategory::PARAM, true);
+            param_data[var_to_tee] = stack.back();
           } else {
-            local_data[var_to_set - param_data.size()] = stack.back();
+            var_to_tee -= param_data.size();
+            emitSet(var_to_tee, TypeCategory::LOCAL, true);
+            local_data[var_to_tee] = stack.back();
           }
           i += 2;
         } else {
-          cout << "Too big index {" + to_string(var_to_set) + "} for local data; skipping current op;" << endl;
+          cout << "Too big index {" + to_string(var_to_tee) + "} for local data; skipping current op;" << endl;
           i += 2;
           continue;
         }
       } else if (code_vec[i] == "41") { // i32.const
-        stack.push_back(static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16)));
+        wasm_type elem = static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16));
+        emitConst(elem);
+        stack.push_back(elem);
         i += 2;
       } else if (code_vec[i] == "42") { // i64.const
-        stack.push_back(static_cast<int64_t>(stoul(code_vec[i + 1], nullptr, 16)));
+        wasm_type elem = static_cast<int64_t>(stoul(code_vec[i + 1], nullptr, 16));
+        emitConst(elem);
+        stack.push_back(elem);
         i += 2;
       } else if (code_vec[i] == "43") { // f32.const
-        stack.push_back(hexToFloat(code_vec[i + 1] + code_vec[i + 2] + code_vec[i + 3] + code_vec[i + 4]));
+        wasm_type elem = hexToFloat(code_vec[i + 1] + code_vec[i + 2] + code_vec[i + 3] + code_vec[i + 4]);
+        emitConst(elem);
+        stack.push_back(elem);
         i += 5;
       } else if (code_vec[i] == "44") { // f64.const
-        stack.push_back(
-            hexToDouble(code_vec[i + 1] + code_vec[i + 2] + code_vec[i + 3] + code_vec[i + 4] + code_vec[i + 5] + code_vec[i + 6] + code_vec[i + 7]));
+        wasm_type elem =
+            hexToDouble(code_vec[i + 1] + code_vec[i + 2] + code_vec[i + 3] + code_vec[i + 4] + code_vec[i + 5] + code_vec[i + 6] + code_vec[i + 7]);
+        emitConst(elem);
+        stack.push_back(elem);
         i += 9;
       }
+      cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
     }
   }
 
