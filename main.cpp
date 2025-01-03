@@ -8,7 +8,8 @@ using json = nlohmann::json;
 // qemu-aarch64 -g 1234 -L /usr/aarch64-linux-gnu ./main
 
 int main() {
-    Parser parser("test/CH02/local.2.wasm");
+    // Parser parser("test/CH02/local.0.wasm");
+    Parser parser("test/CH03/arithmetic.0.wasm");
     parser.parse();
     parser.funcBatchProcess(true);
     return 0;

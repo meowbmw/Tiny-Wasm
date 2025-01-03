@@ -61,6 +61,13 @@ wasm_type operator/(const wasm_type& a, const wasm_type& b) {
         }
     }, a, b);
 }
+// 重载 wasm_type << 运算符
+std::ostream& operator<<(std::ostream& os, const wasm_type& value) {
+    std::visit([&os](auto&& arg) {
+        os << arg;
+    }, value);
+    return os;
+}
 // 模板函数重载 << 操作符以支持任意类型的 std::vector 打印
 template <typename T> std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec) {
   os << "[";

@@ -124,7 +124,20 @@ string WrapperEncodeMovInt64(uint8_t rd, uint64_t value, RegType regType, bool s
   auto instr_3 = toHexString(encodeMovk(rd, imm3, regType, 3, smallEndian)).substr(2);
   return instr_0 + instr_1 + instr_2 + instr_3;
 }
-
+uint32_t encodeAddSubShift(bool isSub, RegType regType, uint8_t rd, uint8_t rn, uint8_t rm, uint16_t imm6, uint8_t shift = 0, bool smallEndian = true) {
+  /**
+   * https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/ADD--shifted-register---Add-optionally-shifted-register-?lang=en#amount__5
+   * https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/SUBS--shifted-register---Subtract-optionally-shifted-register--setting-flags-
+   * 
+   */
+  // 1) 先确定高8位
+  uint32_t inst = 0;
+  if (regType == X_REG) {
+    inst = 0xF2800000; 
+  } else {
+    inst = 0x72800000; 
+  }
+}
 uint32_t encodeAddSubImm(bool isSub, uint8_t rd, uint8_t rn, uint16_t imm, bool shift12, bool smallEndian = true) {
   // 1) 先确定高8位
   //    对于 64-bit ADD (S=0) => 0x91

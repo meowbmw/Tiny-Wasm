@@ -1,7 +1,7 @@
 #pragma once
+#include "FloatUtils.h"
 #include "Opcode.hpp"
 #include "OverloadOperator.h"
-#include "FloatUtils.h"
 #include "Utils.h"
 using namespace std;
 
@@ -445,11 +445,30 @@ public:
         elem);
     wasm_stack_pointer -= 8;
   }
-  void emitAdd(wasm_type a, wasm_type b) {
+  void emitAdd(char typeInfo) {
+    if (typeInfo == 'i') {
+      // we want to do a+b
+      cout << format("i32.add") << endl;
+      wasm_stack_pointer += 8;
+      // w11 = b
+      string load_second_param_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_32, 11, 31, wasm_stack_pointer)).substr(2);
+      cout << format("Emit: ldr w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_second_param_instr)) << endl;
+      wasm_stack_pointer += 8;
+      // w12 = a
+      string load_first_param_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_32, 12, 31, wasm_stack_pointer)).substr(2);
+      cout << format("Emit: ldr w12, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_first_param_instr)) << endl;
+    } else if (typeInfo == 'l') {
+    }
   }
-  void emitSub(wasm_type a, wasm_type b) {
+  void emitSub(char typeInfo) {
+    if (typeInfo == 'i') {
+    } else if (typeInfo == 'l') {
+    }
   }
-  void emitMul(wasm_type a, wasm_type b) {
+  void emitMul(char typeInfo) {
+    if (typeInfo == 'i') {
+    } else if (typeInfo == 'l') {
+    }
   }
   void runningWasmCode(int i) {
     cout << "--- JITing wasm code ---" << endl;
@@ -457,6 +476,10 @@ public:
     cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
 
     while (i < code_vec.size()) {
+      /**
+       * WebAssembly Opcodes
+       * https://pengowray.github.io/wasm-ops/
+       */
       if (code_vec[i] == "0f") { // ret
         restoreStack();
         emitRet();
@@ -544,22 +567,53 @@ public:
         stack.push_back(elem);
         i += 9;
       } else if (code_vec[i] == "6a") { // i32.add
+        emitAdd('i');
         auto b = stack.back();
         stack.pop_back();
         auto a = stack.back();
         stack.pop_back();
         stack.push_back(a + b);
-        i += 2;
+        i += 1;
       } else if (code_vec[i] == "6b") { // i32.sub
-        i += 2;
+        emitSub('i');
+        auto b = stack.back();
+        stack.pop_back();
+        auto a = stack.back();
+        stack.pop_back();
+        stack.push_back(a - b);
+        i += 1;
       } else if (code_vec[i] == "6c") { // i32.mul
-        i += 2;
+        emitMul('i');
+        auto b = stack.back();
+        stack.pop_back();
+        auto a = stack.back();
+        stack.pop_back();
+        stack.push_back(a * b);
+        i += 1;
       } else if (code_vec[i] == "7c") { // i64.add
-        i += 2;
+        emitAdd('l');
+        auto b = stack.back();
+        stack.pop_back();
+        auto a = stack.back();
+        stack.pop_back();
+        stack.push_back(a + b);
+        i += 1;
       } else if (code_vec[i] == "7d") { // i64.sub
-        i += 2;
+        emitSub('l');
+        auto b = stack.back();
+        stack.pop_back();
+        auto a = stack.back();
+        stack.pop_back();
+        stack.push_back(a - b);
+        i += 1;
       } else if (code_vec[i] == "7e") { // i64.mul
-        i += 2;
+        emitMul('l');
+        auto b = stack.back();
+        stack.pop_back();
+        auto a = stack.back();
+        stack.pop_back();
+        stack.push_back(a * b);
+        i += 1;
       }
       cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
     }
