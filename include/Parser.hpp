@@ -51,7 +51,6 @@ public:
       cout << "Aborting" << endl;
       exit(-1);
     }
-    cout << "Initial checking..\nMagic number: " << ((magic_number == "0061736d") ? "Matched" : "Unmatched") << endl;
     s = s.substr(8); // crop magic number
     cout << "Webassembly version is: " << s.substr(0, 2) << endl;
     s = s.substr(8); // crop version

@@ -178,7 +178,7 @@ public:
   }
   void restoreStack() {
     // getting result and restoring sp register
-    cout << "Moving stack top to register as answer" << endl;
+    cout << "Moving stack top to register as result" << endl;
     string prepare_ans_instr;
     int current_wasm_pointer = wasm_stack_pointer + 8;
     for (int i = 0; i < result_data.size(); ++i) {
