@@ -10,6 +10,7 @@
 #include <iterator>
 #include <format>
 #include <map>
+#include <set>
 #include <memory>
 #include <sstream>
 #include <stdexcept>

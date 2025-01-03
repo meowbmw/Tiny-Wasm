@@ -157,27 +157,35 @@ uint32_t encodeLoadStoreUnsignedImm(LdStType type, uint8_t rt, uint8_t rn, uint1
   switch (type) {
   case LdStType::STR_32:
     base = 0xB9000000; // str w
+    imm12 >>= 2;
     break;
   case LdStType::LDR_32:
     base = 0xB9400000; // ldr w
+    imm12 >>= 2;
     break;
   case LdStType::STR_64:
     base = 0xF9000000; // str x
+    imm12 >>= 3;
     break;
   case LdStType::LDR_64:
     base = 0xF9400000; // ldr x
+    imm12 >>= 3;
     break;
   case LdStType::STR_F32:
     base = 0xBD000000; // ldr s
+    imm12 >>= 2;
     break;
   case LdStType::STR_F64:
     base = 0xFD000000; // ldr d
+    imm12 >>= 3;
     break;
   case LdStType::LDR_F32:
     base = 0xBD400000; // ldr s
+    imm12 >>= 2;
     break;
   case LdStType::LDR_F64:
     base = 0xFD400000; // ldr d
+    imm12 >>= 3;
     break;
   }
 

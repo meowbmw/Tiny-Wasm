@@ -15,8 +15,7 @@ const string WASM_TO_READ = "test/local.2.wasm";
 
 class Parser {
 public:
-  void parse(string WASM_PATH) {
-    s = readBinary(WASM_PATH);
+  void parse() {
     cout << "Parsing wasm file: " << WASM_PATH << endl;
     initial_check();
     while (s.size() > 0) {
@@ -153,27 +152,42 @@ public:
       wasmFunctionVec.push_back(curFunc);
     }
   }
+  void initFunctionbyType(int i) {
+    wasmFunctionVec[i].type = funcTypeVec[i];
+    wasmFunctionVec[i].param_data = wasmTypeVec[funcTypeVec[i]].param_data;
+    wasmFunctionVec[i].result_data = wasmTypeVec[funcTypeVec[i]].result_data;
+  }
+  void funcSingleProcess(int i) {
+    cout << "------ Processing function " << i << ": " << funcIndexNameMapper[i] << " ------" << endl;
+    wasmFunctionVec[i].prepareParams();
+    wasmFunctionVec[i].processCodeVec(); // this function will deal with local varaible initialization and machine code construction
+    cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
+    cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
+         << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
+    cout << "Total result count: " << wasmFunctionVec[i].result_data.size() << endl;
+  }
   void funcBatchProcess(bool execute = false) {
     // give function their respective param, result and local vec.
     // generate respective machine code
     for (int i = 0; i < funcTypeVec.size(); ++i) {
-      wasmFunctionVec[i].type = funcTypeVec[i];
-      wasmFunctionVec[i].param_data = wasmTypeVec[funcTypeVec[i]].param_data;
-      wasmFunctionVec[i].result_data = wasmTypeVec[funcTypeVec[i]].result_data;
-      cout << "------ Processing function " << i << ": " << funcIndexNameMapper[i] << " ------" << endl;
-      wasmFunctionVec[i].prepareParams();
-      wasmFunctionVec[i].processCodeVec(); // this function will deal with local varaible initialization and machine code construction
-      cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
-      cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
-           << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
-      cout << "Total result count: " << wasmFunctionVec[i].result_data.size() << endl;
+      initFunctionbyType(i);
+      funcSingleProcess(i);
       if (execute) {
         cout << "Executing function " << i << ": " << funcIndexNameMapper[i] << endl;
         wasmFunctionVec[i].executeInstr();
       }
     }
   }
+  Parser() {
+  }
+  Parser(string wasmpath) {
+    WASM_PATH = wasmpath;
+    s = readBinary(WASM_PATH);
+  }
+
   string s;
+  string WASM_PATH;
+  int64_t result;
   unsigned int length = 0;
   vector<WasmFunction> wasmFunctionVec; // used to store function code
   vector<WasmType> wasmTypeVec;         // used to store type definition

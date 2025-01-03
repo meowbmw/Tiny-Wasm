@@ -83,6 +83,7 @@ public:
     cout << "Stack allocate size estimated to be: " << stack_size << endl;
   }
   void prepareStack() {
+    cout << "Sub sp register" << endl;
     string instr = toHexString(encodeAddSubImm(true, 31, 31, stack_size, false)).substr(2); // sub sp, sp, stack_size, substr to remove 0x prefix
     cout << format("Emit: sub sp, sp, {} | {}", stack_size, convertEndian(instr)) << endl;
     constructFullinstr(instr);
@@ -108,25 +109,25 @@ public:
             vecToStack[{TypeCategory::PARAM, i}] = offset;
             stackToVec[offset] = {TypeCategory::PARAM, i};
             if (typeInfo == 'f') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F32, fp_reg_used, 31, offset >> 2)).substr(2);
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F32, fp_reg_used, 31, offset)).substr(2);
               loadType[{TypeCategory::PARAM, i}] = LdStType::LDR_F32;
               cout << format("Emit: str s{}, [sp, #{}] | {}", fp_reg_used, offset, convertEndian(instr)) << endl;
               offset -= 4;
               fp_reg_used += 1;
             } else if (typeInfo == 'd') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F64, fp_reg_used, 31, offset >> 3)).substr(2);
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F64, fp_reg_used, 31, offset)).substr(2);
               loadType[{TypeCategory::PARAM, i}] = LdStType::LDR_F64;
               cout << format("Emit: str d{}, [sp, #{}] | {}", fp_reg_used, offset, convertEndian(instr)) << endl;
               offset -= 8;
               fp_reg_used += 1;
             } else if (typeInfo == 'l') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, general_reg_used, 31, offset >> 3)).substr(2);
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, general_reg_used, 31, offset)).substr(2);
               loadType[{TypeCategory::PARAM, i}] = LdStType::LDR_64;
               cout << format("Emit: str x{}, [sp, #{}] | {}", general_reg_used, offset, convertEndian(instr)) << endl;
               offset -= 4;
               general_reg_used += 1;
             } else if (typeInfo == 'i') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, general_reg_used, 31, offset >> 2)).substr(2);
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, general_reg_used, 31, offset)).substr(2);
               loadType[{TypeCategory::PARAM, i}] = LdStType::LDR_32;
               cout << format("Emit: str w{}, [sp, #{}] | {}", general_reg_used, offset, convertEndian(instr)) << endl;
               offset -= 4;
@@ -149,22 +150,22 @@ public:
             if (typeInfo == 'f') {
               // NOTE: we are only moving zeros, so treat them like int here
               // xzr/wzr have same number as sp (31)
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 31, 31, offset >> 2)).substr(2);
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 31, 31, offset)).substr(2);
               loadType[{TypeCategory::LOCAL, i}] = LdStType::LDR_F32;
               cout << format("Emit: str wzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
               offset -= 4;
             } else if (typeInfo == 'd') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 31, 31, offset >> 3)).substr(2);
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 31, 31, offset)).substr(2);
               loadType[{TypeCategory::LOCAL, i}] = LdStType::LDR_F64;
               cout << format("Emit: str xzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
               offset -= 8;
             } else if (typeInfo == 'l') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 31, 31, offset >> 3)).substr(2);
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 31, 31, offset)).substr(2);
               loadType[{TypeCategory::LOCAL, i}] = LdStType::LDR_64;
               cout << format("Emit: str xzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
               offset -= 4;
             } else if (typeInfo == 'i') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 31, 31, offset >> 2)).substr(2);
+              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 31, 31, offset)).substr(2);
               loadType[{TypeCategory::LOCAL, i}] = LdStType::LDR_32;
               cout << format("Emit: str wzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
               offset -= 4;
@@ -175,10 +176,15 @@ public:
     }
   }
   void restoreStack() {
-    const string instr =
+    // getting result and restoring sp register
+    cout << "Moving stack top to x0 as answer" << endl;
+    string prepare_ans_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_64, 0, 31, wasm_stack_pointer)).substr(2);
+    cout << format("Emit: ldr x0, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(prepare_ans_instr)) << endl;
+    cout << "Restore sp register" << endl;
+    const string restore_sp_instr =
         toHexString(encodeAddSubImm(false, 31, 31, stack_size, false)).substr(2); // add sp, sp, stack_size, substr to remove 0x prefix
-    cout << format("Emit: add sp, sp, {} | {}", stack_size, convertEndian(instr)) << endl;
-    constructFullinstr(instr);
+    cout << format("Emit: add sp, sp, {} | {}", stack_size, convertEndian(restore_sp_instr)) << endl;
+    constructFullinstr(prepare_ans_instr + restore_sp_instr);
   }
   void emitRet() {
     const string instr = "C0035FD6";
@@ -221,7 +227,7 @@ public:
     }
     cout << "---Loading parameters finished---" << endl;
   }
-  void executeInstr() {
+  int64_t executeInstr() {
     /**
      * Allocate memory with execute permission
      * And load machine code into that
@@ -244,7 +250,7 @@ public:
         reinterpret_cast<int64_t (*)()>(mmap(nullptr, arraySize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
     if (instruction_set == MAP_FAILED) {
       perror("mmap");
-      return;
+      return -1;
     }
     // copy code to buffer
     memcpy(reinterpret_cast<void *>(instruction_set), charArray.get(), arraySize);
@@ -253,6 +259,7 @@ public:
     // !不需要做任何传参，因为参数已经放在寄存器里啦
     int64_t ans = instruction_set();
     munmap(reinterpret_cast<void *>(instruction_set), arraySize);
+    return ans;
   }
   void print_data(TypeCategory category) {
     cout << "--- Printing " + type_category_to_string(category) + " data---" << endl;
@@ -411,7 +418,7 @@ public:
     wasm_stack_pointer -= 8;
   }
   void runningWasmCode(int i) {
-    cout << "--- Running wasm code ---" << endl;
+    cout << "--- JITing wasm code ---" << endl;
     wasm_stack_pointer = wasm_stack_end_location;
     cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
 

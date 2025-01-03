@@ -61,7 +61,8 @@
         "valarray": "cpp",
         "bitset": "cpp",
         "format": "cpp",
-        "charconv": "cpp"
+        "charconv": "cpp",
+        "set": "cpp"
     },
     "makefile.configureOnOpen": false,
 }
