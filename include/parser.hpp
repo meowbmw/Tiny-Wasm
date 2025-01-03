@@ -1,3 +1,4 @@
+#pragma once
 #include "WasmFunction.hpp"
 #include "WasmType.hpp"
 using namespace std;

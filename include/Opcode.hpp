@@ -1,3 +1,4 @@
+#pragma once
 #include "utils.h"
 
 /**
@@ -50,6 +51,9 @@ LdStType convertLdSt(LdStType type) {
     return LdStType::STR_F32;
   case LdStType::LDR_F64:
     return LdStType::STR_F64;
+  default:
+    throw "Unknown LdStType";
+    return LdStType::LDR_32;
   }
 }
 // 将立即数转换为MOVZ指令的机器码

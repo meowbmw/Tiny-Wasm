@@ -1,3 +1,4 @@
+#pragma once
 #include "Opcode.hpp"
 #include "container_print.h"
 #include "float_utils.h"
