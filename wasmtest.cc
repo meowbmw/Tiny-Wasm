@@ -8,8 +8,8 @@ using json = nlohmann::json;
 TEST(WASM_TEST, wasm_test) {
   ofstream parser_cout("parserOutput.txt");
   auto normal_cout = cout.rdbuf();
-
-  ifstream f("../test/local.json");
+  string TEST_FOLDER = "../test/CH02/";
+  ifstream f(TEST_FOLDER + "local.json");
   json data = json::parse(f);
   multimap<string, json> command_map;
   map<string, Parser> parser_map;
@@ -18,7 +18,7 @@ TEST(WASM_TEST, wasm_test) {
     if (data["commands"][i].contains("filename")) {
       cur_wasm_file = data["commands"][i]["filename"];
       if (parser_map.contains(cur_wasm_file) == false) {
-        Parser cur_parser = Parser("../test/" + cur_wasm_file);
+        Parser cur_parser = Parser(TEST_FOLDER + cur_wasm_file);
         parser_map.insert({cur_wasm_file, cur_parser});
         cout.rdbuf(parser_cout.rdbuf()); // Redirect parser output to file; it's too much...
         parser_map[cur_wasm_file].parse();
