@@ -1,8 +1,8 @@
 #pragma once
 #include "Opcode.hpp"
-#include "container_print.h"
-#include "float_utils.h"
-#include "utils.h"
+#include "OverloadOperator.h"
+#include "FloatUtils.h"
+#include "Utils.h"
 using namespace std;
 
 class WasmFunction {
@@ -280,7 +280,7 @@ public:
     __builtin___clear_cache(reinterpret_cast<char *>(instruction_set), reinterpret_cast<char *>(instruction_set) + arraySize);
     // !不需要做任何传参，因为参数已经放在寄存器里啦
     int64_t ans = instruction_set();
-    if (result_data.size()==0){
+    if (result_data.size() == 0) {
       // in this case ans will still be x0
       // which is probably the first param of our function
       // setting it to zero as this value is meaningless
@@ -445,6 +445,12 @@ public:
         elem);
     wasm_stack_pointer -= 8;
   }
+  void emitAdd(wasm_type a, wasm_type b) {
+  }
+  void emitSub(wasm_type a, wasm_type b) {
+  }
+  void emitMul(wasm_type a, wasm_type b) {
+  }
   void runningWasmCode(int i) {
     cout << "--- JITing wasm code ---" << endl;
     wasm_stack_pointer = wasm_stack_end_location;
@@ -537,6 +543,23 @@ public:
         emitConst(elem);
         stack.push_back(elem);
         i += 9;
+      } else if (code_vec[i] == "6a") { // i32.add
+        auto b = stack.back();
+        stack.pop_back();
+        auto a = stack.back();
+        stack.pop_back();
+        stack.push_back(a + b);
+        i += 2;
+      } else if (code_vec[i] == "6b") { // i32.sub
+        i += 2;
+      } else if (code_vec[i] == "6c") { // i32.mul
+        i += 2;
+      } else if (code_vec[i] == "7c") { // i64.add
+        i += 2;
+      } else if (code_vec[i] == "7d") { // i64.sub
+        i += 2;
+      } else if (code_vec[i] == "7e") { // i64.mul
+        i += 2;
       }
       cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
     }

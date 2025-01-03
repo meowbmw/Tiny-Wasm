@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "include/json.hpp"
-#include "include/parser.hpp"
+#include "include/Json.hpp"
+#include "include/Parser.hpp"
 using namespace std;
 using json = nlohmann::json;
 

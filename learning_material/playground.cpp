@@ -1,39 +1,42 @@
-#include <cstdint>
-#include <cstring>
-#include <iomanip>
 #include <iostream>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-#include <type_traits>
-#include <typeinfo>
 #include <variant>
-#include <vector>
+#include <stdexcept>
+#include <type_traits>
 
-#include "../include/utils.h"
+// 定义 wasm_type
+using wasm_type = std::variant<int32_t, int64_t, float, double>;
 
-using namespace std;
+// 重载 + 运算符
+wasm_type operator+(const wasm_type& a, const wasm_type& b) {
+    return std::visit([](auto&& arg1, auto&& arg2) -> wasm_type {
+        using T1 = std::decay_t<decltype(arg1)>;
+        using T2 = std::decay_t<decltype(arg2)>;
+
+        if constexpr (std::is_same_v<T1, T2>) {
+            return arg1 + arg2;
+        } else if constexpr (std::is_arithmetic_v<T1> && std::is_arithmetic_v<T2>) {
+            return static_cast<std::common_type_t<T1, T2>>(arg1) + static_cast<std::common_type_t<T1, T2>>(arg2);
+        } else {
+            throw std::invalid_argument("Unsupported types in operator+");
+        }
+    }, a, b);
+}
+
 int main() {
-  string s = "e0 0f 00 b9 ";
-  string bits = processHexCode(s, false);
-  cout << "str w0, [sp, #12]" << endl;
-  cout << bits << endl;
-  return 0;
-  // Extracting values
-  unsigned int Rd = GetBits(bits, 0, 4);
-  unsigned int imm12 = GetBits(bits, 10, 21);
-  unsigned int Rn = GetBits(bits, 5, 9);
-  unsigned int sf = GetBits(bits, 31, 31);
-  unsigned int op = GetBits(bits, 30, 30);
-  unsigned int S = GetBits(bits, 29, 29);
-  unsigned int shift = GetBits(bits, 22, 23);
+    wasm_type v1 = int32_t(10);
+    wasm_type v2 = int64_t(20);
+    wasm_type v3 = double(10.5);
+    wasm_type v4 = float(5.5);
 
-  // Output the extracted values
-  std::cout << "Rd: " << Rd << std::endl;
-  std::cout << "imm12: " << imm12 << std::endl;
-  std::cout << "Rn: " << Rn << std::endl;
-  std::cout << "sf: " << sf << std::endl;
-  std::cout << "op: " << op << std::endl;
-  std::cout << "S: " << S << std::endl;
-  std::cout << "shift: " << shift << std::endl;
+    try {
+        wasm_type result1 = v1 + v2;
+        std::visit([](auto&& arg) { std::cout << "Result1: " << arg << std::endl; }, result1);
+
+        wasm_type result2 = v3 + v4;
+        std::visit([](auto&& arg) { std::cout << "Result2: " << arg << std::endl; }, result2);
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << std::endl;
+    }
+
+    return 0;
 }

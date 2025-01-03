@@ -3,8 +3,8 @@
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
-#include "../include/utils.h"
-#include "../include/float_utils.h"
+#include "../include/Utils.h"
+#include "../include/FloatUtils.h"
 
 enum FRegType { S_REG, D_REG };
 
