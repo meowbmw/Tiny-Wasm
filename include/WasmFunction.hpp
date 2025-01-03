@@ -177,9 +177,30 @@ public:
   }
   void restoreStack() {
     // getting result and restoring sp register
-    cout << "Moving stack top to x0 as answer" << endl;
-    string prepare_ans_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_64, 0, 31, wasm_stack_pointer)).substr(2);
-    cout << format("Emit: ldr x0, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(prepare_ans_instr)) << endl;
+    cout << "Moving stack top to register as answer" << endl;
+    string prepare_ans_instr;
+    int current_wasm_pointer = wasm_stack_pointer + 8;
+    for (int i = 0; i < result_data.size(); ++i) {
+      // we are iterating here
+      // but we are actually expecting i=0 only (1 result)
+      std::visit(
+          [&i, &prepare_ans_instr, &current_wasm_pointer, this](auto &&value) {
+            char typeInfo = typeid(value).name()[0];
+            if (typeInfo == 'f') {
+              throw std::invalid_argument("Fmov not supported yet!");
+            } else if (typeInfo == 'd') {
+              throw std::invalid_argument("Fmov not supported yet!");
+            } else if (typeInfo == 'l') {
+              prepare_ans_instr += toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_64, i, 31, current_wasm_pointer)).substr(2);
+              cout << format("Emit: ldr x0, [sp, #{}] | {}", current_wasm_pointer, convertEndian(prepare_ans_instr)) << endl;
+            } else if (typeInfo == 'i') {
+              prepare_ans_instr += toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_32, i, 31, current_wasm_pointer)).substr(2);
+              cout << format("Emit: ldr w0, [sp, #{}] | {}", current_wasm_pointer, convertEndian(prepare_ans_instr)) << endl;
+            }
+          },
+          result_data[i]);
+      current_wasm_pointer -= 8;
+    }
     cout << "Restore sp register" << endl;
     const string restore_sp_instr =
         toHexString(encodeAddSubImm(false, 31, 31, stack_size, false)).substr(2); // add sp, sp, stack_size, substr to remove 0x prefix
@@ -258,6 +279,12 @@ public:
     __builtin___clear_cache(reinterpret_cast<char *>(instruction_set), reinterpret_cast<char *>(instruction_set) + arraySize);
     // !不需要做任何传参，因为参数已经放在寄存器里啦
     int64_t ans = instruction_set();
+    if (result_data.size()==0){
+      // in this case ans will still be x0
+      // which is probably the first param of our function
+      // setting it to zero as this value is meaningless
+      ans = 0;
+    }
     munmap(reinterpret_cast<void *>(instruction_set), arraySize);
     return ans;
   }
@@ -348,15 +375,15 @@ public:
      * push to wasm stack memory[var[i]]
      * var[i] -> x/w11 -> stack[top]
      */
-    LdStType current_type = loadType[{vecType, var_to_get}];
+    LdStType ldtype = loadType[{vecType, var_to_get}];
     int stack_offset = vecToStack[{vecType, var_to_get}];
     cout << format("Getting {}[{}]", type_category_to_string(vecType), var_to_get) << endl;
     // Note: We use x11 as a bridge register for memory -> memory transfer!
-    string load_param_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, stack_offset)).substr(2);
+    string load_param_instr = toHexString(encodeLoadStoreUnsignedImm(ldtype, 11, 31, stack_offset)).substr(2);
     // var[i] -> x/w11
-    string reg11 = (current_type == LdStType::LDR_32) ? "w11" : ((current_type == LdStType::LDR_64) ? "x11" : "Unknown type");
+    string reg11 = (ldtype == LdStType::LDR_32) ? "w11" : ((ldtype == LdStType::LDR_64) ? "x11" : "Unknown type");
     cout << format("Emit: ldr {}, [sp, #{}] | {}", reg11, stack_offset, convertEndian(load_param_instr)) << endl;
-    string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, wasm_stack_pointer)).substr(2);
+    string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(convertLdSt(ldtype), 11, 31, wasm_stack_pointer)).substr(2);
     // x/w11 -> stack[top]
     cout << format("Emit: str {}, [sp, #{}] | {}", reg11, wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
     wasm_stack_pointer -= 8; // decrease wasm stack after push
@@ -368,14 +395,14 @@ public:
      * Set memory[var[i]] to top value of wasm stack
      * stack[top] -> x/w11 -> var[i]
      */
-    LdStType current_type = loadType[{vecType, var_to_set}];
+    LdStType ldType = loadType[{vecType, var_to_set}];
     int stack_offset = vecToStack[{vecType, var_to_set}];
     cout << format("Assigning to {}[{}]", type_category_to_string(vecType), var_to_set) << endl;
     wasm_stack_pointer += 8;
-    string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, wasm_stack_pointer)).substr(2);
-    string reg11 = (current_type == LdStType::LDR_32) ? "w11" : ((current_type == LdStType::LDR_64) ? "x11" : "Unknown type");
+    string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(ldType, 11, 31, wasm_stack_pointer)).substr(2);
+    string reg11 = (ldType == LdStType::LDR_32) ? "w11" : ((ldType == LdStType::LDR_64) ? "x11" : "Unknown type");
     cout << format("Emit: ldr {}, [sp, #{}] | {}", reg11, wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
-    string reg_to_mem_instr = toHexString(encodeLoadStoreUnsignedImm(current_type, 11, 31, stack_offset)).substr(2);
+    string reg_to_mem_instr = toHexString(encodeLoadStoreUnsignedImm(convertLdSt(ldType), 11, 31, stack_offset)).substr(2);
     cout << format("Emit: str {}, [sp, #{}] | {}", reg11, stack_offset, convertEndian(reg_to_mem_instr)) << endl;
     if (isTee) {
       wasm_stack_pointer -= 8; // todo:!!

@@ -28,6 +28,30 @@ uint32_t encodeBranch(uint32_t imm26, bool smallEndian = true) {
   return instruction;
 }
 
+LdStType convertLdSt(LdStType type) {
+  /**
+   * Convert store type to read type
+   * And vice versa.
+   */
+  switch (type) {
+  case LdStType::STR_32:
+    return LdStType::LDR_32;
+  case LdStType::LDR_32:
+    return LdStType::STR_32;
+  case LdStType::STR_64:
+    return LdStType::LDR_64;
+  case LdStType::LDR_64:
+    return LdStType::STR_64;
+  case LdStType::STR_F32:
+    return LdStType::LDR_F32;
+  case LdStType::STR_F64:
+    return LdStType::LDR_F64;
+  case LdStType::LDR_F32:
+    return LdStType::STR_F32;
+  case LdStType::LDR_F64:
+    return LdStType::STR_F64;
+  }
+}
 // 将立即数转换为MOVZ指令的机器码
 uint32_t encodeMovz(uint8_t rd, uint16_t imm16, RegType regType, uint8_t hw, bool smallEndian = true) {
   // mov immediate and set all other bytes to zero.

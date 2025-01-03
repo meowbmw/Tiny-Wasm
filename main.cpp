@@ -35,29 +35,44 @@ int main() {
     }
   }
   for (auto &v : command_map) {
+    cout << "---Asserting---" << endl;
     string function_name = v.second["action"]["field"];
     Parser &curParser = parser_map[v.first];
     int function_index = curParser.funcNameIndexMapper[function_name];
     curParser.initFunctionbyType(function_index);
+    // NOTE: USING REFERENCE IS VERY VERY IMPORTANT HERE!!!
+    // OTHERWISE ORIGIN VALUE WON'T BE CHANGED!!
     auto &curFunction = curParser.wasmFunctionVec[function_index];
-    auto param_vec = curFunction.param_data;
-    for (int i = 0; i < param_vec.size(); ++i) {
+    auto &param_data = curFunction.param_data;
+    for (int i = 0; i < param_data.size(); ++i) {
       auto v_str = v.second["action"]["args"][i]["value"].dump();
       v_str = v_str.substr(1, v_str.size() - 2);
       if (v.second["action"]["args"][i]["type"] == "i32") {
-        param_vec[i] = stoi(v_str);
+        param_data[i] = stoi(v_str);
       } else if (v.second["action"]["args"][i]["type"] == "i64") {
-        param_vec[i] = stol(v_str);
+        param_data[i] = stol(v_str);
       } else {
         cout << "Unsupported param type, probably float" << endl;
       }
     }
+    cout << "param_data: " << param_data << endl;
     cout.rdbuf(parser_cout.rdbuf()); // Redirect parser output to file; it's too much...
     curParser.funcSingleProcess(function_index);
     cout.rdbuf(normal_cout); // Restore cout
     cout << v.first << " " << v.second << endl;
+    string expect_str = v.second["expected"][0]["value"].dump();
+    expect_str = expect_str.substr(1, expect_str.size() - 2);
     cout << "Executing function " << function_index << ": " << function_name << endl;
-    cout <<  curFunction.executeInstr() << endl;
+    if (curFunction.result_data.size() > 0) {
+      auto ans = curFunction.executeInstr();
+      cout << format("Expecting {}", expect_str) << endl;
+      cout << "Result: " << ans << endl;
+      cout << "Matched: " << ((ans == stol(expect_str)) ? "True" : "False") << endl;
+    } else {
+      cout << "[]" << endl;
+      cout << format("Expecting []") << endl;
+      cout << "Matched: " << ((expect_str == "ul") ? "True" : "False") << endl;
+    }
   }
   return 0;
 }
