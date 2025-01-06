@@ -14,7 +14,8 @@ int main() {
   //   return 0;
   ofstream parser_cout("parserOutput.txt");
   auto normal_cout = cout.rdbuf();
-  ifstream f(base_path + "custom.json");
+//   ifstream f(base_path + "custom.json");
+    ifstream f(base_path + "arithmetic.json");
   json data = json::parse(f);
   multimap<string, json> command_map;
   map<string, Parser> parser_map;
@@ -66,7 +67,11 @@ int main() {
       auto ans = curFunction.executeInstr();
       cout << format("Expecting {}", expect_str) << endl;
       cout << "Result: " << ans << endl;
-      cout << "Matched: " << ((ans == static_cast<int64_t>(stoul(expect_str))) ? "True" : "False") << endl;
+      bool matched = (ans == static_cast<int64_t>(stoul(expect_str)));
+      cout << "Matched: " << (matched ? "True" : "False") << endl;
+      if (matched == false) {
+        throw "Unmatched";
+      }
     } else {
       cout << "[]" << endl;
       cout << format("Expecting []") << endl;

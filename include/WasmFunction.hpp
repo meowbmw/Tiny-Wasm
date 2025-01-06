@@ -236,11 +236,11 @@ public:
             } else if (typeInfo == 'd') {
               throw std::invalid_argument("Fmov not supported yet!");
             } else if (typeInfo == 'l') {
-              const string instr = toHexString(encodeMovz(i, value, X_REG, 0)).substr(2);
+              const string instr = WrapperEncodeMovInt64(i, value, RegType::X_REG);
               cout << format("Emit: mov x{}, {} | {}", i, value, convertEndian(instr)) << endl;
               pre_instructions_for_param_loading += instr;
             } else if (typeInfo == 'i') {
-              const string instr = toHexString(encodeMovz(i, value, W_REG, 0)).substr(2);
+              const string instr = WrapperEncodeMovInt32(i, value, RegType::W_REG);
               cout << format("Emit: mov s{}, {} | {}", i, value, convertEndian(instr)) << endl;
               pre_instructions_for_param_loading += instr;
             }
@@ -461,7 +461,7 @@ public:
       cout << format("Emit: ldr w12, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_first_param_instr)) << endl;
       // w11 = a+b
       cout << "Emit: ";
-      string arith_instr = toHexString(encodeAddSubShift(isSub, W_REG, 11, 11, 12)).substr(2);
+      string arith_instr = toHexString(encodeAddSubShift(isSub, W_REG, 11, 12, 11)).substr(2);
       string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 11, 31, wasm_stack_pointer)).substr(2);
       cout << format("Emit: str w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
       wasm_stack_pointer -= 8; // decrease wasm stack after push
@@ -471,16 +471,16 @@ public:
       wasm_stack_pointer += 8;
       // x11 = b
       string load_second_param_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_64, 11, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: ldr w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_second_param_instr)) << endl;
+      cout << format("Emit: ldr x11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_second_param_instr)) << endl;
       wasm_stack_pointer += 8;
       // x12 = a
       string load_first_param_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_64, 12, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: ldr w12, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_first_param_instr)) << endl;
+      cout << format("Emit: ldr x12, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_first_param_instr)) << endl;
       // x11 = a+-b
       cout << "Emit: ";
-      string arith_instr = toHexString(encodeAddSubShift(isSub, X_REG, 11, 11, 12)).substr(2);
+      string arith_instr = toHexString(encodeAddSubShift(isSub, X_REG, 11, 12, 11)).substr(2);
       string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 11, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: str w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
+      cout << format("Emit: str x11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
       wasm_stack_pointer -= 8; // decrease wasm stack after push
       constructFullinstr(load_first_param_instr + load_second_param_instr + arith_instr + store_to_stack_instr);
     }
