@@ -6,7 +6,6 @@ using json = nlohmann::json;
 // aarch64-linux-gnu-g++ -c arm64.s && aarch64-linux-gnu-objdump -d arm64.o
 // aarch64-linux-gnu-g++ parser.cpp -o main && qemu-aarch64 -L /usr/aarch64-linux-gnu ./main
 // qemu-aarch64 -g 1234 -L /usr/aarch64-linux-gnu ./main
-string base_path = "test/CH03/";
 int main() {
   //   Parser parser("test/local.2.wasm");
   //   parser.parse();
@@ -14,8 +13,9 @@ int main() {
   //   return 0;
   ofstream parser_cout("parserOutput.txt");
   auto normal_cout = cout.rdbuf();
-//   ifstream f(base_path + "custom.json");
-    ifstream f(base_path + "arithmetic.json");
+  string base_path = "test/CH03/";
+  //   ifstream f(base_path + "custom.json");
+  ifstream f(base_path + "arithmetic.json");
   json data = json::parse(f);
   multimap<string, json> command_map;
   map<string, Parser> parser_map;

@@ -4,6 +4,7 @@
 #include "OverloadOperator.h"
 #include "Utils.h"
 using namespace std;
+using ArithOperation = std::function<wasm_type(wasm_type, wasm_type)>;
 
 class WasmFunction {
 public:
@@ -249,6 +250,11 @@ public:
     }
     cout << "---Loading parameters finished---" << endl;
   }
+  void clearAfterExecution() {
+    pre_instructions_for_param_loading = "";
+    instructions = "";
+    stack.clear();
+  }
   int64_t executeInstr() {
     /**
      * Allocate memory with execute permission
@@ -280,9 +286,8 @@ public:
     __builtin___clear_cache(reinterpret_cast<char *>(instruction_set), reinterpret_cast<char *>(instruction_set) + arraySize);
     // !不需要做任何传参，因为参数已经放在寄存器里啦
     int64_t ans = instruction_set();
-    // WARN: reset instructions, very important if we want to call it again!
-    pre_instructions_for_param_loading = "";
-    instructions = "";
+    // WARN: reset, very important if we want to call it again!
+    clearAfterExecution();
     if (result_data.size() == 0) {
       // in this case ans will still be x0
       // which is probably the first param of our function
@@ -409,7 +414,7 @@ public:
     string reg_to_mem_instr = toHexString(encodeLoadStoreUnsignedImm(convertLdSt(ldType), 11, 31, stack_offset)).substr(2);
     cout << format("Emit: str {}, [sp, #{}] | {}", reg11, stack_offset, convertEndian(reg_to_mem_instr)) << endl;
     if (isTee) {
-      wasm_stack_pointer -= 8; // todo:!!
+      wasm_stack_pointer -= 8; // teeing keeps stack intact
     }
     constructFullinstr(store_to_stack_instr + reg_to_mem_instr);
   }
@@ -513,6 +518,45 @@ public:
     wasm_stack_pointer -= 8; // decrease wasm stack after push
     constructFullinstr(load_first_param_instr + load_second_param_instr + arith_instr + store_to_stack_instr);
   }
+  void commonStackOp(char opType) {
+    auto b = stack.back();
+    stack.pop_back();
+    auto a = stack.back();
+    stack.pop_back();
+    stack.push_back(operations_map[opType](a, b));
+  }
+  void commonLocalOp(int i, string opType) {
+    u_int64_t var_index = stoul(code_vec[i + 1], nullptr, 16);
+    cout << format("Local.{} {}", opType, var_index) << endl;
+    TypeCategory typecategory;
+    if (var_index < param_data.size() + local_data.size()) {
+      if (var_index < param_data.size()) {
+        // falls within boundry of param variable
+        typecategory = TypeCategory::PARAM;
+      } else {
+        // must be local variable then.
+        typecategory = TypeCategory::LOCAL;
+        var_index -= param_data.size();
+      }
+      if (opType == "get") {
+        emitGet(var_index, typecategory);
+      } else if (opType == "set") {
+        emitSet(var_index, typecategory);
+      } else if (opType == "tee") {
+        emitSet(var_index, typecategory, true);
+      } else {
+        cout << "Unknown Local operation" << endl;
+        throw "Unknown Local operation";
+      }
+      if (typecategory == TypeCategory::PARAM) {
+        stack.push_back(param_data[var_index]);
+      } else {
+        stack.push_back(local_data[var_index]);
+      }
+    } else {
+      throw "Too big index {" + to_string(var_index) + "} for local data; skipping current op;";
+    }
+  }
   void runningWasmCode(int i) {
     cout << "--- JITing wasm code ---" << endl;
     wasm_stack_pointer = wasm_stack_end_location;
@@ -532,62 +576,14 @@ public:
         emitRet();
         ++i;
       } else if (code_vec[i] == "20") { // local.get
-        u_int64_t var_to_get = stoul(code_vec[i + 1], nullptr, 16);
-        cout << format("Local.get {}", var_to_get) << endl;
-        if (var_to_get < param_data.size() + local_data.size()) {
-          if (var_to_get < param_data.size()) {
-            // falls within boundry of param variable
-            emitGet(var_to_get, TypeCategory::PARAM);
-            stack.push_back(param_data[var_to_get]);
-          } else {
-            // must be local variable then.
-            var_to_get -= param_data.size();
-            emitGet(var_to_get, TypeCategory::LOCAL);
-            stack.push_back(local_data[var_to_get]);
-          }
-          i += 2;
-        } else {
-          cout << "Too big index {" + to_string(var_to_get) + "} for local data; skipping current op;" << endl;
-          i += 2;
-          continue;
-        }
+        commonLocalOp(i, "get");
+        i += 2;
       } else if (code_vec[i] == "21") { // local.set
-        u_int64_t var_to_set = stoul(code_vec[i + 1], nullptr, 16);
-        cout << format("Local.set {}", var_to_set) << endl;
-        if (var_to_set < param_data.size() + local_data.size()) {
-          if (var_to_set < param_data.size()) {
-            emitSet(var_to_set, TypeCategory::PARAM);
-            param_data[var_to_set] = stack.back();
-          } else {
-            var_to_set -= param_data.size();
-            emitSet(var_to_set, TypeCategory::LOCAL);
-            local_data[var_to_set] = stack.back();
-          }
-          stack.pop_back();
-          i += 2;
-        } else {
-          cout << "Too big index {" + to_string(var_to_set) + "} for local data; skipping current op;" << endl;
-          i += 2;
-          continue;
-        }
+        commonLocalOp(i, "set");
+        i += 2;
       } else if (code_vec[i] == "22") { // local.tee
-        u_int64_t var_to_tee = stoul(code_vec[i + 1], nullptr, 16);
-        cout << format("Local.tee {}", var_to_tee) << endl;
-        if (var_to_tee < param_data.size() + local_data.size()) {
-          if (var_to_tee < param_data.size()) {
-            emitSet(var_to_tee, TypeCategory::PARAM, true);
-            param_data[var_to_tee] = stack.back();
-          } else {
-            var_to_tee -= param_data.size();
-            emitSet(var_to_tee, TypeCategory::LOCAL, true);
-            local_data[var_to_tee] = stack.back();
-          }
-          i += 2;
-        } else {
-          cout << "Too big index {" + to_string(var_to_tee) + "} for local data; skipping current op;" << endl;
-          i += 2;
-          continue;
-        }
+        commonLocalOp(i, "tee");
+        i += 2;
       } else if (code_vec[i] == "41") { // i32.const
         wasm_type elem = static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16));
         emitConst(elem);
@@ -611,60 +607,57 @@ public:
         i += 9;
       } else if (code_vec[i] == "6a") { // i32.add
         emitArithOp('i', '+');
-        auto b = stack.back();
-        stack.pop_back();
-        auto a = stack.back();
-        stack.pop_back();
-        stack.push_back(a + b);
+        commonStackOp('+');
         i += 1;
       } else if (code_vec[i] == "6b") { // i32.sub
         emitArithOp('i', '-');
-        auto b = stack.back();
-        stack.pop_back();
-        auto a = stack.back();
-        stack.pop_back();
-        stack.push_back(a - b);
+        commonStackOp('-');
         i += 1;
       } else if (code_vec[i] == "6c") { // i32.mul
         emitArithOp('i', '*');
-        auto b = stack.back();
-        stack.pop_back();
-        auto a = stack.back();
-        stack.pop_back();
-        stack.push_back(a * b);
+        commonStackOp('*');
         i += 1;
       } else if (code_vec[i] == "7c") { // i64.add
         emitArithOp('l', '+');
-        auto b = stack.back();
-        stack.pop_back();
-        auto a = stack.back();
-        stack.pop_back();
-        stack.push_back(a + b);
+        commonStackOp('+');
         i += 1;
       } else if (code_vec[i] == "7d") { // i64.sub
         emitArithOp('l', '-');
-        auto b = stack.back();
-        stack.pop_back();
-        auto a = stack.back();
-        stack.pop_back();
-        stack.push_back(a - b);
+        commonStackOp('-');
         i += 1;
       } else if (code_vec[i] == "7e") { // i64.mul
         emitArithOp('l', '*');
-        auto b = stack.back();
-        stack.pop_back();
-        auto a = stack.back();
-        stack.pop_back();
-        stack.push_back(a * b);
+        commonStackOp('*');
         i += 1;
       }
       cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
     }
   }
-
+  WasmFunction() {
+    // initiate arithmetic operations map
+    operations_map['+'] = [](wasm_type a, wasm_type b) {
+      return a + b;
+    };
+    operations_map['-'] = [](wasm_type a, wasm_type b) {
+      return a - b;
+    };
+    operations_map['*'] = [](wasm_type a, wasm_type b) {
+      return a * b;
+    };
+    operations_map['/'] = [](wasm_type a, wasm_type b) {
+      std::visit(
+          [](auto &&value) {
+            if (value == 0)
+              throw std::runtime_error("Division by zero");
+          },
+          b);
+      return a / b;
+    };
+  }
   vector<string> code_vec;
   u_int64_t local_var_declare_count = 0;
   string instructions;
+  map<char, ArithOperation> operations_map;
   string pre_instructions_for_param_loading;
   vector<wasm_type> local_data;
   vector<wasm_type> param_data;
