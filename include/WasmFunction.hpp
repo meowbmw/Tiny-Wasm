@@ -448,79 +448,70 @@ public:
         elem);
     wasm_stack_pointer -= 8;
   }
-  void emitAddSub(char typeInfo, bool isSub) {
-    if (typeInfo == 'i') {
-      cout << format("i32.{}", (isSub ? "sub" : "add")) << endl;
-      wasm_stack_pointer += 8;
-      // w11 = b
-      string load_second_param_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_32, 11, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: ldr w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_second_param_instr)) << endl;
-      wasm_stack_pointer += 8;
-      // w12 = a
-      string load_first_param_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_32, 12, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: ldr w12, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_first_param_instr)) << endl;
-      // w11 = a+b
-      cout << "Emit: ";
-      string arith_instr = toHexString(encodeAddSubShift(isSub, W_REG, 11, 12, 11)).substr(2);
-      string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 11, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: str w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
-      wasm_stack_pointer -= 8; // decrease wasm stack after push
-      constructFullinstr(load_first_param_instr + load_second_param_instr + arith_instr + store_to_stack_instr);
-    } else if (typeInfo == 'l') {
-      cout << format("i64.{}", (isSub ? "sub" : "add")) << endl;
-      wasm_stack_pointer += 8;
-      // x11 = b
-      string load_second_param_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_64, 11, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: ldr x11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_second_param_instr)) << endl;
-      wasm_stack_pointer += 8;
-      // x12 = a
-      string load_first_param_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_64, 12, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: ldr x12, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_first_param_instr)) << endl;
-      // x11 = a+-b
-      cout << "Emit: ";
-      string arith_instr = toHexString(encodeAddSubShift(isSub, X_REG, 11, 12, 11)).substr(2);
-      string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 11, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: str x11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
-      wasm_stack_pointer -= 8; // decrease wasm stack after push
-      constructFullinstr(load_first_param_instr + load_second_param_instr + arith_instr + store_to_stack_instr);
+  void emitArithOp(char typeInfo, char opType) {
+    LdStType ldType;
+    LdStType stType;
+    RegType regtype;
+    string opstr;
+    switch (opType) {
+    case '+':
+      opstr = "add";
+      break;
+    case '-':
+      opstr = "sub";
+      break;
+    case '*':
+      opstr = "mul";
+      break;
+    case '/':
+      opstr = "div";
+      break;
+    default:
+      throw "Unknown arithmetic operator";
+      break;
     }
-  }
-  void emitMul(char typeInfo) {
     if (typeInfo == 'i') {
-      cout << format("i32.mul") << endl;
-      wasm_stack_pointer += 8;
-      // w11 = b
-      string load_second_param_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_32, 11, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: ldr w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_second_param_instr)) << endl;
-      wasm_stack_pointer += 8;
-      // w12 = a
-      string load_first_param_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_32, 12, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: ldr w12, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_first_param_instr)) << endl;
-      // w11 = a*b
-      cout << "Emit: ";
-      string arith_instr = toHexString(encodeMul(W_REG, 11, 11, 12)).substr(2);
-      string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 11, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: str w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
-      wasm_stack_pointer -= 8; // decrease wasm stack after push
-      constructFullinstr(load_first_param_instr + load_second_param_instr + arith_instr + store_to_stack_instr);
+      ldType = LdStType::LDR_32;
+      stType = LdStType::STR_32;
+      regtype = W_REG;
+      cout << format("i32.{}", opstr) << endl;
     } else if (typeInfo == 'l') {
-      cout << format("i64.mul") << endl;
-      wasm_stack_pointer += 8;
-      // x11 = b
-      string load_second_param_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_64, 11, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: ldr w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_second_param_instr)) << endl;
-      wasm_stack_pointer += 8;
-      // x12 = a
-      string load_first_param_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_64, 12, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: ldr w12, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_first_param_instr)) << endl;
-      // x11 = a+-b
-      cout << "Emit: ";
-      string arith_instr = toHexString(encodeMul(X_REG, 11, 11, 12)).substr(2);
-      string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 11, 31, wasm_stack_pointer)).substr(2);
-      cout << format("Emit: str w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
-      wasm_stack_pointer -= 8; // decrease wasm stack after push
-      constructFullinstr(load_first_param_instr + load_second_param_instr + arith_instr + store_to_stack_instr);
+      ldType = LdStType::LDR_64;
+      stType = LdStType::STR_64;
+      regtype = X_REG;
+      cout << format("i64.{}", opstr) << endl;
     }
+    wasm_stack_pointer += 8;
+    // r11 = b
+    string load_second_param_instr = toHexString(encodeLoadStoreUnsignedImm(ldType, 11, 31, wasm_stack_pointer)).substr(2);
+    cout << format("Emit: ldr w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_second_param_instr)) << endl;
+    wasm_stack_pointer += 8;
+    // r12 = a
+    string load_first_param_instr = toHexString(encodeLoadStoreUnsignedImm(ldType, 12, 31, wasm_stack_pointer)).substr(2);
+    cout << format("Emit: ldr w12, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_first_param_instr)) << endl;
+    // r11 = a op b
+    cout << "Emit: ";
+    string arith_instr;
+    switch (opType) {
+    case '+':
+      arith_instr = toHexString(encodeAddSubShift(false, regtype, 11, 12, 11)).substr(2);
+      break;
+    case '-':
+      arith_instr = toHexString(encodeAddSubShift(true, regtype, 11, 12, 11)).substr(2);
+      break;
+    case '*':
+      arith_instr = toHexString(encodeMul(regtype, 11, 12, 11)).substr(2);
+      break;
+    case '/':
+      break;
+    default:
+      throw "Unknown arithmetic operator";
+      break;
+    }
+    string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(stType, 11, 31, wasm_stack_pointer)).substr(2);
+    cout << format("Emit: str w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
+    wasm_stack_pointer -= 8; // decrease wasm stack after push
+    constructFullinstr(load_first_param_instr + load_second_param_instr + arith_instr + store_to_stack_instr);
   }
   void runningWasmCode(int i) {
     cout << "--- JITing wasm code ---" << endl;
@@ -619,7 +610,7 @@ public:
         stack.push_back(elem);
         i += 9;
       } else if (code_vec[i] == "6a") { // i32.add
-        emitAddSub('i', false);
+        emitArithOp('i', '+');
         auto b = stack.back();
         stack.pop_back();
         auto a = stack.back();
@@ -627,7 +618,7 @@ public:
         stack.push_back(a + b);
         i += 1;
       } else if (code_vec[i] == "6b") { // i32.sub
-        emitAddSub('i', true);
+        emitArithOp('i', '-');
         auto b = stack.back();
         stack.pop_back();
         auto a = stack.back();
@@ -635,7 +626,7 @@ public:
         stack.push_back(a - b);
         i += 1;
       } else if (code_vec[i] == "6c") { // i32.mul
-        emitMul('i');
+        emitArithOp('i', '*');
         auto b = stack.back();
         stack.pop_back();
         auto a = stack.back();
@@ -643,7 +634,7 @@ public:
         stack.push_back(a * b);
         i += 1;
       } else if (code_vec[i] == "7c") { // i64.add
-        emitAddSub('l', false);
+        emitArithOp('l', '+');
         auto b = stack.back();
         stack.pop_back();
         auto a = stack.back();
@@ -651,7 +642,7 @@ public:
         stack.push_back(a + b);
         i += 1;
       } else if (code_vec[i] == "7d") { // i64.sub
-        emitAddSub('l', true);
+        emitArithOp('l', '-');
         auto b = stack.back();
         stack.pop_back();
         auto a = stack.back();
@@ -659,7 +650,7 @@ public:
         stack.push_back(a - b);
         i += 1;
       } else if (code_vec[i] == "7e") { // i64.mul
-        emitMul('l');
+        emitArithOp('l', '*');
         auto b = stack.back();
         stack.pop_back();
         auto a = stack.back();
