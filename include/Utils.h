@@ -4,14 +4,14 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <format>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
-#include <format>
 #include <map>
-#include <set>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -34,6 +34,10 @@ string type_category_to_string(TypeCategory category) {
   default:
     return "UNKNOWN";
   }
+}
+void err(string error_msg) {
+  cout << error_msg << endl;
+  throw error_msg;
 }
 void erase_space(string &s) {
   s.erase(remove_if(s.begin(), s.end(),
@@ -148,19 +152,19 @@ string HexToBinary(string s) {
   return result;
 }
 // 将十六进制字符串转换为大小端
-std::string convertEndian(const std::string& hexStr) {
-    // 检查输入字符串是否为偶数长度
-    if (hexStr.length() % 2 != 0) {
-        throw std::invalid_argument("Hex string length must be even");
-    }
+std::string convertEndian(const std::string &hexStr) {
+  // 检查输入字符串是否为偶数长度
+  if (hexStr.length() % 2 != 0) {
+    throw std::invalid_argument("Hex string length must be even");
+  }
 
-    // 每两个字符分成一个字节
-    std::string result;
-    for (size_t i = 0; i < hexStr.length(); i += 2) {
-        result.insert(0, hexStr.substr(i, 2));
-    }
+  // 每两个字符分成一个字节
+  std::string result;
+  for (size_t i = 0; i < hexStr.length(); i += 2) {
+    result.insert(0, hexStr.substr(i, 2));
+  }
 
-    return result;
+  return result;
 }
 
 string processHexCode(string &s, bool endian = false) {
@@ -203,14 +207,14 @@ std::string toBinaryString(uint32_t value) {
 
 // 将二进制字符串格式化为每 4 位一个空格
 std::string formatBinaryString(const std::string &binaryString) {
-    std::stringstream formatted;
-    for (size_t i = 0; i < binaryString.size(); ++i) {
-        formatted << binaryString[i];
-        if ((i + 1) % 4 == 0 && (i + 1) != binaryString.size()) {
-            formatted << ' ';
-        }
+  std::stringstream formatted;
+  for (size_t i = 0; i < binaryString.size(); ++i) {
+    formatted << binaryString[i];
+    if ((i + 1) % 4 == 0 && (i + 1) != binaryString.size()) {
+      formatted << ' ';
     }
-    return formatted.str();
+  }
+  return formatted.str();
 }
 
 std::string toHexString(uint32_t value) {

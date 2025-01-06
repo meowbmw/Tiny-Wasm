@@ -86,8 +86,7 @@ public:
   }
   void prepareStack() {
     cout << "Sub sp register" << endl;
-    string instr = toHexString(encodeAddSubImm(true, 31, 31, stack_size, false)).substr(2); // sub sp, sp, stack_size, substr to remove 0x prefix
-    cout << format("Emit: sub sp, sp, {} | {}", stack_size, convertEndian(instr)) << endl;
+    string instr = encodeAddSubImm(X_REG, true, 31, 31, stack_size); // sub sp, sp, stack_size
     constructFullinstr(instr);
   }
   void printInitStack() {
@@ -111,27 +110,23 @@ public:
             vecToStack[{TypeCategory::PARAM, i}] = offset;
             stackToVec[offset] = {TypeCategory::PARAM, i};
             if (typeInfo == 'f') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F32, fp_reg_used, 31, offset)).substr(2);
-              loadType[{TypeCategory::PARAM, i}] = LdStType::LDR_F32;
-              cout << format("Emit: str s{}, [sp, #{}] | {}", fp_reg_used, offset, convertEndian(instr)) << endl;
+              instr = encodeLoadStoreUnsignedImm(S_REG, STR, fp_reg_used, 31, offset);
+              regTypeGetter[{TypeCategory::PARAM, i}] = S_REG;
               offset -= 4;
               fp_reg_used += 1;
             } else if (typeInfo == 'd') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F64, fp_reg_used, 31, offset)).substr(2);
-              loadType[{TypeCategory::PARAM, i}] = LdStType::LDR_F64;
-              cout << format("Emit: str d{}, [sp, #{}] | {}", fp_reg_used, offset, convertEndian(instr)) << endl;
+              instr = encodeLoadStoreUnsignedImm(D_REG, STR, fp_reg_used, 31, offset);
+              regTypeGetter[{TypeCategory::PARAM, i}] = D_REG;
               offset -= 8;
               fp_reg_used += 1;
             } else if (typeInfo == 'l') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, general_reg_used, 31, offset)).substr(2);
-              loadType[{TypeCategory::PARAM, i}] = LdStType::LDR_64;
-              cout << format("Emit: str x{}, [sp, #{}] | {}", general_reg_used, offset, convertEndian(instr)) << endl;
+              instr = encodeLoadStoreUnsignedImm(X_REG, STR, general_reg_used, 31, offset);
+              regTypeGetter[{TypeCategory::PARAM, i}] = X_REG;
               offset -= 4;
               general_reg_used += 1;
             } else if (typeInfo == 'i') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, general_reg_used, 31, offset)).substr(2);
-              loadType[{TypeCategory::PARAM, i}] = LdStType::LDR_32;
-              cout << format("Emit: str w{}, [sp, #{}] | {}", general_reg_used, offset, convertEndian(instr)) << endl;
+              instr = encodeLoadStoreUnsignedImm(W_REG, STR, general_reg_used, 31, offset);
+              regTypeGetter[{TypeCategory::PARAM, i}] = W_REG;
               offset -= 4;
               general_reg_used += 1;
             }
@@ -152,24 +147,20 @@ public:
             if (typeInfo == 'f') {
               // NOTE: we are only moving zeros, so treat them like int here
               // xzr/wzr have same number as sp (31)
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 31, 31, offset)).substr(2);
-              loadType[{TypeCategory::LOCAL, i}] = LdStType::LDR_F32;
-              cout << format("Emit: str wzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
+              instr = encodeLoadStoreUnsignedImm(W_REG, STR, 31, 31, offset);
+              regTypeGetter[{TypeCategory::LOCAL, i}] = S_REG;
               offset -= 4;
             } else if (typeInfo == 'd') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 31, 31, offset)).substr(2);
-              loadType[{TypeCategory::LOCAL, i}] = LdStType::LDR_F64;
-              cout << format("Emit: str xzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
+              instr = encodeLoadStoreUnsignedImm(X_REG, STR, 31, 31, offset);
+              regTypeGetter[{TypeCategory::LOCAL, i}] = D_REG;
               offset -= 8;
             } else if (typeInfo == 'l') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 31, 31, offset)).substr(2);
-              loadType[{TypeCategory::LOCAL, i}] = LdStType::LDR_64;
-              cout << format("Emit: str xzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
+              instr = encodeLoadStoreUnsignedImm(X_REG, STR, 31, 31, offset);
+              regTypeGetter[{TypeCategory::LOCAL, i}] = X_REG;
               offset -= 4;
             } else if (typeInfo == 'i') {
-              instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 31, 31, offset)).substr(2);
-              loadType[{TypeCategory::LOCAL, i}] = LdStType::LDR_32;
-              cout << format("Emit: str wzr, [sp, #{}] | {}", offset, convertEndian(instr)) << endl;
+              instr = encodeLoadStoreUnsignedImm(W_REG, STR, 31, 31, offset);
+              regTypeGetter[{TypeCategory::LOCAL, i}] = W_REG;
               offset -= 4;
             }
           },
@@ -193,20 +184,16 @@ public:
             } else if (typeInfo == 'd') {
               throw std::invalid_argument("Fmov not supported yet!");
             } else if (typeInfo == 'l') {
-              prepare_ans_instr += toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_64, i, 31, current_wasm_pointer)).substr(2);
-              cout << format("Emit: ldr x0, [sp, #{}] | {}", current_wasm_pointer, convertEndian(prepare_ans_instr)) << endl;
+              prepare_ans_instr += encodeLoadStoreUnsignedImm(X_REG, LDR, i, 31, current_wasm_pointer);
             } else if (typeInfo == 'i') {
-              prepare_ans_instr += toHexString(encodeLoadStoreUnsignedImm(LdStType::LDR_32, i, 31, current_wasm_pointer)).substr(2);
-              cout << format("Emit: ldr w0, [sp, #{}] | {}", current_wasm_pointer, convertEndian(prepare_ans_instr)) << endl;
+              prepare_ans_instr += encodeLoadStoreUnsignedImm(W_REG, LDR, i, 31, current_wasm_pointer);
             }
           },
           result_data[i]);
       current_wasm_pointer -= 8;
     }
     cout << "Restore sp register" << endl;
-    const string restore_sp_instr =
-        toHexString(encodeAddSubImm(false, 31, 31, stack_size, false)).substr(2); // add sp, sp, stack_size, substr to remove 0x prefix
-    cout << format("Emit: add sp, sp, {} | {}", stack_size, convertEndian(restore_sp_instr)) << endl;
+    const string restore_sp_instr = encodeAddSubImm(X_REG, false, 31, 31, stack_size); // add sp, sp, stack_size
     constructFullinstr(prepare_ans_instr + restore_sp_instr);
   }
   void emitRet() {
@@ -238,11 +225,11 @@ public:
               throw std::invalid_argument("Fmov not supported yet!");
             } else if (typeInfo == 'l') {
               const string instr = WrapperEncodeMovInt64(i, value, RegType::X_REG);
-              cout << format("Emit: mov x{}, {} | {}", i, value, convertEndian(instr)) << endl;
+              // cout << format("Emit: mov x{}, {} | {}", i, value, convertEndian(instr)) << endl;
               pre_instructions_for_param_loading += instr;
             } else if (typeInfo == 'i') {
               const string instr = WrapperEncodeMovInt32(i, value, RegType::W_REG);
-              cout << format("Emit: mov s{}, {} | {}", i, value, convertEndian(instr)) << endl;
+              // cout << format("Emit: mov s{}, {} | {}", i, value, convertEndian(instr)) << endl;
               pre_instructions_for_param_loading += instr;
             }
           },
@@ -263,8 +250,9 @@ public:
      */
     // Warn: Append pre instructions here
     // Also add branch instruction here; we might need to support function call later
-    string branch_instr = toHexString(encodeBranch(1)).substr(2); // function will be right next to b instruction, so offset is 1 here
-    instructions = pre_instructions_for_param_loading + branch_instr + instructions;
+    // string branch_instr = encodeBranch(1); // function will be right next to b instruction, so offset is 1 here
+    // instructions = pre_instructions_for_param_loading + branch_instr + instructions;
+    instructions = pre_instructions_for_param_loading + instructions;
     cout << "Machine instruction to load: " << instructions << endl;
     const size_t arraySize = instructions.length() / 2;
     auto charArray = make_unique<unsigned char[]>(arraySize); // use smart pointer here so we don't need to free it manually
@@ -384,17 +372,14 @@ public:
      * push to wasm stack memory[var[i]]
      * var[i] -> x/w11 -> stack[top]
      */
-    LdStType ldtype = loadType[{vecType, var_to_get}];
+    RegType regtype = regTypeGetter[{vecType, var_to_get}];
     int stack_offset = vecToStack[{vecType, var_to_get}];
     cout << format("Getting {}[{}]", type_category_to_string(vecType), var_to_get) << endl;
     // Note: We use x11 as a bridge register for memory -> memory transfer!
-    string load_param_instr = toHexString(encodeLoadStoreUnsignedImm(ldtype, 11, 31, stack_offset)).substr(2);
+    string load_param_instr = encodeLoadStoreUnsignedImm(regtype, LDR, 11, 31, stack_offset);
     // var[i] -> x/w11
-    string reg11 = (ldtype == LdStType::LDR_32) ? "w11" : ((ldtype == LdStType::LDR_64) ? "x11" : "Unknown type");
-    cout << format("Emit: ldr {}, [sp, #{}] | {}", reg11, stack_offset, convertEndian(load_param_instr)) << endl;
-    string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(convertLdSt(ldtype), 11, 31, wasm_stack_pointer)).substr(2);
+    string store_to_stack_instr = encodeLoadStoreUnsignedImm(regtype, STR, 11, 31, wasm_stack_pointer);
     // x/w11 -> stack[top]
-    cout << format("Emit: str {}, [sp, #{}] | {}", reg11, wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
     wasm_stack_pointer -= 8; // decrease wasm stack after push
     constructFullinstr(load_param_instr + store_to_stack_instr);
   }
@@ -404,15 +389,12 @@ public:
      * Set memory[var[i]] to top value of wasm stack
      * stack[top] -> x/w11 -> var[i]
      */
-    LdStType ldType = loadType[{vecType, var_to_set}];
+    RegType regtype = regTypeGetter[{vecType, var_to_set}];
     int stack_offset = vecToStack[{vecType, var_to_set}];
     cout << format("Assigning to {}[{}]", type_category_to_string(vecType), var_to_set) << endl;
     wasm_stack_pointer += 8;
-    string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(ldType, 11, 31, wasm_stack_pointer)).substr(2);
-    string reg11 = (ldType == LdStType::LDR_32) ? "w11" : ((ldType == LdStType::LDR_64) ? "x11" : "Unknown type");
-    cout << format("Emit: ldr {}, [sp, #{}] | {}", reg11, wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
-    string reg_to_mem_instr = toHexString(encodeLoadStoreUnsignedImm(convertLdSt(ldType), 11, 31, stack_offset)).substr(2);
-    cout << format("Emit: str {}, [sp, #{}] | {}", reg11, stack_offset, convertEndian(reg_to_mem_instr)) << endl;
+    string store_to_stack_instr = encodeLoadStoreUnsignedImm(regtype, LDR, 11, 31, wasm_stack_pointer);
+    string reg_to_mem_instr = encodeLoadStoreUnsignedImm(regtype, STR, 11, 31, stack_offset);
     if (isTee) {
       wasm_stack_pointer -= 8; // teeing keeps stack intact
     }
@@ -437,16 +419,14 @@ public:
           } else if (typeInfo == 'i') {
             cout << format("i32.const {}", value) << endl;
             string load_to_reg_instr = WrapperEncodeMovInt32(11, value, RegType::W_REG);
-            cout << format("Emit: mov {}, w11 | {}", value, convertEndian(load_to_reg_instr)) << endl;
-            string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_32, 11, 31, wasm_stack_pointer)).substr(2);
-            cout << format("Emit: str w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
+            // cout << format("Emit: mov {}, w11 | {}", value, convertEndian(load_to_reg_instr)) << endl;
+            string store_to_stack_instr = encodeLoadStoreUnsignedImm(W_REG, STR, 11, 31, wasm_stack_pointer);
             constructFullinstr(load_to_reg_instr + store_to_stack_instr);
           } else if (typeInfo == 'l') {
             cout << format("i64.const {}", value) << endl;
             string load_to_reg_instr = WrapperEncodeMovInt64(11, value, RegType::X_REG);
-            cout << format("Emit: mov {}, x11 | {}", value, convertEndian(load_to_reg_instr)) << endl;
-            string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_64, 11, 31, wasm_stack_pointer)).substr(2);
-            cout << format("Emit: str x11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
+            // cout << format("Emit: mov {}, x11 | {}", value, convertEndian(load_to_reg_instr)) << endl;
+            string store_to_stack_instr = encodeLoadStoreUnsignedImm(X_REG, STR, 11, 31, wasm_stack_pointer);
             constructFullinstr(load_to_reg_instr + store_to_stack_instr);
           }
         },
@@ -454,8 +434,6 @@ public:
     wasm_stack_pointer -= 8;
   }
   void emitArithOp(char typeInfo, char opType) {
-    LdStType ldType;
-    LdStType stType;
     RegType regtype;
     string opstr;
     switch (opType) {
@@ -476,36 +454,29 @@ public:
       break;
     }
     if (typeInfo == 'i') {
-      ldType = LdStType::LDR_32;
-      stType = LdStType::STR_32;
       regtype = W_REG;
       cout << format("i32.{}", opstr) << endl;
     } else if (typeInfo == 'l') {
-      ldType = LdStType::LDR_64;
-      stType = LdStType::STR_64;
       regtype = X_REG;
       cout << format("i64.{}", opstr) << endl;
     }
     wasm_stack_pointer += 8;
     // r11 = b
-    string load_second_param_instr = toHexString(encodeLoadStoreUnsignedImm(ldType, 11, 31, wasm_stack_pointer)).substr(2);
-    cout << format("Emit: ldr w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_second_param_instr)) << endl;
+    string load_second_param_instr = encodeLoadStoreUnsignedImm(regtype, LDR, 11, 31, wasm_stack_pointer);
     wasm_stack_pointer += 8;
     // r12 = a
-    string load_first_param_instr = toHexString(encodeLoadStoreUnsignedImm(ldType, 12, 31, wasm_stack_pointer)).substr(2);
-    cout << format("Emit: ldr w12, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(load_first_param_instr)) << endl;
+    string load_first_param_instr = encodeLoadStoreUnsignedImm(regtype, LDR, 12, 31, wasm_stack_pointer);
     // r11 = a op b
-    cout << "Emit: ";
     string arith_instr;
     switch (opType) {
     case '+':
-      arith_instr = toHexString(encodeAddSubShift(false, regtype, 11, 12, 11)).substr(2);
+      arith_instr = encodeAddSubShift(false, regtype, 11, 12, 11);
       break;
     case '-':
-      arith_instr = toHexString(encodeAddSubShift(true, regtype, 11, 12, 11)).substr(2);
+      arith_instr = encodeAddSubShift(true, regtype, 11, 12, 11);
       break;
     case '*':
-      arith_instr = toHexString(encodeMul(regtype, 11, 12, 11)).substr(2);
+      arith_instr = encodeMul(regtype, 11, 12, 11);
       break;
     case '/':
       break;
@@ -513,8 +484,7 @@ public:
       throw "Unknown arithmetic operator";
       break;
     }
-    string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(stType, 11, 31, wasm_stack_pointer)).substr(2);
-    cout << format("Emit: str w11, [sp, #{}] | {}", wasm_stack_pointer, convertEndian(store_to_stack_instr)) << endl;
+    string store_to_stack_instr = encodeLoadStoreUnsignedImm(regtype, STR, 11, 31, wasm_stack_pointer);
     wasm_stack_pointer -= 8; // decrease wasm stack after push
     constructFullinstr(load_first_param_instr + load_second_param_instr + arith_instr + store_to_stack_instr);
   }
@@ -540,18 +510,29 @@ public:
       }
       if (opType == "get") {
         emitGet(var_index, typecategory);
+        if (typecategory == TypeCategory::PARAM) {
+          stack.push_back(param_data[var_index]);
+        } else {
+          stack.push_back(local_data[var_index]);
+        }
       } else if (opType == "set") {
         emitSet(var_index, typecategory);
+        if (typecategory == TypeCategory::PARAM) {
+          param_data[var_index] = stack.back();
+        } else {
+          local_data[var_index] = stack.back();
+        }
+        stack.pop_back();
       } else if (opType == "tee") {
         emitSet(var_index, typecategory, true);
+        if (typecategory == TypeCategory::PARAM) {
+          param_data[var_index] = stack.back();
+        } else {
+          local_data[var_index] = stack.back();
+        }
       } else {
         cout << "Unknown Local operation" << endl;
         throw "Unknown Local operation";
-      }
-      if (typecategory == TypeCategory::PARAM) {
-        stack.push_back(param_data[var_index]);
-      } else {
-        stack.push_back(local_data[var_index]);
       }
     } else {
       throw "Too big index {" + to_string(var_index) + "} for local data; skipping current op;";
@@ -561,7 +542,6 @@ public:
     cout << "--- JITing wasm code ---" << endl;
     wasm_stack_pointer = wasm_stack_end_location;
     cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
-
     while (i < code_vec.size()) {
       /**
        * WebAssembly Opcodes
@@ -663,9 +643,9 @@ public:
   vector<wasm_type> param_data;
   vector<wasm_type> result_data;
   vector<wasm_type> stack;
-  map<pair<TypeCategory, int>, int> vecToStack;    // {TypeCategory::PARAM, 0} : 0x4
-  map<pair<TypeCategory, int>, LdStType> loadType; // {TypeCategory::PARAM, 0}: LDR32
-  map<int, pair<TypeCategory, int>> stackToVec;    // 0x4 : {TypeCategory::PARAM: 0}
+  map<pair<TypeCategory, int>, int> vecToStack;        // {TypeCategory::PARAM, 0} : 0x4
+  map<pair<TypeCategory, int>, RegType> regTypeGetter; // {TypeCategory::PARAM, 0}: LDR32
+  map<int, pair<TypeCategory, int>> stackToVec;        // 0x4 : {TypeCategory::PARAM: 0}
   int stack_size = 0;
   int param_stack_start_location = 0;
   int param_stack_end_location = 0;

@@ -13,9 +13,17 @@ int main() {
   //   return 0;
   ofstream parser_cout("parserOutput.txt");
   auto normal_cout = cout.rdbuf();
-  string base_path = "test/CH03/";
-  //   ifstream f(base_path + "custom.json");
-  ifstream f(base_path + "arithmetic.json");
+  string chapter_number = "02";
+  ifstream f;
+  string base_path;
+  if (chapter_number == "02") {
+    base_path = "test/CH02/";
+    f = ifstream(base_path + "local.json");
+  } else if (chapter_number == "03") {
+    base_path = "test/CH03/";
+    f = ifstream(base_path + "arithmetic.json");
+    // f = ifstream(base_path + "custom.json");
+  }
   json data = json::parse(f);
   multimap<string, json> command_map;
   map<string, Parser> parser_map;
