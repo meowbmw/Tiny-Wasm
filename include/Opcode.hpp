@@ -174,6 +174,37 @@ string encodeMul(RegType regType, uint8_t rd, uint8_t rn, uint8_t rm, bool small
   cout << format("Emit: mul {}{}, {}{}, {}{} | {}", reg_char, rd, reg_char, rn, reg_char, rm, instruction) << endl;
   return instruction;
 }
+string encodeDiv(RegType regType, bool isSigned, uint8_t rd, uint8_t rn, uint8_t rm, bool smallEndian = true) {
+  string reg_char = (regType == X_REG) ? "x" : "w";
+  uint32_t inst = 0;
+  if (regType == X_REG) {
+    inst |= (1 << 31);
+  }
+  inst |= (0b1101011 << 22);
+  inst |= (1 << 11);
+  if (isSigned == true) {
+    inst |= (1 << 10);
+  }
+  if (rm > 31) {
+    throw std::out_of_range("Rm register out of range.");
+  }
+  inst |= ((rm & 0x1F) << 16);
+  if (rn > 31) {
+    throw std::out_of_range("Rn register out of range.");
+  }
+  inst |= ((rn & 0x1F) << 5);
+  if (rd > 31) {
+    throw std::out_of_range("Rd register out of range.");
+  }
+  inst |= (rd & 0x1F);
+  if (smallEndian) {
+    inst = __builtin_bswap32(inst); // convert to small endian
+  }
+  string instruction = common_encode(inst);
+  cout << format("Emit: {}div {}{}, {}{}, {}{} | {}", ((isSigned == true) ? "s" : "u"), reg_char, rd, reg_char, rn, reg_char, rm, instruction)
+       << endl;
+  return instruction;
+}
 string encodeAddSubImm(RegType regType, bool isSub, uint8_t rd, uint8_t rn, uint16_t imm, bool shift12 = false, bool smallEndian = true) {
   uint32_t inst = 0;
   if (regType == X_REG) {

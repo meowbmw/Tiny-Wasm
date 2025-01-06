@@ -433,7 +433,11 @@ public:
         elem);
     wasm_stack_pointer -= 8;
   }
-  void emitArithOp(char typeInfo, char opType) {
+  void emitArithOp(char typeInfo, char opType, bool isSigned = true) {
+    /*
+     * A wrapper for common arithmatic operations: +, -, *, /
+     */
+    // Note: isSigned is only used to differntiate div_s and div_u
     RegType regtype;
     string opstr;
     switch (opType) {
@@ -448,6 +452,11 @@ public:
       break;
     case '/':
       opstr = "div";
+      if (isSigned) {
+        opstr += "_s";
+      } else {
+        opstr += "_u";
+      }
       break;
     default:
       throw "Unknown arithmetic operator";
@@ -479,6 +488,7 @@ public:
       arith_instr = encodeMul(regtype, 11, 12, 11);
       break;
     case '/':
+      arith_instr = encodeDiv(regtype, isSigned, 11, 12, 11);
       break;
     default:
       throw "Unknown arithmetic operator";
@@ -597,6 +607,14 @@ public:
         emitArithOp('i', '*');
         commonStackOp('*');
         i += 1;
+      } else if (code_vec[i] == "6d") { // i32.div_s
+        emitArithOp('i', '/', true);
+        commonStackOp('/');
+        i += 1;
+      } else if (code_vec[i] == "6e") { // i32.div_u
+        emitArithOp('i', '/', false);
+        commonStackOp('/');
+        i += 1;
       } else if (code_vec[i] == "7c") { // i64.add
         emitArithOp('l', '+');
         commonStackOp('+');
@@ -608,6 +626,14 @@ public:
       } else if (code_vec[i] == "7e") { // i64.mul
         emitArithOp('l', '*');
         commonStackOp('*');
+        i += 1;
+      } else if (code_vec[i] == "7f") { // i64.div_s
+        emitArithOp('l', '/', true);
+        commonStackOp('/');
+        i += 1;
+      } else if (code_vec[i] == "80") { // i64.div_u
+        emitArithOp('l', '/', false);
+        commonStackOp('/');
         i += 1;
       }
       cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
@@ -628,7 +654,10 @@ public:
       std::visit(
           [](auto &&value) {
             if (value == 0)
-              throw std::runtime_error("Division by zero");
+              cout << "! Division by zero in wasm code" << endl;
+            return wasm_type(0);
+            // disabled for now to check arm64 trap!!
+            // throw std::runtime_error("Division by zero");
           },
           b);
       return a / b;
