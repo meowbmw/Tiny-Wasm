@@ -13,7 +13,7 @@ int main() {
   //   return 0;
   ofstream parser_cout("parserOutput.txt");
   auto normal_cout = cout.rdbuf();
-  string chapter_number = "02";
+  string chapter_number = "03";
   ifstream f;
   string base_path;
   if (chapter_number == "02") {
@@ -71,19 +71,21 @@ int main() {
     string expect_str = v.second["expected"][0]["value"].dump();
     expect_str = expect_str.substr(1, expect_str.size() - 2);
     cout << "Executing function " << function_index << ": " << function_name << endl;
+    bool matched = false;
     if (curFunction.result_data.size() > 0) {
       auto ans = curFunction.executeInstr();
       cout << format("Expecting {}", expect_str) << endl;
       cout << "Result: " << ans << endl;
-      bool matched = (ans == static_cast<int64_t>(stoul(expect_str)));
+      matched = (ans == static_cast<int64_t>(stoul(expect_str)));
       cout << "Matched: " << (matched ? "True" : "False") << endl;
-      if (matched == false) {
-        throw "Unmatched";
-      }
     } else {
-      cout << "[]" << endl;
-      cout << format("Expecting []") << endl;
-      cout << "Matched: " << ((expect_str == "ul") ? "True" : "False") << endl;
+      cout << format("Expecting: []") << endl;
+      cout << "Result: []" << endl;
+      matched = (expect_str == "ul");
+      cout << "Matched: " << (matched ? "True" : "False") << endl;
+    }
+    if (matched == false) {
+      throw "Unmatched";
     }
   }
   return 0;
