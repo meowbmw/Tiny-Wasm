@@ -124,19 +124,80 @@ string WrapperEncodeMovInt64(uint8_t rd, uint64_t value, RegType regType, bool s
   auto instr_3 = toHexString(encodeMovk(rd, imm3, regType, 3, smallEndian)).substr(2);
   return instr_0 + instr_1 + instr_2 + instr_3;
 }
-uint32_t encodeAddSubShift(bool isSub, RegType regType, uint8_t rd, uint8_t rn, uint8_t rm, uint16_t imm6, uint8_t shift = 0, bool smallEndian = true) {
+uint32_t encodeAddSubShift(bool isSub, RegType regType, uint8_t rd, uint8_t rn, uint8_t rm, uint16_t imm6 = 0, uint8_t shift = 0,
+                           bool smallEndian = true) {
   /**
    * https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/ADD--shifted-register---Add-optionally-shifted-register-?lang=en#amount__5
-   * https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/SUBS--shifted-register---Subtract-optionally-shifted-register--setting-flags-
-   * 
+   * https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/SUB--shifted-register---Subtract-optionally-shifted-register-
    */
+  string reg_char = (regType == X_REG) ? "x" : "w";
+  cout << format("{} {}{}, {}{}, {}{}", ((isSub) ? "sub" : "add"), reg_char, rd, reg_char, rn, reg_char, rm) << endl;
   // 1) 先确定高8位
   uint32_t inst = 0;
   if (regType == X_REG) {
-    inst = 0xF2800000; 
+    inst = 0x8B000000;
   } else {
-    inst = 0x72800000; 
+    inst = 0x0B000000;
   }
+  if (isSub) {
+    inst |= (0x1 << 30);
+  }
+  // 2) shift 占 bits[23..22]
+  if (shift > 3) {
+    throw std::out_of_range("Shift value out of range (max 3).");
+  }
+  inst |= ((shift & 0x3) << 22);
+  // 3) rm 占 bits[20..16]
+  if (rm > 31) {
+    throw std::out_of_range("Rm register out of range.");
+  }
+  inst |= ((rm & 0x1F) << 16);
+  // 4) imm6 占 bits[15..10]
+  if (imm6 > 63) {
+    throw std::out_of_range("Immediate value out of range (max 63).");
+  }
+  inst |= ((imm6 & 0x3F) << 10);
+  // 5) rn 占 bits[9..5]
+  if (rn > 31) {
+    throw std::out_of_range("Rn register out of range.");
+  }
+  inst |= ((rn & 0x1F) << 5);
+  // 6) rd 占 bits[4..0]
+  if (rd > 31) {
+    throw std::out_of_range("Rd register out of range.");
+  }
+  inst |= (rd & 0x1F);
+  if (smallEndian) {
+    inst = __builtin_bswap32(inst); // convert to small endian
+  }
+  return inst;
+}
+uint32_t encodeMul(RegType regType, uint8_t rd, uint8_t rn, uint8_t rm, bool smallEndian = true) {
+  /*
+   * https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/MUL--Multiply--an-alias-of-MADD-
+   */
+  string reg_char = (regType == X_REG) ? "x" : "w";
+  cout << format("mul {}{}, {}{}, {}{}", reg_char, rd, reg_char, rn, reg_char, rm) << endl;
+  uint32_t inst = 0b00011011000000000111110000000000;
+  if (regType == X_REG) {
+    inst |= (1 << 31);
+  }
+  if (rm > 31) {
+    throw std::out_of_range("Rm register out of range.");
+  }
+  inst |= ((rm & 0x1F) << 16);
+  if (rn > 31) {
+    throw std::out_of_range("Rn register out of range.");
+  }
+  inst |= ((rn & 0x1F) << 5);
+  if (rd > 31) {
+    throw std::out_of_range("Rd register out of range.");
+  }
+  inst |= (rd & 0x1F);
+  if (smallEndian) {
+    inst = __builtin_bswap32(inst); // convert to small endian
+  }
+  return inst;
 }
 uint32_t encodeAddSubImm(bool isSub, uint8_t rd, uint8_t rn, uint16_t imm, bool shift12, bool smallEndian = true) {
   // 1) 先确定高8位
@@ -144,7 +205,7 @@ uint32_t encodeAddSubImm(bool isSub, uint8_t rd, uint8_t rn, uint16_t imm, bool 
   //    对于 64-bit SUB (S=0) => 0xD1
   uint32_t inst = (isSub ? 0xD1 : 0x91) << 24;
 
-  // 2) shift 占 bits[23..22]
+  // 2) shift 占 bits[22..22]
   uint32_t shiftVal = shift12 ? 1 : 0;
   inst |= (shiftVal << 22);
 

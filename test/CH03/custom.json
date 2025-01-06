@@ -1,0 +1,5 @@
+{"source_filename": "arithmetic.wast",
+ "commands": [
+  {"type": "module", "line": 1, "filename": "arithmetic.0.wasm"},
+  {"type": "assert_return", "line": 9, "action": {"type": "invoke", "field": "add", "args": [{"type": "i32", "value": "4294967295"}, {"type": "i32", "value": "4294967295"}]}, "expected": [{"type": "i32", "value": "4294967294"}]}
+ ]}

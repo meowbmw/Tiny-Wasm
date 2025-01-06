@@ -8,8 +8,8 @@ using json = nlohmann::json;
 TEST(WASM_TEST, wasm_test) {
   ofstream parser_cout("parserOutput.txt");
   auto normal_cout = cout.rdbuf();
-  string TEST_FOLDER = "../test/CH02/";
-  ifstream f(TEST_FOLDER + "local.json");
+  string TEST_FOLDER = "../test/CH03/";
+  ifstream f(TEST_FOLDER + "arithmetic.json");
   json data = json::parse(f);
   multimap<string, json> command_map;
   map<string, Parser> parser_map;
