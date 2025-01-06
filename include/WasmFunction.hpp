@@ -319,7 +319,7 @@ public:
     }
   }
   void print_stack() {
-    cout << "--- Printing stack---" << endl;
+    cout << "--- Printing stack (This is not wasm stack!) ---" << endl;
     if (stack.size() == 0) {
       cout << "Empty stack!" << endl;
     }

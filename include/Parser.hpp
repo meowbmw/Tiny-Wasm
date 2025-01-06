@@ -165,6 +165,7 @@ public:
     cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
          << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
     cout << "Total result count: " << wasmFunctionVec[i].result_data.size() << endl;
+    cout << endl;
   }
   void funcBatchProcess(bool execute = false) {
     // give function their respective param, result and local vec.
