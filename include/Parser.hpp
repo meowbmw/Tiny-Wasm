@@ -66,12 +66,12 @@ public:
       const uint64_t param_count = stoul(s.substr(base_offset + 2, 2), nullptr, 16);
       base_offset = base_offset + 2;
       for (int j = 0; j < param_count; ++j) {
-        curType.add_param(s.substr(base_offset + 2 + 2 * j, 2));
+        curType.add_data(TypeCategory::PARAM, s.substr(base_offset + 2 + 2 * j, 2));
       }
       base_offset = base_offset + 2 + 2 * param_count;
       const uint64_t result_count = stoul(s.substr(base_offset, 2), nullptr, 16);
       for (int j = 0; j < result_count; ++j) {
-        curType.add_result(s.substr(base_offset + 2 + 2 * j, 2));
+        curType.add_data(TypeCategory::RESULT, s.substr(base_offset + 2 + 2 * j, 2));
       }
       if (DEBUG_TYPE_SECTION) {
         cout << "--- Info for type " << i << " ---" << endl;
@@ -160,7 +160,7 @@ public:
   void funcSingleProcess(int i) {
     cout << "------ Processing function " << i << ": " << funcIndexNameMapper[i] << " ------" << endl;
     wasmFunctionVec[i].prepareParams();
-    wasmFunctionVec[i].processCodeVec(); // this function will deal with local varaible initialization and machine code construction
+    wasmFunctionVec[i].processCodeVec();
     cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
     cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
          << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!

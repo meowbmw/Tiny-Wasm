@@ -10,6 +10,25 @@
 
 enum LdStType { STR, LDR };
 enum RegType { W_REG, X_REG, S_REG, D_REG };
+map<uint8_t, string> cond_str_map = {
+    // for print and debug purpose
+    {0b0000, "eq"}, // Equal
+    {0b0001, "ne"}, // Not equal
+    {0b0010, "cs"}, // Carry set/unsigned higher or same
+    {0b0011, "cc"}, // Carry clear/unsigned lower
+    {0b0100, "mi"}, // Minus/negative
+    {0b0101, "pl"}, // Plus/positive or zero
+    {0b0110, "vs"}, // Overflow
+    {0b0111, "vc"}, // No overflow
+    {0b1000, "hi"}, // Unsigned higher
+    {0b1001, "ls"}, // Unsigned lower or same
+    {0b1010, "ge"}, // Signed greater than or equal
+    {0b1011, "lt"}, // Signed less than
+    {0b1100, "gt"}, // Signed greater than
+    {0b1101, "le"}, // Signed less than or equal
+    {0b1110, "al"}, // Always (unconditional)
+    {0b1111, "nv"}  // Never (reserved)
+};
 string common_encode(uint32_t inst) {
   return toHexString(inst).substr(2);
 }
@@ -21,6 +40,19 @@ string encodeBranch(uint32_t imm26, bool smallEndian = true) {
   }
   string instruction = common_encode(inst);
   cout << format("Emit: b {} | {}", imm26, instruction) << endl;
+  return instruction;
+}
+string encodeBranchCondition(uint32_t label, uint8_t cond, bool smallEndian = true) {
+  uint32_t imm19 = label >> 2;
+  uint32_t inst = 0;
+  inst |= (0b01010100 << 24);
+  inst |= (imm19 << 5);
+  inst |= (cond & 0xF);
+  if (smallEndian) {
+    inst = __builtin_bswap32(inst); // convert to small endian
+  }
+  string instruction = common_encode(inst);
+  cout << format("Emit: b.{} {} | {}", cond_str_map[cond], label, instruction) << endl;
   return instruction;
 }
 // 将立即数转换为MOVZ指令的机器码

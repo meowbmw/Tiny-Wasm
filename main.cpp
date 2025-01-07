@@ -15,13 +15,14 @@ int main() {
   auto normal_cout = cout.rdbuf();
   string chapter_number = "03";
   ifstream f;
-  string base_path;
+  string base_path = format("test/CH{}/", chapter_number);
   if (chapter_number == "02") {
-    base_path = "test/CH02/";
     f = ifstream(base_path + "local.json");
   } else if (chapter_number == "03") {
-    base_path = "test/CH03/";
     f = ifstream(base_path + "arithmetic.json");
+    // f = ifstream(base_path + "custom.json");
+  } else if (chapter_number == "04") {
+    f = ifstream(base_path + "div.json");
     // f = ifstream(base_path + "custom.json");
   }
   json data = json::parse(f);

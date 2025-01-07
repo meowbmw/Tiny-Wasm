@@ -44,13 +44,6 @@ public:
     } 
   }
 
-  void add_param(const std::string &type) {
-    add_data(TypeCategory::PARAM, type);
-  }
-  void add_result(const std::string &type) {
-    add_data(TypeCategory::RESULT, type);
-  }
-
   vector<wasm_type> param_data;
   vector<wasm_type> result_data;
   /**

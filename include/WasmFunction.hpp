@@ -14,7 +14,7 @@ public:
       const unsigned int var_count_in_this_declare = stoul(code_vec[offset], nullptr, 16);
       const string var_type_in_this_declare = code_vec[offset + 1];
       for (int j = 0; j < var_count_in_this_declare; ++j) {
-        add_local(var_type_in_this_declare);
+        add_data(TypeCategory::LOCAL, var_type_in_this_declare);
       }
       offset += 2;
     }
@@ -198,11 +198,11 @@ public:
   }
   void emitRet() {
     const string instr = "C0035FD6";
-    cout << format("Emit: ret | {}", convertEndian(instr)) << endl;
+    cout << format("Emit: ret | {}", instr) << endl;
     constructFullinstr(instr);
   }
   void constructFullinstr(string sub_instr) {
-    instructions = instructions + sub_instr;
+    wasm_instructions = wasm_instructions + sub_instr;
   }
   void prepareParams() {
     /**
@@ -237,27 +237,43 @@ public:
     }
     cout << "---Loading parameters finished---" << endl;
   }
-  void clearAfterExecution() {
+  void resetAfterExecution() {
     pre_instructions_for_param_loading = "";
-    instructions = "";
+    wasm_instructions = ""; // no need to reset this?
     stack.clear();
   }
   int64_t executeInstr() {
     /**
      * Allocate memory with execute permission
      * And load machine code into that
-     * Save address pointer to self.instructions
+     * Save address pointer to self.wasm_instructions
      */
-    // Warn: Append pre instructions here
+    // Warn: Append pre wasm_instructions here
     // Also add branch instruction here; we might need to support function call later
     // string branch_instr = encodeBranch(1); // function will be right next to b instruction, so offset is 1 here
-    // instructions = pre_instructions_for_param_loading + branch_instr + instructions;
-    instructions = pre_instructions_for_param_loading + instructions;
-    cout << "Machine instruction to load: " << instructions << endl;
-    const size_t arraySize = instructions.length() / 2;
+    // instructions = pre_instructions_for_param_loading + branch_instr + wasm_instructions;
+    string full_instructions = pre_instructions_for_param_loading + wasm_instructions;
+    cout << "Machine instruction to load: " << endl;
+    cout << "Param loading: ";
+    for (size_t i = 0; i < pre_instructions_for_param_loading.size(); i += 8) {
+      if (i > 0) {
+        std::cout << " | ";
+      }
+      std::cout << pre_instructions_for_param_loading.substr(i, 8);
+    }
+    cout << endl;
+    cout << "Wasm running: ";
+    for (size_t i = 0; i < wasm_instructions.size(); i += 8) {
+      if (i > 0) {
+        std::cout << " | ";
+      }
+      std::cout << wasm_instructions.substr(i, 8);
+    }
+    cout << endl;
+    const size_t arraySize = full_instructions.length() / 2;
     auto charArray = make_unique<unsigned char[]>(arraySize); // use smart pointer here so we don't need to free it manually
     for (size_t i = 0; i < arraySize; i++) {
-      const string byteStr = instructions.substr(i * 2, 2);
+      const string byteStr = full_instructions.substr(i * 2, 2);
       charArray[i] = static_cast<unsigned char>(stoul(byteStr, nullptr, 16));
     }
     int64_t (*instruction_set)() = nullptr;
@@ -275,7 +291,7 @@ public:
     // !不需要做任何传参，因为参数已经放在寄存器里啦
     int64_t ans = instruction_set();
     // WARN: reset, very important if we want to call it again!
-    clearAfterExecution();
+    resetAfterExecution();
     if (result_data.size() == 0) {
       // in this case ans will still be x0
       // which is probably the first param of our function
@@ -353,15 +369,6 @@ public:
       local_data.push_back(data);
     }
   }
-  void add_param(const std::string &type) {
-    add_data(TypeCategory::PARAM, type);
-  }
-  void add_result(const std::string &type) {
-    add_data(TypeCategory::RESULT, type);
-  }
-  void add_local(const std::string &type) {
-    add_data(TypeCategory::LOCAL, type);
-  }
   void set_code_vec(vector<string> &v, size_t l = 0) {
     code_vec = v;
     local_var_declare_count = l;
@@ -437,7 +444,7 @@ public:
     /*
      * A wrapper for common arithmatic operations: +, -, *, /
      */
-    // Note: isSigned is only used to differntiate div_s and div_u
+    // Note: isSigned is only used to differentiate div_s and div_u
     RegType regtype;
     string opstr;
     switch (opType) {
@@ -488,6 +495,7 @@ public:
       arith_instr = encodeMul(regtype, 11, 12, 11);
       break;
     case '/':
+
       arith_instr = encodeDiv(regtype, isSigned, 11, 12, 11);
       break;
     default:
@@ -547,6 +555,11 @@ public:
     } else {
       throw "Too big index {" + to_string(var_index) + "} for local data; skipping current op;";
     }
+  }
+  void emitSetjmp() {
+    /**
+     * stp	x29, x30, [x0, #JB_X29<<3]
+     */
   }
   void runningWasmCode(int i) {
     cout << "--- JITing wasm code ---" << endl;
@@ -665,7 +678,7 @@ public:
   }
   vector<string> code_vec;
   u_int64_t local_var_declare_count = 0;
-  string instructions;
+  string wasm_instructions;
   map<char, ArithOperation> operations_map;
   string pre_instructions_for_param_loading;
   vector<wasm_type> local_data;
