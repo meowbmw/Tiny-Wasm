@@ -67,7 +67,8 @@
             ],
             "initCommands": [
                 "process handle SIGTRAP -s false"
-            ]
+            ],
+            "postDebugTask": "make clean"
         },
     ]
 }

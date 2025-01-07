@@ -1,7 +1,18 @@
 {
     "tasks": [
         {
-            "label": "qemu-static",
+            "label": "make build",
+            "command": "make",
+            "args": [
+                "build"
+            ],
+            "type": "process",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "make qemu-static",
             "command": "make",
             "args": [
                 "qemu-gdb"
@@ -9,7 +20,6 @@
             "type": "process",
             "isBackground": true,
             "problemMatcher": [
-                "$gcc",
                 {
                     "pattern": [
                         {
@@ -26,6 +36,22 @@
                     }
                 }
             ]
+        },
+        {
+            "label": "qemu-static",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "make build",
+                "make qemu-static"
+            ]
+        },
+        {
+            "label": "make clean",
+            "command": "make",
+            "args": [
+                "clean"
+            ],
+            "type": "process"
         },
         {
             "type": "cppbuild",

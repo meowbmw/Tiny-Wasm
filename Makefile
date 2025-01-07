@@ -1,3 +1,7 @@
-.PHONY: qemu-gdb
+.PHONY: build qemu-gdb clean
+build:
+	ccache /usr/bin/clang++ --target=aarch64-linux-gnu -std=c++20 -g main.cpp -o main
 qemu-gdb: 
-	ccache /usr/bin/clang++ --target=aarch64-linux-gnu -std=c++20 -g main.cpp -o main && qemu-aarch64 -g 1234 -L /usr/aarch64-linux-gnu main; rm main
+	qemu-aarch64 -g 1234 -L /usr/aarch64-linux-gnu main
+clean:
+	rm main
