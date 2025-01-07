@@ -250,11 +250,11 @@ public:
      */
     // Warn: Append pre wasm_instructions here
     // Also add branch instruction here; we might need to support function call later
-    // string branch_instr = encodeBranch(1); // function will be right next to b instruction, so offset is 1 here
-    // instructions = pre_instructions_for_param_loading + branch_instr + wasm_instructions;
-    string full_instructions = pre_instructions_for_param_loading + wasm_instructions;
+    string branch_instr = encodeBranch(4); // function will be right next to b instruction, so offset is 1 here
+    string full_instructions = pre_instructions_for_param_loading + branch_instr + wasm_instructions;
+    // string full_instructions = pre_instructions_for_param_loading + wasm_instructions;
     cout << "Machine instruction to load: " << endl;
-    cout << "Param loading: ";
+    cout << " - Load param instr: ";
     for (size_t i = 0; i < pre_instructions_for_param_loading.size(); i += 8) {
       if (i > 0) {
         std::cout << " | ";
@@ -262,7 +262,7 @@ public:
       std::cout << pre_instructions_for_param_loading.substr(i, 8);
     }
     cout << endl;
-    cout << "Wasm running: ";
+    cout << " - Run wasm instr: ";
     for (size_t i = 0; i < wasm_instructions.size(); i += 8) {
       if (i > 0) {
         std::cout << " | ";
@@ -484,6 +484,8 @@ public:
     string load_first_param_instr = encodeLoadStoreUnsignedImm(regtype, LDR, 12, 31, wasm_stack_pointer);
     // r11 = a op b
     string arith_instr;
+    string check_div_instr;
+    string branch_equal_zero_instr;
     switch (opType) {
     case '+':
       arith_instr = encodeAddSubShift(false, regtype, 11, 12, 11);
@@ -495,7 +497,8 @@ public:
       arith_instr = encodeMul(regtype, 11, 12, 11);
       break;
     case '/':
-
+      check_div_instr = encodeCompareShift(regtype, 12, 11);
+      branch_equal_zero_instr = encodeBranchCondition(1, reverse_cond_str_map["eq"]);
       arith_instr = encodeDiv(regtype, isSigned, 11, 12, 11);
       break;
     default:

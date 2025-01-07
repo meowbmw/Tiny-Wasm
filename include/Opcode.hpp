@@ -29,17 +29,36 @@ map<uint8_t, string> cond_str_map = {
     {0b1110, "al"}, // Always (unconditional)
     {0b1111, "nv"}  // Never (reserved)
 };
+map<string, uint8_t> reverse_cond_str_map = {
+    {"eq", 0b0000},  // Equal
+    {"ne", 0b0001},  // Not equal
+    {"cs", 0b0010},  // Carry set/unsigned higher or same
+    {"cc", 0b0011},  // Carry clear/unsigned lower
+    {"mi", 0b0100},  // Minus/negative
+    {"pl", 0b0101},  // Plus/positive or zero
+    {"vs", 0b0110},  // Overflow
+    {"vc", 0b0111},  // No overflow
+    {"hi", 0b1000},  // Unsigned higher
+    {"ls", 0b1001},  // Unsigned lower or same
+    {"ge", 0b1010},  // Signed greater than or equal
+    {"lt", 0b1011},  // Signed less than
+    {"gt", 0b1100},  // Signed greater than
+    {"le", 0b1101},  // Signed less than or equal
+    {"al", 0b1110},  // Always (unconditional)
+    {"nv", 0b1111}   // Never (reserved)
+};
 string common_encode(uint32_t inst) {
   return toHexString(inst).substr(2);
 }
-string encodeBranch(uint32_t imm26, bool smallEndian = true) {
+string encodeBranch(uint32_t label, bool smallEndian = true) {
+  uint32_t imm26 = label >> 2;
   uint32_t inst = 0x14000000;
   inst |= (imm26 & 0x3FFFFFF);
   if (smallEndian) {
     inst = __builtin_bswap32(inst); // convert to small endian
   }
   string instruction = common_encode(inst);
-  cout << format("Emit: b {} | {}", imm26, instruction) << endl;
+  cout << format("Emit: b {} | {}", label, instruction) << endl;
   return instruction;
 }
 string encodeBranchCondition(uint32_t label, uint8_t cond, bool smallEndian = true) {
@@ -130,7 +149,7 @@ string WrapperEncodeMovInt64(uint8_t rd, uint64_t value, RegType regType, bool s
   return instr_0 + instr_1 + instr_2 + instr_3;
 }
 string encodeAddSubShift(bool isSub, RegType regType, uint8_t rd, uint8_t rn, uint8_t rm, uint16_t imm6 = 0, uint8_t shift = 0,
-                         bool smallEndian = true) {
+                         bool isCompare = false, bool smallEndian = true) {
   /**
    * https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/ADD--shifted-register---Add-optionally-shifted-register-?lang=en#amount__5
    * https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/SUB--shifted-register---Subtract-optionally-shifted-register-
@@ -175,8 +194,33 @@ string encodeAddSubShift(bool isSub, RegType regType, uint8_t rd, uint8_t rn, ui
     inst = __builtin_bswap32(inst); // convert to small endian
   }
   string instruction = common_encode(inst);
-  cout << format("Emit: {} {}{}, {}{}, {}{} | {}", ((isSub) ? "sub" : "add"), reg_char, rd, reg_char, rn, reg_char, rm, instruction) << endl;
+  string instr_name = "unknown";
+  if (isCompare) {
+    if (isSub) {
+      instr_name = "cmp";
+    } else {
+      instr_name = "cmn";
+    }
+  } else {
+    if (isSub) {
+      instr_name = "sub";
+    } else {
+      instr_name = "add";
+    }
+  }
+  cout << format("Emit: {} {}{}, {}{}, {}{} | {}", instr_name, reg_char, rd, reg_char, rn, reg_char, rm, instruction) << endl;
   return instruction;
+}
+string encodeCompareNegativeShift(RegType regType, uint8_t rn, uint8_t rm, uint16_t imm6 = 0, uint8_t shift = 0,
+                                  bool smallEndian = true) {
+  // CMN shifted register:
+  // An alias of adds, only discards the result
+  return encodeAddSubShift(false, regType, 31, rn, rm, imm6, shift, smallEndian);
+}
+string encodeCompareShift(RegType regType, uint8_t rn, uint8_t rm, uint16_t imm6 = 0, uint8_t shift = 0, bool smallEndian = true) {
+  // CMP shifted register:
+  // An alias of subs, only discards the result
+  return encodeAddSubShift(true, regType, 31, rn, rm, imm6, shift, smallEndian);
 }
 string encodeMul(RegType regType, uint8_t rd, uint8_t rn, uint8_t rm, bool smallEndian = true) {
   /*

@@ -1,12 +1,12 @@
 #include "../include/Opcode.hpp"
 int main() {
   // string inst = encodeDiv(X_REG, false, 2, 2, 3);
-  string inst = encodeBranchCondition(12, 0b0000);
+  string inst = encodeBranchCondition(24, reverse_cond_str_map["gt"]);
   // std::cout << "Instruction: ";
   // uint32_t inst = encodeMul(RegType::X_REG, 1, 1, 2);
   // std::cout << "Machine code (binary): " << toBinaryString(inst) << "\n";
   // std::cout << "Machine code (hex)   : " << toHexString(inst) << "\n";
-  // uint32_t inst = encodeBranch(1);
+  inst = encodeBranch(12);
   // std::cout << "Instruction: B, #1\n";
   // std::cout << "Machine code (binary): " << toBinaryString(inst) << "\n";
   // std::cout << "Machine code (hex)   : " << toHexString(inst) << "\n";

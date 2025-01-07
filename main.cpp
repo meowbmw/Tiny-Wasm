@@ -75,7 +75,7 @@ int main() {
     bool matched = false;
     if (curFunction.result_data.size() > 0) {
       auto ans = curFunction.executeInstr();
-      cout << format("Expecting {}", expect_str) << endl;
+      cout << format("Expecting: {}", expect_str) << endl;
       cout << "Result: " << ans << endl;
       matched = (ans == static_cast<int64_t>(stoul(expect_str)));
       cout << "Matched: " << (matched ? "True" : "False") << endl;

@@ -4,6 +4,15 @@
 #include <unordered_map>
 #include <vector>
 #include "Utils.h"
+// 检查键是否存在
+template<typename K, typename V>
+bool in(const std::unordered_map<K, V>& map, const K& key) {
+    return map.find(key) != map.end();
+}
+template<typename K, typename V>
+bool in(const std::map<K, V>& map, const K& key) {
+    return map.find(key) != map.end();
+}
 // 重载 + 运算符
 wasm_type operator+(const wasm_type& a, const wasm_type& b) {
     return std::visit([](auto&& arg1, auto&& arg2) -> wasm_type {
