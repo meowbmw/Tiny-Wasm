@@ -242,34 +242,35 @@ public:
     wasm_instructions = ""; // no need to reset this?
     stack.clear();
   }
-  int64_t executeInstr() {
+  static int64_t executeInstr(const string &full_instructions, const string & pre_instructions_for_param_loading = "", const string & wasm_instructions = "") {
     /**
+     * Making this function static so it can be called freely
+     * 
      * Allocate memory with execute permission
      * And load machine code into that
-     * Save address pointer to self.wasm_instructions
+     * 
      */
-    // Warn: Append pre wasm_instructions here
-    // Also add branch instruction here; we might need to support function call later
-    string branch_instr = encodeBranch(4); // function will be right next to b instruction, so offset is 1 here
-    string full_instructions = pre_instructions_for_param_loading + branch_instr + wasm_instructions;
-    // string full_instructions = pre_instructions_for_param_loading + wasm_instructions;
-    cout << "Machine instruction to load: " << endl;
-    cout << " - Load param instr: ";
-    for (size_t i = 0; i < pre_instructions_for_param_loading.size(); i += 8) {
-      if (i > 0) {
-        std::cout << " | ";
+    cout << "Machine instruction to load: " << full_instructions << endl;
+    if (pre_instructions_for_param_loading.size() > 0) {
+      cout << " - Load param instr: ";
+      for (size_t i = 0; i < pre_instructions_for_param_loading.size(); i += 8) {
+        if (i > 0) {
+          std::cout << " | ";
+        }
+        std::cout << pre_instructions_for_param_loading.substr(i, 8);
       }
-      std::cout << pre_instructions_for_param_loading.substr(i, 8);
+      cout << endl;
     }
-    cout << endl;
-    cout << " - Run wasm instr: ";
-    for (size_t i = 0; i < wasm_instructions.size(); i += 8) {
-      if (i > 0) {
-        std::cout << " | ";
+    if (wasm_instructions.size() > 0) {
+      cout << " - Run wasm instr: ";
+      for (size_t i = 0; i < wasm_instructions.size(); i += 8) {
+        if (i > 0) {
+          std::cout << " | ";
+        }
+        std::cout << wasm_instructions.substr(i, 8);
       }
-      std::cout << wasm_instructions.substr(i, 8);
+      cout << endl;
     }
-    cout << endl;
     const size_t arraySize = full_instructions.length() / 2;
     auto charArray = make_unique<unsigned char[]>(arraySize); // use smart pointer here so we don't need to free it manually
     for (size_t i = 0; i < arraySize; i++) {
@@ -290,15 +291,19 @@ public:
     __builtin___clear_cache(reinterpret_cast<char *>(instruction_set), reinterpret_cast<char *>(instruction_set) + arraySize);
     // !不需要做任何传参，因为参数已经放在寄存器里啦
     int64_t ans = instruction_set();
+    munmap(reinterpret_cast<void *>(instruction_set), arraySize);
+    return ans;
+  }
+  int64_t executeInstr() {
+    // Wrapper function because we want to support executeInstr without class instantiate
+    // Warn: Append pre wasm_instructions here
+    // Also add branch instruction here; we might need to support function call later
+    string branch_instr = encodeBranch(4); // function will be right next to b instruction, so offset is 1 here
+    string full_instructions = pre_instructions_for_param_loading + branch_instr + wasm_instructions;
+    // string full_instructions = pre_instructions_for_param_loading + wasm_instructions;
+    int64_t ans = executeInstr(full_instructions, pre_instructions_for_param_loading, wasm_instructions);
     // WARN: reset, very important if we want to call it again!
     resetAfterExecution();
-    if (result_data.size() == 0) {
-      // in this case ans will still be x0
-      // which is probably the first param of our function
-      // setting it to zero as this value is meaningless
-      ans = 0;
-    }
-    munmap(reinterpret_cast<void *>(instruction_set), arraySize);
     return ans;
   }
   void print_data(TypeCategory category) {

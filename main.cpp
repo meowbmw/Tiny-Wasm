@@ -6,14 +6,9 @@ using json = nlohmann::json;
 // aarch64-linux-gnu-g++ -c arm64.s && aarch64-linux-gnu-objdump -d arm64.o
 // aarch64-linux-gnu-g++ parser.cpp -o main && qemu-aarch64 -L /usr/aarch64-linux-gnu ./main
 // qemu-aarch64 -g 1234 -L /usr/aarch64-linux-gnu ./main
-int main() {
-  //   Parser parser("test/local.2.wasm");
-  //   parser.parse();
-  //   parser.funcBatchProcess(true);
-  //   return 0;
+void test_chapter(const string &chapter_number) {
   ofstream parser_cout("parserOutput.txt");
   auto normal_cout = cout.rdbuf();
-  string chapter_number = "03";
   ifstream f;
   string base_path = format("test/CH{}/", chapter_number);
   if (chapter_number == "02") {
@@ -88,6 +83,14 @@ int main() {
     if (matched == false) {
       throw "Unmatched";
     }
+  }
+}
+int main() {
+  vector<string> test_chapters = {"02", "03"};
+  for (auto &chapter_number : test_chapters) {
+    cout << "--- Testing chapter " << chapter_number << " ---" << endl;
+    test_chapter(chapter_number);
+    cout << endl;
   }
   return 0;
 }
