@@ -68,7 +68,8 @@ string encodeBranch(uint32_t offset, bool withLink = false, bool smallEndian = t
   return instruction;
 }
 string encodeLdpStp(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rt2, uint8_t rn, uint16_t imm,
-                               EncodingMode mode = EncodingMode::SignedOffset, bool smallEndian = true) {
+                    EncodingMode mode = EncodingMode::SignedOffset, bool smallEndian = true) {
+  string reg_char = (regType == X_REG) ? "x" : "w";
   uint16_t imm7 = imm;
   uint32_t inst = 0;
   string instr_name;
@@ -113,15 +114,14 @@ string encodeLdpStp(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rt2,
     inst = __builtin_bswap32(inst); // convert to small endian
   }
   string instruction = common_encode(inst);
-  string reg_char = (regType == X_REG) ? "x" : "w";
   if (mode == EncodingMode::PreIndex) {
     cout << format("Emit: {} {}{}, {}{}, [{}, #{}]! | {}", instr_name, reg_char, rt, reg_char, rt2, ((rn == 31) ? "sp" : to_string(rn)), imm,
-                 instruction)
-       << endl;
+                   instruction)
+         << endl;
   } else if (mode == EncodingMode::PostIndex) {
     cout << format("Emit: {} {}{}, {}{}, [{}], #{} | {}", instr_name, reg_char, rt, reg_char, rt2, ((rn == 31) ? "sp" : to_string(rn)), imm,
-                 instruction)
-       << endl;
+                   instruction)
+         << endl;
   } else if (mode == EncodingMode::SignedOffset) {
     cout << format("Emit: {} {}{}, {}{}, [{}, #{}] | {}", instr_name, reg_char, rt, reg_char, rt2, ((rn == 31) ? "sp" : to_string(rn)), imm,
                    instruction)
@@ -139,6 +139,29 @@ string encodeBranchCondition(uint32_t offset, uint8_t cond, bool smallEndian = t
   }
   string instruction = common_encode(inst);
   cout << format("Emit: b.{} with {} | {}", cond_str_map[cond], offset, instruction) << endl;
+  return instruction;
+}
+string encodeMovRegister(RegType regType, uint8_t rd, uint8_t rm, bool smallEndian = true) {
+  string reg_char = (regType == X_REG) ? "x" : "w";
+  uint32_t inst = 0;
+  if (regType == X_REG) {
+    inst |= (1 << 31);
+  }
+  if (rd > 31) {
+    throw std::out_of_range("Rd register out of range.");
+  }
+  inst |= (rd & 0x1F);
+  if (rm > 31) {
+    throw std::out_of_range("Rm register out of range.");
+  }
+  inst |= ((rm & 0x1F) << 16);
+  inst |= (0b10101 << 25);
+  inst |= (0b11111 << 5);
+  if (smallEndian) {
+    inst = __builtin_bswap32(inst); // convert to small endian
+  }
+  string instruction = common_encode(inst);
+  cout << format("Emit: mov {}{}, {}{} | {}", reg_char, rd, reg_char, rm, instruction) << endl;
   return instruction;
 }
 // 将立即数转换为MOVZ指令的机器码

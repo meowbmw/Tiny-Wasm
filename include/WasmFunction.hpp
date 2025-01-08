@@ -214,6 +214,10 @@ public:
     if (param_data.size() == 0) {
       cout << "No params need to be load" << endl;
     }
+    int backReg = 15;
+    cout << "Backing up x0 buffer to x" << backReg << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, backReg, 0);
+    cout << "Loading parameters" << endl;
     for (int i = 0; i < param_data.size(); ++i) {
       std::visit(
           [&i, this](auto &&value) {
@@ -278,10 +282,11 @@ public:
       const string byteStr = full_instructions.substr(i * 2, 2);
       charArray[i] = static_cast<unsigned char>(stoul(byteStr, nullptr, 16));
     }
-    int64_t (*instruction_set)() = nullptr;
+    int64_t (*instruction_set)(void *) = nullptr;
+    void *buffer = malloc(1024);
     // allocate executable buffer
     instruction_set =
-        reinterpret_cast<int64_t (*)()>(mmap(nullptr, arraySize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+        reinterpret_cast<int64_t (*)(void *)>(mmap(nullptr, arraySize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
     if (instruction_set == MAP_FAILED) {
       perror("mmap");
       return -1;
@@ -291,14 +296,14 @@ public:
     // ensure memcpy isn't optimized away as a dead store.
     __builtin___clear_cache(reinterpret_cast<char *>(instruction_set), reinterpret_cast<char *>(instruction_set) + arraySize);
     // !不需要做任何传参，因为参数已经放在寄存器里啦
-    int64_t ans = instruction_set();
+    int64_t ans = instruction_set(buffer);
     munmap(reinterpret_cast<void *>(instruction_set), arraySize);
     return ans;
   }
   int64_t executeInstr() {
     // Wrapper function because we want to support calling executeInstr(instr) without class instantiate
     // Warn: Append pre wasm_instructions here
-    string full_instructions = pre_instructions_for_param_loading + encodeBranch(1, true) + wasm_instructions;
+    string full_instructions = pre_instructions_for_param_loading + encodeBranch(1) + wasm_instructions;
     int64_t ans = executeInstr(full_instructions, pre_instructions_for_param_loading, wasm_instructions);
     // WARN: reset, very important if we want to call it again!
     resetAfterExecution();
@@ -462,7 +467,7 @@ public:
         ldp	x23, x24, [x0, 4<<3]
         ldp	x25, x26, [x0, 6<<3]
         ldp	x27, x28, [x0, 8<<3]
-	      ldp	x29, x30, [x0, 10<<3]
+              ldp	x29, x30, [x0, 10<<3]
         ldr	x5, [x0, 13<<3]; x5 <- [x0, 104]
         mov	sp, x5; sp <- x5
         cmp	x1, #0
