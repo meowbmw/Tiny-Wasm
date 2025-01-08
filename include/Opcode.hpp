@@ -141,6 +141,55 @@ string encodeBranchCondition(uint32_t offset, uint8_t cond, bool smallEndian = t
   cout << format("Emit: b.{} with {} | {}", cond_str_map[cond], offset, instruction) << endl;
   return instruction;
 }
+string encodeCSEL(RegType regType, uint8_t rd, uint8_t rn, uint8_t rm, uint8_t cond, bool smallEndian = true) {
+  /**
+   * This instruction writes the value of the first source register to the destination register if the condition is TRUE. If the condition is FALSE,
+   * it writes the value of the second source register to the destination register.
+   * https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/CSEL--Conditional-select-?lang=en
+   */
+  string reg_char = (regType == X_REG) ? "x" : "w";
+  uint32_t inst = 0;
+  if (regType == X_REG) {
+    inst |= (1 << 31);
+  }
+  inst |= (0b110101 << 23);
+  if (rd > 31) {
+    throw std::out_of_range("Rd register out of range.");
+  }
+  inst |= (rd & 0x1F);
+  if (rm > 31) {
+    throw std::out_of_range("Rm register out of range.");
+  }
+  inst |= ((rm & 0x1F) << 16);
+  if (rn > 31) {
+    throw std::out_of_range("Rn register out of range.");
+  }
+  inst |= ((rn & 0x1F) << 5);
+  if (cond > 15) {
+    throw std::out_of_range("Condition out of range.");
+  }
+  inst |= ((cond & 0xF) << 12);
+  if (smallEndian) {
+    inst = __builtin_bswap32(inst); // convert to small endian
+  }
+  string instruction = common_encode(inst);
+  cout << format("Emit: csel {}{}, {}{}, {}{}, {} | {}", reg_char, rd, reg_char, rn, reg_char, rm, cond_str_map[cond], instruction) << endl;
+  return instruction;
+}
+string encodeBranchRegister(uint8_t rn, bool smallEndian = true) {
+  uint32_t inst = 0;
+  inst |= (0b1101011000011111000000 << 10);
+  if (rn > 31) {
+    throw std::out_of_range("Rn register out of range.");
+  }
+  inst |= ((rn & 0x1F) << 5);
+  if (smallEndian) {
+    inst = __builtin_bswap32(inst); // convert to small endian
+  }
+  string instruction = common_encode(inst);
+  cout << format("Emit: br {} | {}", ((rn == 31) ? "sp" : to_string(rn)), instruction) << endl;
+  return instruction;
+}
 string encodeMovRegister(RegType regType, uint8_t rd, uint8_t rm, bool smallEndian = true) {
   string reg_char = (regType == X_REG) ? "x" : "w";
   uint32_t inst = 0;
@@ -161,7 +210,8 @@ string encodeMovRegister(RegType regType, uint8_t rd, uint8_t rm, bool smallEndi
     inst = __builtin_bswap32(inst); // convert to small endian
   }
   string instruction = common_encode(inst);
-  cout << format("Emit: mov {}{}, {}{} | {}", reg_char, rd, reg_char, rm, instruction) << endl;
+  cout << format("Emit: mov {}, {} | {}", ((rd == 31) ? "sp" : reg_char + to_string(rd)), ((rm == 31) ? "sp" : reg_char + to_string(rm)), instruction)
+       << endl;
   return instruction;
 }
 // 将立即数转换为MOVZ指令的机器码
@@ -370,13 +420,17 @@ string encodeDiv(RegType regType, bool isSigned, uint8_t rd, uint8_t rn, uint8_t
        << endl;
   return instruction;
 }
-string encodeAddSubImm(RegType regType, bool isSub, uint8_t rd, uint8_t rn, uint16_t imm, bool shift12 = false, bool smallEndian = true) {
+string encodeAddSubImm(RegType regType, bool isSub, uint8_t rd, uint8_t rn, uint16_t imm, bool shift12 = false, bool isCompare = false,
+                       bool setFlag = false, bool smallEndian = true) {
   uint32_t inst = 0;
   if (regType == X_REG) {
     inst |= (1 << 31);
   }
   if (isSub) {
     inst |= (1 << 30);
+  }
+  if (setFlag) {
+    inst |= (1 << 29);
   }
   inst |= (0b10001 << 24);
   // 2) shift 占 bits[22..22]
@@ -405,10 +459,18 @@ string encodeAddSubImm(RegType regType, bool isSub, uint8_t rd, uint8_t rn, uint
   }
   string instruction = common_encode(inst);
   string reg_char = (regType == X_REG) ? "x" : "w";
-  string rd_str = (rd == 31) ? "sp" : (reg_char + to_string(rd));
-  string rn_str = (rn == 31) ? "sp" : (reg_char + to_string(rn));
-  cout << format("Emit: {} {}, {}, #{} | {}", (isSub ? "sub" : "add"), rd_str, rn_str, imm, instruction) << endl;
+  if (isCompare) {
+    // TODO: add shift print
+    cout << format("Emit: cmp {}{}, #{} | {}", reg_char, rn, imm, instruction) << endl;
+  } else {
+    string rd_str = (rd == 31) ? "sp" : (reg_char + to_string(rd));
+    string rn_str = (rn == 31) ? "sp" : (reg_char + to_string(rn));
+    cout << format("Emit: {}{} {}, {}, #{} | {}", (isSub ? "sub" : "add"), (setFlag ? "s" : ""), rd_str, rn_str, imm, instruction) << endl;
+  }
   return instruction;
+}
+string encodeCompareImm(RegType regType, uint8_t rn, uint8_t imm12, bool shift = 0, bool smallEndian = true) {
+  return encodeAddSubImm(regType, true, 31, rn, imm12, shift, true, true, smallEndian);
 }
 string encodeLoadStoreUnsignedImm(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rn, uint16_t imm12, bool smallEndian = true) {
   /*
@@ -491,6 +553,12 @@ string encodeLoadStoreUnsignedImm(RegType regType, LdStType ldstType, uint8_t rt
     inst = __builtin_bswap32(inst); // conver to small endian
   }
   string instruction = common_encode(inst);
-  cout << format("Emit: {} {}{}, [{}, #{}] | {}", ldstStr, reg_char, rt, ((rn == 31) ? "sp" : to_string(rn)), immstr, instruction) << endl;
+  cout << format("Emit: {} {}{}, [{}, #{}] | {}", ldstStr, reg_char, rt, ((rn == 31) ? "sp" : reg_char + to_string(rn)), immstr, instruction) << endl;
   return instruction;
+}
+
+string encodeReturn() {
+  const string instr = "C0035FD6";
+  cout << format("Emit: ret | {}", instr) << endl;
+  return instr;
 }

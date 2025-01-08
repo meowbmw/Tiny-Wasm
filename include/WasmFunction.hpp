@@ -197,8 +197,7 @@ public:
     constructFullinstr(prepare_ans_instr + restore_sp_instr);
   }
   void emitRet() {
-    const string instr = "C0035FD6";
-    cout << format("Emit: ret | {}", instr) << endl;
+    string instr = encodeReturn();
     constructFullinstr(instr);
   }
   void constructFullinstr(string sub_instr) {
@@ -246,15 +245,15 @@ public:
     wasm_instructions = ""; // no need to reset this?
     stack.clear();
   }
-  static int64_t executeInstr(const string &full_instructions, const string &pre_instructions_for_param_loading = "",
-                              const string &wasm_instructions = "") {
+  int64_t executeInstr() {
     /**
-     * Making this function static so it can be called freely
      *
      * Allocate memory with execute permission
      * And load machine code into that
      *
      */
+    // Warn: Append pre wasm_instructions here
+    string full_instructions = pre_instructions_for_param_loading + encodeBranch(1) + wasm_instructions;
     cout << "Machine instruction to load: " << full_instructions << endl;
     if (pre_instructions_for_param_loading.size() > 0) {
       cout << " - Load param instr: ";
@@ -298,14 +297,7 @@ public:
     // !不需要做任何传参，因为参数已经放在寄存器里啦
     int64_t ans = instruction_set(buffer);
     munmap(reinterpret_cast<void *>(instruction_set), arraySize);
-    return ans;
-  }
-  int64_t executeInstr() {
-    // Wrapper function because we want to support calling executeInstr(instr) without class instantiate
-    // Warn: Append pre wasm_instructions here
-    string full_instructions = pre_instructions_for_param_loading + encodeBranch(1) + wasm_instructions;
-    int64_t ans = executeInstr(full_instructions, pre_instructions_for_param_loading, wasm_instructions);
-    // WARN: reset, very important if we want to call it again!
+    // WARN: reset things, very important if we want to call it again!
     resetAfterExecution();
     return ans;
   }
@@ -458,7 +450,19 @@ public:
           mov	w0, #0
           ret
      */
+    cout << "In Function SetJmp:" << endl;
     string instr;
+    LdStType ldstType = LdStType::STR;
+    instr += encodeLdpStp(X_REG, ldstType, 19, 20, 0, 0 << 3);
+    instr += encodeLdpStp(X_REG, ldstType, 21, 22, 0, 2 << 3);
+    instr += encodeLdpStp(X_REG, ldstType, 23, 24, 0, 4 << 3);
+    instr += encodeLdpStp(X_REG, ldstType, 25, 26, 0, 6 << 3);
+    instr += encodeLdpStp(X_REG, ldstType, 27, 28, 0, 8 << 3);
+    instr += encodeLdpStp(X_REG, ldstType, 29, 30, 0, 10 << 3);
+    instr += encodeMovRegister(X_REG, 2, 31);
+    instr += encodeLoadStoreUnsignedImm(X_REG, ldstType, 2, 0, 13 << 3);
+    instr += encodeMovz(0, 0, W_REG, 0);
+    instr += encodeReturn();
   }
   void emitLongJmp() {
     /**
@@ -467,7 +471,7 @@ public:
         ldp	x23, x24, [x0, 4<<3]
         ldp	x25, x26, [x0, 6<<3]
         ldp	x27, x28, [x0, 8<<3]
-              ldp	x29, x30, [x0, 10<<3]
+        ldp	x29, x30, [x0, 10<<3]
         ldr	x5, [x0, 13<<3]; x5 <- [x0, 104]
         mov	sp, x5; sp <- x5
         cmp	x1, #0
@@ -475,6 +479,21 @@ public:
         csel	x0, x1, x0, ne
         br	x30
      */
+    cout << "In Function LongJmp:" << endl;
+    string instr;
+    LdStType ldstType = LdStType::LDR;
+    instr += encodeLdpStp(X_REG, ldstType, 19, 20, 0, 0 << 3);
+    instr += encodeLdpStp(X_REG, ldstType, 21, 22, 0, 2 << 3);
+    instr += encodeLdpStp(X_REG, ldstType, 23, 24, 0, 4 << 3);
+    instr += encodeLdpStp(X_REG, ldstType, 25, 26, 0, 6 << 3);
+    instr += encodeLdpStp(X_REG, ldstType, 27, 28, 0, 8 << 3);
+    instr += encodeLdpStp(X_REG, ldstType, 29, 30, 0, 10 << 3);
+    instr += encodeLoadStoreUnsignedImm(X_REG, ldstType, 5, 0, 13 << 3);
+    instr += encodeMovRegister(X_REG, 31, 5);
+    instr += encodeCompareImm(X_REG, 1, 0);
+    instr += encodeMovz(0, 1, X_REG, 0);
+    instr += encodeCSEL(X_REG, 0, 1, 0, reverse_cond_str_map["ne"]);
+    instr += encodeBranchRegister(30);
   }
   void emitGet(const uint64_t var_to_get, TypeCategory vecType) {
     /**

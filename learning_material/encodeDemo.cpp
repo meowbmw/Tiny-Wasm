@@ -1,5 +1,8 @@
-#include "../include/Opcode.hpp"
+#include <functional>
+
+#include "../include/WasmFunction.hpp"
 int main() {
-  encodeMovRegister(X_REG, 1, 0);
-  encodeMovRegister(W_REG, 11, 30);
+  WasmFunction().emitSetJmp();
+  cout << endl;
+  WasmFunction().emitLongJmp();
 }
