@@ -242,13 +242,14 @@ public:
     wasm_instructions = ""; // no need to reset this?
     stack.clear();
   }
-  static int64_t executeInstr(const string &full_instructions, const string & pre_instructions_for_param_loading = "", const string & wasm_instructions = "") {
+  static int64_t executeInstr(const string &full_instructions, const string &pre_instructions_for_param_loading = "",
+                              const string &wasm_instructions = "") {
     /**
      * Making this function static so it can be called freely
-     * 
+     *
      * Allocate memory with execute permission
      * And load machine code into that
-     * 
+     *
      */
     cout << "Machine instruction to load: " << full_instructions << endl;
     if (pre_instructions_for_param_loading.size() > 0) {
@@ -297,7 +298,7 @@ public:
   int64_t executeInstr() {
     // Wrapper function because we want to support calling executeInstr(instr) without class instantiate
     // Warn: Append pre wasm_instructions here
-    string full_instructions = pre_instructions_for_param_loading + wasm_instructions;
+    string full_instructions = pre_instructions_for_param_loading + encodeBranch(1, true) + wasm_instructions;
     int64_t ans = executeInstr(full_instructions, pre_instructions_for_param_loading, wasm_instructions);
     // WARN: reset, very important if we want to call it again!
     resetAfterExecution();
@@ -374,6 +375,101 @@ public:
   void set_code_vec(vector<string> &v, size_t l = 0) {
     code_vec = v;
     local_var_declare_count = l;
+  }
+  void emitSaveBeforeFunctionCall() {
+    /** Store caller saved registers before function calls
+     *  sub sp, sp, #192
+        stp x0, x1, [sp, #0]
+        stp x2, x3, [sp, #16]
+        stp x4, x5, [sp, #32]
+        stp x6, x7, [sp, #48]
+        stp x8, x9, [sp, #64]
+        stp x10, x11, [sp, #80]
+        stp x12, x13, [sp, #96]
+        stp x14, x15, [sp, #112]
+        stp x16, x17, [sp, #128]
+        stp x18, x29, [sp, #144]
+        stp x30, xzr, [sp, #160]
+     */
+    cout << "*Emitting Instruction to save registers before function call:" << endl;
+    string instr;
+    LdStType ldstType = LdStType::STR;
+    instr += encodeAddSubImm(X_REG, true, 31, 31, 192);
+    instr += encodeLdpStp(X_REG, ldstType, 0, 1, 31, 0);
+    instr += encodeLdpStp(X_REG, ldstType, 2, 3, 31, 16);
+    instr += encodeLdpStp(X_REG, ldstType, 4, 5, 31, 32);
+    instr += encodeLdpStp(X_REG, ldstType, 6, 7, 31, 48);
+    instr += encodeLdpStp(X_REG, ldstType, 8, 9, 31, 64);
+    instr += encodeLdpStp(X_REG, ldstType, 10, 11, 31, 80);
+    instr += encodeLdpStp(X_REG, ldstType, 12, 13, 31, 96);
+    instr += encodeLdpStp(X_REG, ldstType, 14, 15, 31, 112);
+    instr += encodeLdpStp(X_REG, ldstType, 16, 17, 31, 128);
+    instr += encodeLdpStp(X_REG, ldstType, 18, 29, 31, 144);
+    instr += encodeLdpStp(X_REG, ldstType, 30, 31, 31, 160);
+    wasm_instructions += instr;
+  }
+  void emitRestoreAfterFunctionCall() {
+    /** Restore caller saved registers after return from function calls
+     *  ldp x0, x1, [sp, #0]
+        ldp x2, x3, [sp, #16]
+        ldp x4, x5, [sp, #32]
+        ldp x6, x7, [sp, #48]
+        ldp x8, x9, [sp, #64]
+        ldp x10, x11, [sp, #80]
+        ldp x12, x13, [sp, #96]
+        ldp x14, x15, [sp, #112]
+        ldp x16, x17, [sp, #128]
+        ldp x18, x29, [sp, #144]
+        ldp x30, xzr, [sp, #160]
+        add sp, sp, #192
+     */
+    cout << "*Emitting Instruction to restore registers after function call:" << endl;
+    string instr;
+    LdStType ldstType = LdStType::LDR;
+    instr += encodeLdpStp(X_REG, ldstType, 0, 1, 31, 0);
+    instr += encodeLdpStp(X_REG, ldstType, 2, 3, 31, 16);
+    instr += encodeLdpStp(X_REG, ldstType, 4, 5, 31, 32);
+    instr += encodeLdpStp(X_REG, ldstType, 6, 7, 31, 48);
+    instr += encodeLdpStp(X_REG, ldstType, 8, 9, 31, 64);
+    instr += encodeLdpStp(X_REG, ldstType, 10, 11, 31, 80);
+    instr += encodeLdpStp(X_REG, ldstType, 12, 13, 31, 96);
+    instr += encodeLdpStp(X_REG, ldstType, 14, 15, 31, 112);
+    instr += encodeLdpStp(X_REG, ldstType, 16, 17, 31, 128);
+    instr += encodeLdpStp(X_REG, ldstType, 18, 29, 31, 144);
+    instr += encodeLdpStp(X_REG, ldstType, 30, 31, 31, 160);
+    instr += encodeAddSubImm(X_REG, false, 31, 31, 192);
+    wasm_instructions += instr;
+  }
+  void emitSetJmp() {
+    /**
+     *  	stp	x19, x20, [x0, 0<<3]
+          stp	x21, x22, [x0, 2<<3]
+          stp	x23, x24, [x0, 4<<3]
+          stp	x25, x26, [x0, 6<<3]
+          stp	x27, x28, [x0, 8<<3]
+          stp	x29, x30, [x0, 10<<3]
+          mov	x2,  sp
+          str	x2,  [x0, 13<<3]
+          mov	w0, #0
+          ret
+     */
+    string instr;
+  }
+  void emitLongJmp() {
+    /**
+     *  ldp	x19, x20, [x0, 0<<3]
+        ldp	x21, x22, [x0, 2<<3]
+        ldp	x23, x24, [x0, 4<<3]
+        ldp	x25, x26, [x0, 6<<3]
+        ldp	x27, x28, [x0, 8<<3]
+	      ldp	x29, x30, [x0, 10<<3]
+        ldr	x5, [x0, 13<<3]; x5 <- [x0, 104]
+        mov	sp, x5; sp <- x5
+        cmp	x1, #0
+        mov	x0, #1
+        csel	x0, x1, x0, ne
+        br	x30
+     */
   }
   void emitGet(const uint64_t var_to_get, TypeCategory vecType) {
     /**
@@ -560,11 +656,6 @@ public:
     } else {
       throw "Too big index {" + to_string(var_index) + "} for local data; skipping current op;";
     }
-  }
-  void emitSetjmp() {
-    /**
-     * stp	x29, x30, [x0, #JB_X29<<3]
-     */
   }
   void runningWasmCode(int i) {
     cout << "--- JITing wasm code ---" << endl;

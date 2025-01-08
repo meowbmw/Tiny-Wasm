@@ -2,12 +2,15 @@
 int main() {
   // string inst = encodeDiv(X_REG, false, 2, 2, 3);
   // string inst = encodeBranchCondition(24, reverse_cond_str_map["gt"]);
-  string inst = encodeStp(W_REG, 30, 31, 31, 160); // stp x8, x9, [sp, #64]
+  // string inst = encodeLdpStpUnsignedImm(X_REG, LdStType::STR, 30, 31, 31, 160);
   // std::cout << "Instruction: ";
   // uint32_t inst = encodeMul(RegType::X_REG, 1, 1, 2);
   // std::cout << "Machine code (binary): " << toBinaryString(inst) << "\n";
-  // std::cout << "Machine code (hex)   : " << toHexString(inst) << "\n";
-  // inst = encodeBranch(12);
+  // std::cout << "Machine code (hex)   : " << toHexString(inst) << "\n";]
+  encodeLdpStp(X_REG, LdStType::STR, 30, 31, 31, 160);
+  encodeLdpStp(X_REG, LdStType::STR, 30, 31, 31, 160, EncodingMode::PreIndex);
+  encodeLdpStp(X_REG, LdStType::STR, 30, 31, 31, 160, EncodingMode::PostIndex);
+
   // std::cout << "Instruction: B, #1\n";
   // std::cout << "Machine code (binary): " << toBinaryString(inst) << "\n";
   // std::cout << "Machine code (hex)   : " << toHexString(inst) << "\n";

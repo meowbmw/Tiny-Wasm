@@ -8,6 +8,7 @@
  *
  */
 
+enum class EncodingMode { PostIndex, PreIndex, SignedOffset };
 enum LdStType { STR, LDR };
 enum RegType { W_REG, X_REG, S_REG, D_REG };
 map<uint8_t, string> cond_str_map = {
@@ -50,27 +51,48 @@ map<string, uint8_t> reverse_cond_str_map = {
 string common_encode(uint32_t inst) {
   return toHexString(inst).substr(2);
 }
-string encodeBranch(uint32_t label, bool smallEndian = true) {
-  uint32_t imm26 = label >> 2;
-  uint32_t inst = 0x14000000;
-  inst |= (imm26 & 0x3FFFFFF);
+string encodeBranch(uint32_t offset, bool withLink = false, bool smallEndian = true) {
+  // offset is instruction level, i.e. forward 5 instruction => offset = 5
+  // this is different from the origin b label!!
+  uint32_t inst = 0;
+  inst |= (0b101 << 26);
+  if (withLink) {
+    inst |= (1 << 31);
+  }
+  inst |= (offset & 0x3FFFFFF);
   if (smallEndian) {
     inst = __builtin_bswap32(inst); // convert to small endian
   }
   string instruction = common_encode(inst);
-  cout << format("Emit: b {} | {}", label, instruction) << endl;
+  cout << format("Emit: {} with offset {} | {}", (withLink ? "bl" : "b"), offset, instruction) << endl;
   return instruction;
 }
-string encodeStp(RegType regType, uint8_t rt, uint8_t rt2, uint8_t rn, uint16_t imm, bool smallEndian = true) {
+string encodeLdpStp(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rt2, uint8_t rn, uint16_t imm,
+                               EncodingMode mode = EncodingMode::SignedOffset, bool smallEndian = true) {
   uint16_t imm7 = imm;
   uint32_t inst = 0;
+  string instr_name;
   if (regType == X_REG) {
     imm7 >>= 3;
     inst |= (1 << 31);
   } else {
     imm7 >>= 2;
   }
-  inst |= (0b101001 << 24);
+  if (ldstType == LDR) {
+    inst |= (1 << 22);
+    instr_name = "ldp";
+  } else {
+    instr_name = "stp";
+  }
+  if (mode == EncodingMode::PreIndex) {
+    inst |= (0b1010011 << 23);
+  } else if (mode == EncodingMode::PostIndex) {
+    inst |= (0b1010001 << 23);
+  } else if (mode == EncodingMode::SignedOffset) {
+    inst |= (0b1010010 << 23);
+  } else {
+    throw "Unsupported Encode mode for LDP/STP";
+  }
   if (imm7 > 127) {
     throw std::out_of_range("Imm7 out of range.");
   }
@@ -92,20 +114,31 @@ string encodeStp(RegType regType, uint8_t rt, uint8_t rt2, uint8_t rn, uint16_t 
   }
   string instruction = common_encode(inst);
   string reg_char = (regType == X_REG) ? "x" : "w";
-  cout << format("Emit: stp {}{}, {}{}, [{}, #{}] | {}", reg_char, rt, reg_char, rt2, ((rn == 31) ? "sp" : to_string(rn)), imm, instruction) << endl;
+  if (mode == EncodingMode::PreIndex) {
+    cout << format("Emit: {} {}{}, {}{}, [{}, #{}]! | {}", instr_name, reg_char, rt, reg_char, rt2, ((rn == 31) ? "sp" : to_string(rn)), imm,
+                 instruction)
+       << endl;
+  } else if (mode == EncodingMode::PostIndex) {
+    cout << format("Emit: {} {}{}, {}{}, [{}], #{} | {}", instr_name, reg_char, rt, reg_char, rt2, ((rn == 31) ? "sp" : to_string(rn)), imm,
+                 instruction)
+       << endl;
+  } else if (mode == EncodingMode::SignedOffset) {
+    cout << format("Emit: {} {}{}, {}{}, [{}, #{}] | {}", instr_name, reg_char, rt, reg_char, rt2, ((rn == 31) ? "sp" : to_string(rn)), imm,
+                   instruction)
+         << endl;
+  }
   return instruction;
 }
-string encodeBranchCondition(uint32_t label, uint8_t cond, bool smallEndian = true) {
-  uint32_t imm19 = label >> 2;
+string encodeBranchCondition(uint32_t offset, uint8_t cond, bool smallEndian = true) {
   uint32_t inst = 0;
   inst |= (0b01010100 << 24);
-  inst |= (imm19 << 5);
+  inst |= (offset << 5);
   inst |= (cond & 0xF);
   if (smallEndian) {
     inst = __builtin_bswap32(inst); // convert to small endian
   }
   string instruction = common_encode(inst);
-  cout << format("Emit: b.{} {} | {}", cond_str_map[cond], label, instruction) << endl;
+  cout << format("Emit: b.{} with {} | {}", cond_str_map[cond], offset, instruction) << endl;
   return instruction;
 }
 // 将立即数转换为MOVZ指令的机器码
