@@ -68,8 +68,25 @@ void test_chapter(const string &chapter_number) {
     expect_str = expect_str.substr(1, expect_str.size() - 2);
     cout << "Executing function " << function_index << ": " << function_name << endl;
     bool matched = false;
-    if (curFunction.result_data.size() > 0) {
-      auto ans = curFunction.executeInstr();
+    bool exceptionThrown = false;
+    /*
+    try {
+      // your code
+    } catch (ExceptionType &) // special exception type
+    {
+      exceptionThrown = true;
+    } catch (...) // or any exception at all
+    {
+      exceptionThrown = true;
+    }
+    */
+    auto ans = curFunction.executeInstr();
+    if (v.second["type"] == "assert_trap") {
+      cout << format("Expecting: {}", "assert_trap") << endl;
+      cout << "Result: " << ans << endl;
+      matched = (to_string(ans) == "assert_trap");
+      cout << "Matched: " << (matched ? "True" : "False") << endl;
+    } else if (curFunction.result_data.size() > 0) {
       cout << format("Expecting: {}", expect_str) << endl;
       cout << "Result: " << ans << endl;
       matched = (ans == static_cast<int64_t>(stoul(expect_str)));
@@ -80,13 +97,16 @@ void test_chapter(const string &chapter_number) {
       matched = (expect_str == "ul");
       cout << "Matched: " << (matched ? "True" : "False") << endl;
     }
-    if (matched == false) {
+    if (v.second["type"] == "assert_return" && matched == false) {
       throw "Unmatched";
     }
   }
 }
 int main() {
   vector<string> test_chapters = {"02", "03"};
+  // vector<string> test_chapters = {"04"};
+  cout << "A simple testing program to check our JIT works as intended." << endl;
+  cout << "Chapters to test: " << test_chapters << endl;
   for (auto &chapter_number : test_chapters) {
     cout << "--- Testing chapter " << chapter_number << " ---" << endl;
     test_chapter(chapter_number);

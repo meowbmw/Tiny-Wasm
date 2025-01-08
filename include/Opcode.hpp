@@ -30,22 +30,22 @@ map<uint8_t, string> cond_str_map = {
     {0b1111, "nv"}  // Never (reserved)
 };
 map<string, uint8_t> reverse_cond_str_map = {
-    {"eq", 0b0000},  // Equal
-    {"ne", 0b0001},  // Not equal
-    {"cs", 0b0010},  // Carry set/unsigned higher or same
-    {"cc", 0b0011},  // Carry clear/unsigned lower
-    {"mi", 0b0100},  // Minus/negative
-    {"pl", 0b0101},  // Plus/positive or zero
-    {"vs", 0b0110},  // Overflow
-    {"vc", 0b0111},  // No overflow
-    {"hi", 0b1000},  // Unsigned higher
-    {"ls", 0b1001},  // Unsigned lower or same
-    {"ge", 0b1010},  // Signed greater than or equal
-    {"lt", 0b1011},  // Signed less than
-    {"gt", 0b1100},  // Signed greater than
-    {"le", 0b1101},  // Signed less than or equal
-    {"al", 0b1110},  // Always (unconditional)
-    {"nv", 0b1111}   // Never (reserved)
+    {"eq", 0b0000}, // Equal
+    {"ne", 0b0001}, // Not equal
+    {"cs", 0b0010}, // Carry set/unsigned higher or same
+    {"cc", 0b0011}, // Carry clear/unsigned lower
+    {"mi", 0b0100}, // Minus/negative
+    {"pl", 0b0101}, // Plus/positive or zero
+    {"vs", 0b0110}, // Overflow
+    {"vc", 0b0111}, // No overflow
+    {"hi", 0b1000}, // Unsigned higher
+    {"ls", 0b1001}, // Unsigned lower or same
+    {"ge", 0b1010}, // Signed greater than or equal
+    {"lt", 0b1011}, // Signed less than
+    {"gt", 0b1100}, // Signed greater than
+    {"le", 0b1101}, // Signed less than or equal
+    {"al", 0b1110}, // Always (unconditional)
+    {"nv", 0b1111}  // Never (reserved)
 };
 string common_encode(uint32_t inst) {
   return toHexString(inst).substr(2);
@@ -59,6 +59,40 @@ string encodeBranch(uint32_t label, bool smallEndian = true) {
   }
   string instruction = common_encode(inst);
   cout << format("Emit: b {} | {}", label, instruction) << endl;
+  return instruction;
+}
+string encodeStp(RegType regType, uint8_t rt, uint8_t rt2, uint8_t rn, uint16_t imm, bool smallEndian = true) {
+  uint16_t imm7 = imm;
+  uint32_t inst = 0;
+  if (regType == X_REG) {
+    imm7 >>= 3;
+    inst |= (1 << 31);
+  } else {
+    imm7 >>= 2;
+  }
+  inst |= (0b101001 << 24);
+  if (imm7 > 127) {
+    throw std::out_of_range("Imm7 out of range.");
+  }
+  inst |= ((imm7 & 0x7F) << 15);
+  if (rt2 > 31) {
+    throw std::out_of_range("Rt2 register out of range.");
+  }
+  inst |= ((rt2 & 0x1F) << 10);
+  if (rn > 31) {
+    throw std::out_of_range("Rn register out of range.");
+  }
+  inst |= ((rn & 0x1F) << 5);
+  if (rt > 31) {
+    throw std::out_of_range("Rt register out of range.");
+  }
+  inst |= (rt & 0x1F);
+  if (smallEndian) {
+    inst = __builtin_bswap32(inst); // convert to small endian
+  }
+  string instruction = common_encode(inst);
+  string reg_char = (regType == X_REG) ? "x" : "w";
+  cout << format("Emit: stp {}{}, {}{}, [{}, #{}] | {}", reg_char, rt, reg_char, rt2, ((rn == 31) ? "sp" : to_string(rn)), imm, instruction) << endl;
   return instruction;
 }
 string encodeBranchCondition(uint32_t label, uint8_t cond, bool smallEndian = true) {
@@ -211,8 +245,7 @@ string encodeAddSubShift(bool isSub, RegType regType, uint8_t rd, uint8_t rn, ui
   cout << format("Emit: {} {}{}, {}{}, {}{} | {}", instr_name, reg_char, rd, reg_char, rn, reg_char, rm, instruction) << endl;
   return instruction;
 }
-string encodeCompareNegativeShift(RegType regType, uint8_t rn, uint8_t rm, uint16_t imm6 = 0, uint8_t shift = 0,
-                                  bool smallEndian = true) {
+string encodeCompareNegativeShift(RegType regType, uint8_t rn, uint8_t rm, uint16_t imm6 = 0, uint8_t shift = 0, bool smallEndian = true) {
   // CMN shifted register:
   // An alias of adds, only discards the result
   return encodeAddSubShift(false, regType, 31, rn, rm, imm6, shift, smallEndian);

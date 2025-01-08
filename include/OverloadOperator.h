@@ -81,6 +81,18 @@ std::ostream& operator<<(std::ostream& os, const wasm_type& value) {
 template <typename T> std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec) {
   os << "[";
   for (size_t i = 0; i < vec.size(); ++i) {
+    os << vec[i];
+    if (i != vec.size() - 1) {
+      os << ", ";
+    }
+  }
+  os << "]";
+  return os;
+}
+// 模板函数重载 << 操作符以支持wasm_type的 std::vector 打印
+std::ostream &operator<<(std::ostream &os, const std::vector<wasm_type> &vec) {
+  os << "[";
+  for (size_t i = 0; i < vec.size(); ++i) {
     std::visit(
         [&os](auto &&value) {
           os << value;

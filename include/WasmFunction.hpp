@@ -295,12 +295,9 @@ public:
     return ans;
   }
   int64_t executeInstr() {
-    // Wrapper function because we want to support executeInstr without class instantiate
+    // Wrapper function because we want to support calling executeInstr(instr) without class instantiate
     // Warn: Append pre wasm_instructions here
-    // Also add branch instruction here; we might need to support function call later
-    string branch_instr = encodeBranch(4); // function will be right next to b instruction, so offset is 1 here
-    string full_instructions = pre_instructions_for_param_loading + branch_instr + wasm_instructions;
-    // string full_instructions = pre_instructions_for_param_loading + wasm_instructions;
+    string full_instructions = pre_instructions_for_param_loading + wasm_instructions;
     int64_t ans = executeInstr(full_instructions, pre_instructions_for_param_loading, wasm_instructions);
     // WARN: reset, very important if we want to call it again!
     resetAfterExecution();
