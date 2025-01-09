@@ -20,6 +20,7 @@
 #include <typeinfo>
 #include <variant>
 #include <vector>
+#include <functional>
 using namespace std;
 using wasm_type = std::variant<int32_t, int64_t, float, double>;
 enum class TypeCategory { PARAM, RESULT, LOCAL };

@@ -373,6 +373,27 @@ public:
     code_vec = v;
     local_var_declare_count = l;
   }
+  void callFunction(void (*funcPtr)()){
+    /**
+     * A wrapper function to help facilitate function calling process
+     * It will backup registers, call the function, and then restore them.
+     */
+    emitSaveBeforeFunctionCall();
+    funcPtr();
+    emitRestoreAfterFunctionCall();
+  }
+  void onFunctionEnter(){
+    string instr;
+    instr += encodeLdpStp(X_REG, STR, 29, 30, 31, -16, EncodingMode::PreIndex);
+    instr += encodeMovSP(X_REG, 29, 31);
+    wasm_instructions += instr;
+  }
+  void beforeFunctionReturn(){
+    string instr;
+    instr += encodeLdpStp(X_REG, STR, 29, 30, 31, 16, EncodingMode::PostIndex);
+    instr += encodeReturn();
+    wasm_instructions += instr;
+  }
   void emitSaveBeforeFunctionCall() {
     /** Store caller saved registers before function calls
      *  sub sp, sp, #192
@@ -463,6 +484,7 @@ public:
     instr += encodeLoadStoreUnsignedImm(X_REG, ldstType, 2, 0, 13 << 3);
     instr += encodeMovz(0, 0, W_REG, 0);
     instr += encodeReturn();
+    wasm_instructions += instr;
   }
   void emitLongJmp() {
     /**
@@ -494,6 +516,7 @@ public:
     instr += encodeMovz(0, 1, X_REG, 0);
     instr += encodeCSEL(X_REG, 0, 1, 0, reverse_cond_str_map["ne"]);
     instr += encodeBranchRegister(30);
+    wasm_instructions += instr;
   }
   void emitGet(const uint64_t var_to_get, TypeCategory vecType) {
     /**

@@ -1,27 +1,46 @@
 #include <iostream>
-#include <variant>
+#include <functional>
+#include <stdarg.h>
 
-// 定义 wasm_type
-using wasm_type = std::variant<int32_t, int64_t, float, double>;
+// 定义一个辅助函数来调用通用函数指针
+template<typename Func, typename... Args>
+void callFunctionHelper(Func func, Args... args) {
+    func(std::forward<Args>(args)...);
+}
 
-// 重载 << 运算符
-std::ostream& operator<<(std::ostream& os, const wasm_type& value) {
-    std::visit([&os](auto&& arg) {
-        os << arg;
-    }, value);
-    return os;
+// 示例函数1：无参数
+void exampleFunction1() {
+    std::cout << "exampleFunction1 called!" << std::endl;
+}
+
+// 示例函数2：带参数
+void exampleFunction2(int arg) {
+    std::cout << "exampleFunction2 called with arg: " << arg << std::endl;
+}
+
+// 示例函数3：可变参数
+void exampleFunction3(int count, ...) {
+    std::cout << "exampleFunction3 called with " << count << " args: ";
+    va_list args;
+    va_start(args, count);
+    for (int i = 0; i < count; ++i) {
+        int arg = va_arg(args, int);
+        std::cout << arg << " ";
+    }
+    va_end(args);
+    std::cout << std::endl;
 }
 
 int main() {
-    wasm_type v1 = int32_t(10);
-    wasm_type v2 = int64_t(20);
-    wasm_type v3 = float(10.5);
-    wasm_type v4 = double(5.5);
+    // 调用 exampleFunction1
+    callFunctionHelper(exampleFunction1);
 
-    std::cout << "v1: " << v1 << std::endl;
-    std::cout << "v2: " << v2 << std::endl;
-    std::cout << "v3: " << v3 << std::endl;
-    std::cout << "v4: " << v4 << std::endl;
+    // 调用 exampleFunction2
+    callFunctionHelper(exampleFunction2, 42);
+
+    // 调用 exampleFunction3，使用可变参数
+    // 注意：为了简化，直接传递参数而不是使用变长参数列表
+    callFunctionHelper(exampleFunction3, 3, 10, 20, 30);
 
     return 0;
 }

@@ -67,10 +67,10 @@ string encodeBranch(uint32_t offset, bool withLink = false, bool smallEndian = t
   cout << format("Emit: {} with offset {} | {}", (withLink ? "bl" : "b"), offset, instruction) << endl;
   return instruction;
 }
-string encodeLdpStp(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rt2, uint8_t rn, uint16_t imm,
+string encodeLdpStp(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rt2, uint8_t rn, int16_t imm,
                     EncodingMode mode = EncodingMode::SignedOffset, bool smallEndian = true) {
   string reg_char = (regType == X_REG) ? "x" : "w";
-  uint16_t imm7 = imm;
+  int16_t imm7 = imm;
   uint32_t inst = 0;
   string instr_name;
   if (regType == X_REG) {
@@ -94,7 +94,7 @@ string encodeLdpStp(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rt2,
   } else {
     throw "Unsupported Encode mode for LDP/STP";
   }
-  if (imm7 > 127) {
+  if (imm7 > 127 || imm7 < -128) {
     throw std::out_of_range("Imm7 out of range.");
   }
   inst |= ((imm7 & 0x7F) << 15);
@@ -187,7 +187,7 @@ string encodeBranchRegister(uint8_t rn, bool smallEndian = true) {
     inst = __builtin_bswap32(inst); // convert to small endian
   }
   string instruction = common_encode(inst);
-  cout << format("Emit: br {} | {}", ((rn == 31) ? "sp" : to_string(rn)), instruction) << endl;
+  cout << format("Emit: br x{} | {}", ((rn == 31) ? "sp" : to_string(rn)), instruction) << endl;
   return instruction;
 }
 string encodeMovRegister(RegType regType, uint8_t rd, uint8_t rm, bool smallEndian = true) {
@@ -210,7 +210,7 @@ string encodeMovRegister(RegType regType, uint8_t rd, uint8_t rm, bool smallEndi
     inst = __builtin_bswap32(inst); // convert to small endian
   }
   string instruction = common_encode(inst);
-  cout << format("Emit: mov {}, {} | {}", ((rd == 31) ? "sp" : reg_char + to_string(rd)), ((rm == 31) ? "sp" : reg_char + to_string(rm)), instruction)
+  cout << format("Emit: mov {}, {} | {}", ((rd == 31) ? reg_char + "zr" : reg_char + to_string(rd)), ((rm == 31) ? reg_char + "zr" : reg_char + to_string(rm)), instruction)
        << endl;
   return instruction;
 }
@@ -471,6 +471,16 @@ string encodeAddSubImm(RegType regType, bool isSub, uint8_t rd, uint8_t rn, uint
 }
 string encodeCompareImm(RegType regType, uint8_t rn, uint8_t imm12, bool shift = 0, bool smallEndian = true) {
   return encodeAddSubImm(regType, true, 31, rn, imm12, shift, true, true, smallEndian);
+}
+string encodeMovSP(RegType regType, uint8_t rd, uint8_t rn, bool smallEndian = true) {
+  string reg_char = (regType == X_REG) ? "x" : "w";
+  streambuf *old = cout.rdbuf();
+  cout.rdbuf(0);
+  string instruction = encodeAddSubImm(regType, false, rd, rn, 0);
+  cout.rdbuf(old);
+  cout << format("Emit: mov {}, {} | {}", ((rd == 31) ? "sp" : reg_char + to_string(rd)), ((rn == 31) ? "sp" : reg_char + to_string(rn)), instruction)
+       << endl;
+  return instruction;
 }
 string encodeLoadStoreUnsignedImm(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rn, uint16_t imm12, bool smallEndian = true) {
   /*
