@@ -2,63 +2,13 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "x86-64 main",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/main",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                },
-                {
-                    "description": "Set Disassembly Flavor to Intel",
-                    "text": "-gdb-set disassembly-flavor intel",
-                    "ignoreFailures": true
-                }
-            ],
-            "preLaunchTask": "C/C++: g++ build main",
-        },
-        {
-            "name": "x86-64 active",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${fileDirname}/${fileBasenameNoExtension}",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${fileDirname}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                },
-                {
-                    "description": "Set Disassembly Flavor to Intel",
-                    "text": "-gdb-set disassembly-flavor intel",
-                    "ignoreFailures": true
-                }
-            ],
-            "preLaunchTask": "C/C++: g++ build active file",
-        },
-        {
             "name": "LLDB Arm64 main",
             "type": "lldb",
             "sourceLanguages": [
                 "cpp"
             ],
             "request": "custom",
-            "preLaunchTask": "qemu-static",
+            "preLaunchTask": "qemu-static-main",
             "targetCreateCommands": [
                 "target create ${workspaceFolder}/main"
             ],
@@ -69,6 +19,6 @@
                 "process handle SIGTRAP -s false"
             ],
             "postDebugTask": "make clean"
-        },
+        }
     ]
 }
