@@ -253,7 +253,8 @@ public:
      *
      */
     // Warn: Append pre wasm_instructions here
-    string full_instructions = pre_instructions_for_param_loading + encodeBranch(1) + wasm_instructions;
+    // string full_instructions = pre_instructions_for_param_loading + encodeBranch(1) + wasm_instructions;
+    string full_instructions = pre_instructions_for_param_loading + wasm_instructions;
     cout << "Machine instruction to load: " << full_instructions << endl;
     if (pre_instructions_for_param_loading.size() > 0) {
       cout << " - Load param instr: ";
@@ -373,7 +374,7 @@ public:
     code_vec = v;
     local_var_declare_count = l;
   }
-  void callFunction(void (*funcPtr)()){
+  void callFunction(void (*funcPtr)()) {
     /**
      * A wrapper function to help facilitate function calling process
      * It will backup registers, call the function, and then restore them.
@@ -382,13 +383,13 @@ public:
     funcPtr();
     emitRestoreAfterFunctionCall();
   }
-  void onFunctionEnter(){
+  void onFunctionEnter() {
     string instr;
     instr += encodeLdpStp(X_REG, STR, 29, 30, 31, -16, EncodingMode::PreIndex);
     instr += encodeMovSP(X_REG, 29, 31);
     wasm_instructions += instr;
   }
-  void beforeFunctionReturn(){
+  void beforeFunctionReturn() {
     string instr;
     instr += encodeLdpStp(X_REG, STR, 29, 30, 31, 16, EncodingMode::PostIndex);
     instr += encodeReturn();

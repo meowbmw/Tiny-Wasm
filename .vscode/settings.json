@@ -134,5 +134,6 @@
         "pkl": "cd $dir && pkl eval -f yaml $fileName -o $fileNameWithoutExt.yaml",
         "gleam": "gleam run -m $fileNameWithoutExt"
     },
-    "code-runner.clearPreviousOutput": true
+    "code-runner.clearPreviousOutput": true,
+    "C_Cpp.default.compilerPath": "/usr/bin/aarch64-linux-gnu-g++"
 }

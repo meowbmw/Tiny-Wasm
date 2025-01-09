@@ -18,6 +18,8 @@ set(CMAKE_SYSTEM_PROCESSOR aarch64)
 
 project(WASM_COMPILER_LEARN)
 
+# Avoid complain about DartConfiguration.tcl not found
+include(CTest)
 # 添加GoogleTest
 include(FetchContent)
 FetchContent_Declare(
@@ -36,10 +38,15 @@ enable_testing()
 
 target_link_libraries(wasm_test gtest_main)
 
-add_test(
-    NAME wasm_test
-    COMMAND "qemu-aarch64" -L /usr/aarch64-linux-gnu wasm_test
-)
+# 定义测试编号数组
+set(TEST_NUMBERS 2 3 4)
 
+# 遍历测试编号数组，自动生成测试
+foreach(TEST_NUM IN LISTS TEST_NUMBERS)
+    add_test(
+        NAME wasm_test${TEST_NUM}
+        COMMAND "qemu-aarch64" -L /usr/aarch64-linux-gnu wasm_test ${TEST_NUM}
+    )
+endforeach()
 # rm -rf build && cmake -S . -B build && cmake --build build
 # rm -rf build && cmake -S . -B build && cmake --build build && cd ./build && ctest; cd .. 
