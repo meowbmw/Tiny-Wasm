@@ -80,7 +80,7 @@ void test_chapter(const string &chapter_number) {
       exceptionThrown = true;
     }
     */
-    auto ans = curFunction.executeInstr();
+    auto ans = curFunction.executeWasmInstr();
     if (v.second["type"] == "assert_trap") {
       cout << format("Expecting: {}", "assert_trap") << endl;
       cout << "Result: " << ans << endl;
@@ -97,7 +97,7 @@ void test_chapter(const string &chapter_number) {
       matched = (expect_str == "ul");
       cout << "Matched: " << (matched ? "True" : "False") << endl;
     }
-    if (v.second["type"] == "assert_return" && matched == false) {
+    if (matched == false) {
       throw "Unmatched";
     }
   }

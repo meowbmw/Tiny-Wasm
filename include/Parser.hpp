@@ -175,7 +175,7 @@ public:
       funcSingleProcess(i);
       if (execute) {
         cout << "Executing function " << i << ": " << funcIndexNameMapper[i] << endl;
-        wasmFunctionVec[i].executeInstr();
+        wasmFunctionVec[i].executeWasmInstr();
       }
     }
   }

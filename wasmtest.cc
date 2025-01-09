@@ -71,7 +71,7 @@ void test_chapter(string chapter_number, string test_json) {
       exceptionThrown = true;
     }
     */
-    auto ans = curFunction.executeInstr();
+    auto ans = curFunction.executeWasmInstr();
     if (v.second["type"] == "assert_trap") {
       cout << format("Expecting: {}", "assert_trap") << endl;
       cout << "Result: " << ans << endl;

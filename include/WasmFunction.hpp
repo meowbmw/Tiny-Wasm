@@ -25,12 +25,27 @@ public:
     cout << endl;
     print_data(TypeCategory::PARAM);
     print_data(TypeCategory::LOCAL);
+
     getStackPreallocateSize(offset);
+
+    emitSaveBeforeBL(); // todo: this is too brute-force, need optimizing
+    wasm_instructions += encodeMovRegister(X_REG, 0, 13); // x0 <- x13
+    wasm_instructions += encodeBranchRegister(14, true); // call x14 = x1
+    wasm_instructions += encodeCompareImm(X_REG, 0, 0);
+    // wasm_instructions += encodeBranchCondition(3, reverse_cond_str_map["ne"]); // todo: check offset
+
+    emitRestoreAfterBL();
+
     prepareStack();
     initParam(); // initParam is storing to memory, prepareParams is storing to registers
     initLocal();
     printInitStack();
+
+    // emitSetJmp();
     runningWasmCode(offset);
+
+    restoreStack();
+    emitRet();
     print_stack();
   }
   void allocateVar(const wasm_type &elem, int &stack_location) {
@@ -173,8 +188,8 @@ public:
     cout << "Moving stack top to register as result" << endl;
     string prepare_ans_instr;
     int current_wasm_pointer = wasm_stack_pointer + 8;
-    for (int i = 0; i < result_data.size(); ++i) {
-      // we are iterating here
+    for (int i = 0; i < 1; ++i) {
+      // todo: we should be iterating here; i < result.size()
       // but we are actually expecting i=0 only (1 result)
       std::visit(
           [&i, &prepare_ans_instr, &current_wasm_pointer, this](auto &&value) {
@@ -213,9 +228,16 @@ public:
     if (param_data.size() == 0) {
       cout << "No params need to be load" << endl;
     }
-    int backReg = 15;
+    int backReg = 13;
     cout << "Backing up x0 buffer to x" << backReg << endl;
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, backReg, 0);
+    backReg = 14;
+    cout << "Backing up x1 setJmp to x" << backReg << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, backReg, 1);
+    backReg = 15;
+    cout << "Backing up x2 longJmp to x" << backReg << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, backReg, 2);
+
     cout << "Loading parameters" << endl;
     for (int i = 0; i < param_data.size(); ++i) {
       std::visit(
@@ -245,7 +267,24 @@ public:
     wasm_instructions = ""; // no need to reset this?
     stack.clear();
   }
-  int64_t executeInstr() {
+  template <typename Func> auto getFunctionPointer(string full_instructions) -> Func {
+    const size_t arraySize = full_instructions.length() / 2;
+    auto charArray = make_unique<unsigned char[]>(arraySize); // 使用智能指针
+    for (size_t i = 0; i < arraySize; ++i) {
+      const string byteStr = full_instructions.substr(i * 2, 2);
+      charArray[i] = static_cast<unsigned char>(stoul(byteStr, nullptr, 16));
+    }
+    Func instruction_set = nullptr;
+    instruction_set = reinterpret_cast<Func>(mmap(nullptr, arraySize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+    if (instruction_set == MAP_FAILED) {
+      perror("mmap");
+      exit(1);
+    }
+    memcpy(reinterpret_cast<void *>(instruction_set), charArray.get(), arraySize);
+    __builtin___clear_cache(reinterpret_cast<char *>(instruction_set), reinterpret_cast<char *>(instruction_set) + arraySize);
+    return instruction_set;
+  }
+  int64_t executeWasmInstr() {
     /**
      *
      * Allocate memory with execute permission
@@ -276,28 +315,14 @@ public:
       }
       cout << endl;
     }
-    const size_t arraySize = full_instructions.length() / 2;
-    auto charArray = make_unique<unsigned char[]>(arraySize); // use smart pointer here so we don't need to free it manually
-    for (size_t i = 0; i < arraySize; i++) {
-      const string byteStr = full_instructions.substr(i * 2, 2);
-      charArray[i] = static_cast<unsigned char>(stoul(byteStr, nullptr, 16));
-    }
-    int64_t (*instruction_set)(void *) = nullptr;
+    auto instruction_set = getFunctionPointer<int64_t (*)(void *, void (*)(), void (*)())>(full_instructions);
+    auto setJmp_set = getFunctionPointer<void (*)()>(setJmpStr);
+    auto longJmp_set = getFunctionPointer<void (*)()>(longJmpStr);
     void *buffer = malloc(1024);
-    // allocate executable buffer
-    instruction_set =
-        reinterpret_cast<int64_t (*)(void *)>(mmap(nullptr, arraySize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-    if (instruction_set == MAP_FAILED) {
-      perror("mmap");
-      return -1;
-    }
-    // copy code to buffer
-    memcpy(reinterpret_cast<void *>(instruction_set), charArray.get(), arraySize);
-    // ensure memcpy isn't optimized away as a dead store.
-    __builtin___clear_cache(reinterpret_cast<char *>(instruction_set), reinterpret_cast<char *>(instruction_set) + arraySize);
     // !不需要做任何传参，因为参数已经放在寄存器里啦
-    int64_t ans = instruction_set(buffer);
-    munmap(reinterpret_cast<void *>(instruction_set), arraySize);
+    int64_t ans = instruction_set(buffer, setJmp_set, longJmp_set);
+    free(buffer);
+    // munmap(reinterpret_cast<void *>(instruction_set), full_instructions); // Can't unmap here, will have memory leak here
     // WARN: reset things, very important if we want to call it again!
     resetAfterExecution();
     return ans;
@@ -374,28 +399,7 @@ public:
     code_vec = v;
     local_var_declare_count = l;
   }
-  void callFunction(void (*funcPtr)()) {
-    /**
-     * A wrapper function to help facilitate function calling process
-     * It will backup registers, call the function, and then restore them.
-     */
-    emitSaveBeforeFunctionCall();
-    funcPtr();
-    emitRestoreAfterFunctionCall();
-  }
-  void onFunctionEnter() {
-    string instr;
-    instr += encodeLdpStp(X_REG, STR, 29, 30, 31, -16, EncodingMode::PreIndex);
-    instr += encodeMovSP(X_REG, 29, 31);
-    wasm_instructions += instr;
-  }
-  void beforeFunctionReturn() {
-    string instr;
-    instr += encodeLdpStp(X_REG, STR, 29, 30, 31, 16, EncodingMode::PostIndex);
-    instr += encodeReturn();
-    wasm_instructions += instr;
-  }
-  void emitSaveBeforeFunctionCall() {
+  void emitSaveBeforeBL() {
     /** Store caller saved registers before function calls
      *  sub sp, sp, #192
         stp x0, x1, [sp, #0]
@@ -427,7 +431,7 @@ public:
     instr += encodeLdpStp(X_REG, ldstType, 30, 31, 31, 160);
     wasm_instructions += instr;
   }
-  void emitRestoreAfterFunctionCall() {
+  void emitRestoreAfterBL() {
     /** Restore caller saved registers after return from function calls
      *  ldp x0, x1, [sp, #0]
         ldp x2, x3, [sp, #16]
@@ -459,7 +463,7 @@ public:
     instr += encodeAddSubImm(X_REG, false, 31, 31, 192);
     wasm_instructions += instr;
   }
-  void emitSetJmp() {
+  string getSetJmpInstr() {
     /**
      *  	stp	x19, x20, [x0, 0<<3]
           stp	x21, x22, [x0, 2<<3]
@@ -472,7 +476,9 @@ public:
           mov	w0, #0
           ret
      */
-    cout << "In Function SetJmp:" << endl;
+    streambuf *old = cout.rdbuf();
+    cout.rdbuf(0);
+    cout << "Function SetJmp:" << endl;
     string instr;
     LdStType ldstType = LdStType::STR;
     instr += encodeLdpStp(X_REG, ldstType, 19, 20, 0, 0 << 3);
@@ -481,13 +487,14 @@ public:
     instr += encodeLdpStp(X_REG, ldstType, 25, 26, 0, 6 << 3);
     instr += encodeLdpStp(X_REG, ldstType, 27, 28, 0, 8 << 3);
     instr += encodeLdpStp(X_REG, ldstType, 29, 30, 0, 10 << 3);
-    instr += encodeMovRegister(X_REG, 2, 31);
+    instr += encodeMovSP(X_REG, 2, 31);
     instr += encodeLoadStoreUnsignedImm(X_REG, ldstType, 2, 0, 13 << 3);
     instr += encodeMovz(0, 0, W_REG, 0);
     instr += encodeReturn();
-    wasm_instructions += instr;
+    cout.rdbuf(old);
+    return instr;
   }
-  void emitLongJmp() {
+  string getLongJmpInstr() {
     /**
      *  ldp	x19, x20, [x0, 0<<3]
         ldp	x21, x22, [x0, 2<<3]
@@ -502,7 +509,9 @@ public:
         csel	x0, x1, x0, ne
         br	x30
      */
-    cout << "In Function LongJmp:" << endl;
+    streambuf *old = cout.rdbuf();
+    cout.rdbuf(0);
+    cout << "Function LongJmp:" << endl;
     string instr;
     LdStType ldstType = LdStType::LDR;
     instr += encodeLdpStp(X_REG, ldstType, 19, 20, 0, 0 << 3);
@@ -512,12 +521,13 @@ public:
     instr += encodeLdpStp(X_REG, ldstType, 27, 28, 0, 8 << 3);
     instr += encodeLdpStp(X_REG, ldstType, 29, 30, 0, 10 << 3);
     instr += encodeLoadStoreUnsignedImm(X_REG, ldstType, 5, 0, 13 << 3);
-    instr += encodeMovRegister(X_REG, 31, 5);
+    instr += encodeMovSP(X_REG, 31, 5);
     instr += encodeCompareImm(X_REG, 1, 0);
     instr += encodeMovz(0, 1, X_REG, 0);
     instr += encodeCSEL(X_REG, 0, 1, 0, reverse_cond_str_map["ne"]);
     instr += encodeBranchRegister(30);
-    wasm_instructions += instr;
+    cout.rdbuf(old);
+    return instr;
   }
   void emitGet(const uint64_t var_to_get, TypeCategory vecType) {
     /**
@@ -707,7 +717,7 @@ public:
   }
   void runningWasmCode(int i) {
     cout << "--- JITing wasm code ---" << endl;
-    wasm_stack_pointer = wasm_stack_end_location;
+    wasm_stack_pointer = wasm_stack_end_location - 8; // WARN!!! VERY IMPORTANT NOT TO USE THE END LOCATION OR IT WILL OVERWRITE X29
     cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
     while (i < code_vec.size()) {
       /**
@@ -715,10 +725,13 @@ public:
        * https://pengowray.github.io/wasm-ops/
        */
       if (code_vec[i] == "0f") { // ret
+        break; // todo: maybe need further handling here??
+        // can't tell the difference between ret and end yet.
         restoreStack();
         emitRet();
         ++i;
       } else if (code_vec[i] == "0b") { // end
+        break; // todo: maybe need further handling here??
         restoreStack();
         emitRet();
         ++i;
@@ -819,6 +832,8 @@ public:
           b);
       return a / b;
     };
+    setJmpStr = getSetJmpInstr();
+    longJmpStr = getLongJmpInstr();
   }
   vector<string> code_vec;
   u_int64_t local_var_declare_count = 0;
@@ -840,6 +855,8 @@ public:
   int wasm_stack_start_location = 0;
   int wasm_stack_end_location = 0;
   int wasm_stack_pointer = 0;
+  string setJmpStr;
+  string longJmpStr;
   int type;
   /**
    * we have 4 vectors

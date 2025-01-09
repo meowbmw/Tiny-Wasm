@@ -176,9 +176,12 @@ string encodeCSEL(RegType regType, uint8_t rd, uint8_t rn, uint8_t rm, uint8_t c
   cout << format("Emit: csel {}{}, {}{}, {}{}, {} | {}", reg_char, rd, reg_char, rn, reg_char, rm, cond_str_map[cond], instruction) << endl;
   return instruction;
 }
-string encodeBranchRegister(uint8_t rn, bool smallEndian = true) {
+string encodeBranchRegister(uint8_t rn, bool hasReturn = false, bool smallEndian = true) {
   uint32_t inst = 0;
   inst |= (0b1101011000011111000000 << 10);
+  if (hasReturn) {
+    inst |= (1 << 21);
+  }
   if (rn > 31) {
     throw std::out_of_range("Rn register out of range.");
   }
@@ -187,7 +190,7 @@ string encodeBranchRegister(uint8_t rn, bool smallEndian = true) {
     inst = __builtin_bswap32(inst); // convert to small endian
   }
   string instruction = common_encode(inst);
-  cout << format("Emit: br x{} | {}", ((rn == 31) ? "sp" : to_string(rn)), instruction) << endl;
+  cout << format("Emit: b{}r x{} | {}", (hasReturn ? "l" : ""), ((rn == 31) ? "sp" : to_string(rn)), instruction) << endl;
   return instruction;
 }
 string encodeMovRegister(RegType regType, uint8_t rd, uint8_t rm, bool smallEndian = true) {
@@ -210,7 +213,8 @@ string encodeMovRegister(RegType regType, uint8_t rd, uint8_t rm, bool smallEndi
     inst = __builtin_bswap32(inst); // convert to small endian
   }
   string instruction = common_encode(inst);
-  cout << format("Emit: mov {}, {} | {}", ((rd == 31) ? reg_char + "zr" : reg_char + to_string(rd)), ((rm == 31) ? reg_char + "zr" : reg_char + to_string(rm)), instruction)
+  cout << format("Emit: mov {}, {} | {}", ((rd == 31) ? reg_char + "zr" : reg_char + to_string(rd)),
+                 ((rm == 31) ? reg_char + "zr" : reg_char + to_string(rm)), instruction)
        << endl;
   return instruction;
 }
