@@ -6,8 +6,8 @@ using namespace std;
 using json = nlohmann::json;
 
 void test_chapter(string chapter_number, string test_json) {
-  ofstream parser_cout(format("parserOutput{}.txt", chapter_number));
-  ofstream normal_cout(format("testOutput{}.txt", chapter_number));
+  ofstream parser_cout(format("Testing/parserOutput{}.txt", chapter_number));
+  ofstream normal_cout(format("Testing/testOutput{}.txt", chapter_number));
   // auto normal_cout = cout.rdbuf();
   string base_path = format("../test/CH{}/", chapter_number);
   ifstream f(base_path + test_json);
@@ -106,16 +106,9 @@ TEST(WASM_TEST, CH04) {
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
+  ::testing::GTEST_FLAG(break_on_failure) = true; // NOTE: stop immediately when one assertion has failed
   // 动态生成过滤器字符串
   ostringstream filter_stream;
-  // for (int i = 1; i < argc; ++i) {
-  //   if (i > 0) {
-  //     filter_stream << ":";
-  //   }
-  //   ostringstream test_name;
-  //   test_name << "WASM_TEST.CH" << std::setw(2) << std::setfill('0') << argv[i];
-  //   filter_stream << test_name.str();
-  // }
   ostringstream test_name;
   test_name << "WASM_TEST.CH" << std::setw(2) << std::setfill('0') << argv[1];
   filter_stream << test_name.str();
