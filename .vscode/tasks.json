@@ -1,7 +1,19 @@
 {
     "tasks": [
         {
-            "label": "make build",
+            "label": "make build main",
+            "command": "make",
+            "args": [
+                "build",
+                "curFile=main"
+            ],
+            "type": "process",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "make build active",
             "command": "make",
             "args": [
                 "build",
@@ -67,27 +79,36 @@
             ]
         },
         {
-            "label": "qemu-static-main",
+            "label": "debug main",
             "dependsOrder": "sequence",
             "dependsOn": [
-                "make build",
+                "make build main",
                 "make qemu-static"
             ]
         },
         {
-            "label": "qemu-static-active",
+            "label": "debug active",
             "dependsOrder": "sequence",
             "dependsOn": [
-                "make build",
+                "make build active",
                 "make qemu-static-active"
             ]
         },
         {
-            "label": "make clean",
+            "label": "make clean active",
             "command": "make",
             "args": [
                 "clean",
                 "curFile=${fileDirname}/${fileBasenameNoExtension}"
+            ],
+            "type": "process"
+        },
+        {
+            "label": "make clean main",
+            "command": "make",
+            "args": [
+                "clean",
+                "curFile=main"
             ],
             "type": "process"
         }

@@ -8,7 +8,7 @@
                 "cpp"
             ],
             "request": "custom",
-            "preLaunchTask": "qemu-static-main",
+            "preLaunchTask": "debug main",
             "targetCreateCommands": [
                 "target create ${workspaceFolder}/main"
             ],
@@ -18,7 +18,7 @@
             "initCommands": [
                 "process handle SIGTRAP -s false"
             ],
-            "postDebugTask": "make clean"
+            "postDebugTask": "make clean main"
         },
         {
             "name": "LLDB Arm64 active",
@@ -27,7 +27,7 @@
                 "cpp"
             ],
             "request": "custom",
-            "preLaunchTask": "qemu-static-active",
+            "preLaunchTask": "debug active",
             "targetCreateCommands": [
                 "target create ${fileDirname}/${fileBasenameNoExtension}"
             ],
@@ -37,7 +37,7 @@
             "initCommands": [
                 "process handle SIGTRAP -s false"
             ],
-            "postDebugTask": "make clean"
+            "postDebugTask": "make clean active"
         }
     ]
 }
