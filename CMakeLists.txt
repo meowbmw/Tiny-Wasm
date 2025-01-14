@@ -36,7 +36,7 @@ enable_language(ASM)
 add_executable(wasm_test wasmtest.cc)
 enable_testing()
 
-target_link_libraries(wasm_test gtest_main)
+target_link_libraries(wasm_test gtest_main capstone)
 
 # 定义测试编号数组
 set(TEST_NUMBERS 2 3 4)

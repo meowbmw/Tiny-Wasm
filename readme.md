@@ -1,5 +1,53 @@
 # Tiny Wasm Compiler
 
+## Prerequisite:
+    OS: Ubuntu 24.04.1 x86-64
+    
+    dpkg --add-architecture arm64
+    
+    Edit /etc/apt/sources.list.d/ubuntu.sources with following:
+
+    Types: deb
+    URIs: http://archive.ubuntu.com/ubuntu/
+    Suites: noble
+    Components: main restricted universe
+    Architectures: amd64
+    Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+    Trusted: yes
+
+    Types: deb
+    URIs: http://security.ubuntu.com/ubuntu/
+    Suites: noble-security
+    Components: main restricted universe
+    Architectures: amd64
+    Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+    Trusted: yes
+
+    Types: deb
+    URIs: http://archive.ubuntu.com/ubuntu/
+    Suites: noble-updates
+    Components: main restricted universe
+    Architectures: amd64
+    Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+    Trusted: yes
+
+    Types: deb
+    URIs: http://azure.ports.ubuntu.com/ubuntu-ports/
+    Suites: noble
+    Components: main restricted multiverse universe
+    Architectures: arm64
+    Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+    Trusted: yes
+
+    Types: deb
+    URIs: http://azure.ports.ubuntu.com/ubuntu-ports/
+    Suites: noble-updates
+    Components: main restricted multiverse universe
+    Architectures: arm64
+    Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+    Trusted: yes
+
+    sudo apt install libcapstone-dev:arm64 python3-capstone nlohmann-json3-dev libgtest-dev build-essential gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 ## Run command:
 
     aarch64-linux-gnu-g++ main.cpp -o main && qemu-aarch64 -L /usr/aarch64-linux-gnu ./main
