@@ -72,7 +72,8 @@
         "chrono": "cpp",
         "csignal": "cpp",
         "list": "cpp",
-        "unordered_set": "cpp"
+        "unordered_set": "cpp",
+        "future": "cpp"
     },
     "makefile.configureOnOpen": false,
     "code-runner.executorMap": {
@@ -80,7 +81,7 @@
         "java": "cd $dir && javac $fileName && java $fileNameWithoutExt",
         "c": "cd $dir && gcc $fileName -o $fileNameWithoutExt && $dir$fileNameWithoutExt; rm $fileNameWithoutExt",
         "zig": "zig run",
-        "cpp": "cd $dir && /usr/bin/clang++ --target=aarch64-linux-gnu -std=c++20  $fileName -o $fileNameWithoutExt && qemu-aarch64 -L /usr/aarch64-linux-gnu $dir$fileNameWithoutExt; rm $fileNameWithoutExt",
+        "cpp": "cd $dir && /usr/bin/clang++ --target=aarch64-linux-gnu -std=c++20  $fileName -o $fileNameWithoutExt -lcapstone && qemu-aarch64 -L /usr/aarch64-linux-gnu $dir$fileNameWithoutExt; rm $fileNameWithoutExt",
         "objective-c": "cd $dir && gcc -framework Cocoa $fileName -o $fileNameWithoutExt && $dir$fileNameWithoutExt",
         "php": "php",
         "python": "python -u",

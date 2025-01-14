@@ -28,10 +28,10 @@ public:
 
     getStackPreallocateSize(offset);
 
-    emitSaveBeforeBL(); // todo: this is too brute-force, need optimizing
+    emitSaveBeforeBL();                                   // todo: this is too brute-force, need optimizing
     wasm_instructions += encodeMovRegister(X_REG, 0, 13); // x0 <- x13
-    wasm_instructions += encodeBranchRegister(14, true); // call x14 = x1
-    wasm_instructions += encodeCompareImm(X_REG, 0, 0);
+    wasm_instructions += encodeBranchRegister(14, true);  // call x14 = x1 setjmp
+    // wasm_instructions += encodeCompareImm(X_REG, 0, 0);
     // wasm_instructions += encodeBranchCondition(3, reverse_cond_str_map["ne"]); // todo: check offset
 
     emitRestoreAfterBL();
@@ -125,22 +125,22 @@ public:
             vecToStack[{TypeCategory::PARAM, i}] = offset;
             stackToVec[offset] = {TypeCategory::PARAM, i};
             if (typeInfo == 'f') {
-              instr = encodeLoadStoreUnsignedImm(S_REG, STR, fp_reg_used, 31, offset);
+              instr = encodeLoadStoreImm(S_REG, STR, fp_reg_used, 31, offset);
               regTypeGetter[{TypeCategory::PARAM, i}] = S_REG;
               offset -= 4;
               fp_reg_used += 1;
             } else if (typeInfo == 'd') {
-              instr = encodeLoadStoreUnsignedImm(D_REG, STR, fp_reg_used, 31, offset);
+              instr = encodeLoadStoreImm(D_REG, STR, fp_reg_used, 31, offset);
               regTypeGetter[{TypeCategory::PARAM, i}] = D_REG;
               offset -= 8;
               fp_reg_used += 1;
             } else if (typeInfo == 'l') {
-              instr = encodeLoadStoreUnsignedImm(X_REG, STR, general_reg_used, 31, offset);
+              instr = encodeLoadStoreImm(X_REG, STR, general_reg_used, 31, offset);
               regTypeGetter[{TypeCategory::PARAM, i}] = X_REG;
               offset -= 4;
               general_reg_used += 1;
             } else if (typeInfo == 'i') {
-              instr = encodeLoadStoreUnsignedImm(W_REG, STR, general_reg_used, 31, offset);
+              instr = encodeLoadStoreImm(W_REG, STR, general_reg_used, 31, offset);
               regTypeGetter[{TypeCategory::PARAM, i}] = W_REG;
               offset -= 4;
               general_reg_used += 1;
@@ -162,19 +162,19 @@ public:
             if (typeInfo == 'f') {
               // NOTE: we are only moving zeros, so treat them like int here
               // xzr/wzr have same number as sp (31)
-              instr = encodeLoadStoreUnsignedImm(W_REG, STR, 31, 31, offset);
+              instr = encodeLoadStoreImm(W_REG, STR, 31, 31, offset);
               regTypeGetter[{TypeCategory::LOCAL, i}] = S_REG;
               offset -= 4;
             } else if (typeInfo == 'd') {
-              instr = encodeLoadStoreUnsignedImm(X_REG, STR, 31, 31, offset);
+              instr = encodeLoadStoreImm(X_REG, STR, 31, 31, offset);
               regTypeGetter[{TypeCategory::LOCAL, i}] = D_REG;
               offset -= 8;
             } else if (typeInfo == 'l') {
-              instr = encodeLoadStoreUnsignedImm(X_REG, STR, 31, 31, offset);
+              instr = encodeLoadStoreImm(X_REG, STR, 31, 31, offset);
               regTypeGetter[{TypeCategory::LOCAL, i}] = X_REG;
               offset -= 4;
             } else if (typeInfo == 'i') {
-              instr = encodeLoadStoreUnsignedImm(W_REG, STR, 31, 31, offset);
+              instr = encodeLoadStoreImm(W_REG, STR, 31, 31, offset);
               regTypeGetter[{TypeCategory::LOCAL, i}] = W_REG;
               offset -= 4;
             }
@@ -188,7 +188,7 @@ public:
     cout << "Moving stack top to register as result" << endl;
     string prepare_ans_instr;
     int current_wasm_pointer = wasm_stack_pointer + 8;
-    for (int i = 0; i < 1; ++i) {
+    for (int i = 0; i < result_data.size(); ++i) {
       // todo: we should be iterating here; i < result.size()
       // but we are actually expecting i=0 only (1 result)
       std::visit(
@@ -199,9 +199,9 @@ public:
             } else if (typeInfo == 'd') {
               throw std::invalid_argument("Fmov not supported yet!");
             } else if (typeInfo == 'l') {
-              prepare_ans_instr += encodeLoadStoreUnsignedImm(X_REG, LDR, i, 31, current_wasm_pointer);
+              prepare_ans_instr += encodeLoadStoreImm(X_REG, LDR, i, 31, current_wasm_pointer);
             } else if (typeInfo == 'i') {
-              prepare_ans_instr += encodeLoadStoreUnsignedImm(W_REG, LDR, i, 31, current_wasm_pointer);
+              prepare_ans_instr += encodeLoadStoreImm(W_REG, LDR, i, 31, current_wasm_pointer);
             }
           },
           result_data[i]);
@@ -488,7 +488,7 @@ public:
     instr += encodeLdpStp(X_REG, ldstType, 27, 28, 0, 8 << 3);
     instr += encodeLdpStp(X_REG, ldstType, 29, 30, 0, 10 << 3);
     instr += encodeMovSP(X_REG, 2, 31);
-    instr += encodeLoadStoreUnsignedImm(X_REG, ldstType, 2, 0, 13 << 3);
+    instr += encodeLoadStoreImm(X_REG, ldstType, 2, 0, 13 << 3);
     instr += encodeMovz(0, 0, W_REG, 0);
     instr += encodeReturn();
     cout.rdbuf(old);
@@ -520,11 +520,11 @@ public:
     instr += encodeLdpStp(X_REG, ldstType, 25, 26, 0, 6 << 3);
     instr += encodeLdpStp(X_REG, ldstType, 27, 28, 0, 8 << 3);
     instr += encodeLdpStp(X_REG, ldstType, 29, 30, 0, 10 << 3);
-    instr += encodeLoadStoreUnsignedImm(X_REG, ldstType, 5, 0, 13 << 3);
+    instr += encodeLoadStoreImm(X_REG, ldstType, 5, 0, 13 << 3);
     instr += encodeMovSP(X_REG, 31, 5);
     instr += encodeCompareImm(X_REG, 1, 0);
     instr += encodeMovz(0, 1, X_REG, 0);
-    instr += encodeCSEL(X_REG, 0, 1, 0, reverse_cond_str_map["ne"]);
+    instr += encodeCSEL(X_REG, 0, 1, 0, reverse_cond_str_map.at("ne"));
     instr += encodeBranchRegister(30);
     cout.rdbuf(old);
     return instr;
@@ -539,9 +539,9 @@ public:
     int stack_offset = vecToStack[{vecType, var_to_get}];
     cout << format("Getting {}[{}]", type_category_to_string(vecType), var_to_get) << endl;
     // Note: We use x11 as a bridge register for memory -> memory transfer!
-    string load_param_instr = encodeLoadStoreUnsignedImm(regtype, LDR, 11, 31, stack_offset);
+    string load_param_instr = encodeLoadStoreImm(regtype, LDR, 11, 31, stack_offset);
     // var[i] -> x/w11
-    string store_to_stack_instr = encodeLoadStoreUnsignedImm(regtype, STR, 11, 31, wasm_stack_pointer);
+    string store_to_stack_instr = encodeLoadStoreImm(regtype, STR, 11, 31, wasm_stack_pointer);
     // x/w11 -> stack[top]
     wasm_stack_pointer -= 8; // decrease wasm stack after push
     constructFullinstr(load_param_instr + store_to_stack_instr);
@@ -556,8 +556,8 @@ public:
     int stack_offset = vecToStack[{vecType, var_to_set}];
     cout << format("Assigning to {}[{}]", type_category_to_string(vecType), var_to_set) << endl;
     wasm_stack_pointer += 8;
-    string store_to_stack_instr = encodeLoadStoreUnsignedImm(regtype, LDR, 11, 31, wasm_stack_pointer);
-    string reg_to_mem_instr = encodeLoadStoreUnsignedImm(regtype, STR, 11, 31, stack_offset);
+    string store_to_stack_instr = encodeLoadStoreImm(regtype, LDR, 11, 31, wasm_stack_pointer);
+    string reg_to_mem_instr = encodeLoadStoreImm(regtype, STR, 11, 31, stack_offset);
     if (isTee) {
       wasm_stack_pointer -= 8; // teeing keeps stack intact
     }
@@ -583,13 +583,13 @@ public:
             cout << format("i32.const {}", value) << endl;
             string load_to_reg_instr = WrapperEncodeMovInt32(11, value, RegType::W_REG);
             // cout << format("Emit: mov {}, w11 | {}", value, convertEndian(load_to_reg_instr)) << endl;
-            string store_to_stack_instr = encodeLoadStoreUnsignedImm(W_REG, STR, 11, 31, wasm_stack_pointer);
+            string store_to_stack_instr = encodeLoadStoreImm(W_REG, STR, 11, 31, wasm_stack_pointer);
             constructFullinstr(load_to_reg_instr + store_to_stack_instr);
           } else if (typeInfo == 'l') {
             cout << format("i64.const {}", value) << endl;
             string load_to_reg_instr = WrapperEncodeMovInt64(11, value, RegType::X_REG);
             // cout << format("Emit: mov {}, x11 | {}", value, convertEndian(load_to_reg_instr)) << endl;
-            string store_to_stack_instr = encodeLoadStoreUnsignedImm(X_REG, STR, 11, 31, wasm_stack_pointer);
+            string store_to_stack_instr = encodeLoadStoreImm(X_REG, STR, 11, 31, wasm_stack_pointer);
             constructFullinstr(load_to_reg_instr + store_to_stack_instr);
           }
         },
@@ -634,10 +634,10 @@ public:
     }
     wasm_stack_pointer += 8;
     // r11 = b
-    string load_second_param_instr = encodeLoadStoreUnsignedImm(regtype, LDR, 11, 31, wasm_stack_pointer);
+    string load_second_param_instr = encodeLoadStoreImm(regtype, LDR, 11, 31, wasm_stack_pointer);
     wasm_stack_pointer += 8;
     // r12 = a
-    string load_first_param_instr = encodeLoadStoreUnsignedImm(regtype, LDR, 12, 31, wasm_stack_pointer);
+    string load_first_param_instr = encodeLoadStoreImm(regtype, LDR, 12, 31, wasm_stack_pointer);
     // r11 = a op b
     string arith_instr;
     string check_div_instr;
@@ -654,14 +654,14 @@ public:
       break;
     case '/':
       check_div_instr = encodeCompareShift(regtype, 12, 11);
-      branch_equal_zero_instr = encodeBranchCondition(1, reverse_cond_str_map["eq"]);
+      branch_equal_zero_instr = encodeBranchCondition(1, reverse_cond_str_map.at("eq"));
       arith_instr = encodeDiv(regtype, isSigned, 11, 12, 11);
       break;
     default:
       throw "Unknown arithmetic operator";
       break;
     }
-    string store_to_stack_instr = encodeLoadStoreUnsignedImm(regtype, STR, 11, 31, wasm_stack_pointer);
+    string store_to_stack_instr = encodeLoadStoreImm(regtype, STR, 11, 31, wasm_stack_pointer);
     wasm_stack_pointer -= 8; // decrease wasm stack after push
     constructFullinstr(load_first_param_instr + load_second_param_instr + arith_instr + store_to_stack_instr);
   }
@@ -725,13 +725,13 @@ public:
        * https://pengowray.github.io/wasm-ops/
        */
       if (code_vec[i] == "0f") { // ret
-        break; // todo: maybe need further handling here??
+        break;                   // todo: maybe need further handling here??
         // can't tell the difference between ret and end yet.
         restoreStack();
         emitRet();
         ++i;
       } else if (code_vec[i] == "0b") { // end
-        break; // todo: maybe need further handling here??
+        break;                          // todo: maybe need further handling here??
         restoreStack();
         emitRet();
         ++i;

@@ -19,6 +19,25 @@
                 "process handle SIGTRAP -s false"
             ],
             "postDebugTask": "make clean"
+        },
+        {
+            "name": "LLDB Arm64 active",
+            "type": "lldb",
+            "sourceLanguages": [
+                "cpp"
+            ],
+            "request": "custom",
+            "preLaunchTask": "qemu-static-active",
+            "targetCreateCommands": [
+                "target create ${fileDirname}/${fileBasenameNoExtension}"
+            ],
+            "processCreateCommands": [
+                "gdb-remote localhost:1234"
+            ],
+            "initCommands": [
+                "process handle SIGTRAP -s false"
+            ],
+            "postDebugTask": "make clean"
         }
     ]
 }

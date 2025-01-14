@@ -46,13 +46,4 @@ public:
 
   vector<wasm_type> param_data;
   vector<wasm_type> result_data;
-  /**
-   * we have 4 vectors
-   * vector<int>, vector<double> ..
-   * we have 5 variables, 1xint,2xdouble,1xlong,1xint
-   * index is: 00,01,02,03,04
-   * we need to be able to access by index
-   * when adding to a vector, remeber its current index
-   * like, index in locals 04, corresponding vector index 01
-   */
 };

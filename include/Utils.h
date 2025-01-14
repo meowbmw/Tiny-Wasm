@@ -1,11 +1,14 @@
 #pragma once
 #include <algorithm>
+#include <any>
 #include <bitset>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <format>
 #include <fstream>
+#include <functional>
+#include <optional>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
@@ -20,8 +23,21 @@
 #include <typeinfo>
 #include <variant>
 #include <vector>
-#include <functional>
 using namespace std;
+// use this macro to support supplying parameter with default value
+// e.g. string instruction = silentEmit(WRAP_FUNCTION(encodeAddSubImm), regType, false, rd, rn, 0);
+#define WRAP_FUNCTION(Function)                                                                                                                      \
+  [](auto &&...args) {                                                                                                                               \
+    return Function(std::forward<decltype(args)>(args)...);                                                                                          \
+  }
+template <typename Func, typename... Args> string silentCall(Func func, Args... args) {
+  // invoking function without printing
+  streambuf *old = cout.rdbuf();
+  cout.rdbuf(0);
+  std::string result = func(std::forward<Args>(args)...);
+  cout.rdbuf(old);
+  return result;
+}
 using wasm_type = std::variant<int32_t, int64_t, float, double>;
 enum class TypeCategory { PARAM, RESULT, LOCAL };
 string type_category_to_string(TypeCategory category) {

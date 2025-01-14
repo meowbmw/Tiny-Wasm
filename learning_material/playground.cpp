@@ -1,46 +1,63 @@
 #include <iostream>
-#include <functional>
-#include <stdarg.h>
+#include <stdexcept>
+#include <string>
+#include <format> // C++20
+#include <cstdint>
 
-// 定义一个辅助函数来调用通用函数指针
-template<typename Func, typename... Args>
-void callFunctionHelper(Func func, Args... args) {
-    func(std::forward<Args>(args)...);
+enum RegType { W_REG, X_REG, S_REG, D_REG };
+
+std::string common_encode(uint32_t inst) {
+    // 假设这是一个通用编码函数，返回编码后的字符串
+    return std::to_string(inst); // 简化处理
 }
 
-// 示例函数1：无参数
-void exampleFunction1() {
-    std::cout << "exampleFunction1 called!" << std::endl;
+template <typename... Args>
+void logInstruction(const std::string& formatStr, Args... args) {
+    std::string message = std::vformat(formatStr, std::make_format_args(args...));
+    std::cout << std::format("Emit: {} | {}", __func__, message) << std::endl;
 }
 
-// 示例函数2：带参数
-void exampleFunction2(int arg) {
-    std::cout << "exampleFunction2 called with arg: " << arg << std::endl;
-}
-
-// 示例函数3：可变参数
-void exampleFunction3(int count, ...) {
-    std::cout << "exampleFunction3 called with " << count << " args: ";
-    va_list args;
-    va_start(args, count);
-    for (int i = 0; i < count; ++i) {
-        int arg = va_arg(args, int);
-        std::cout << arg << " ";
+std::string encodeMul(RegType regType, uint8_t rd, uint8_t rn, uint8_t rm, bool smallEndian = true) {
+    std::string reg_char = (regType == X_REG) ? "x" : "w";
+    uint32_t inst = 0b00011011000000000111110000000000;
+    if (regType == X_REG) {
+        inst |= (1 << 31);
     }
-    va_end(args);
-    std::cout << std::endl;
+    if (rm > 31) {
+        throw std::out_of_range("Rm register out of range.");
+    }
+    inst |= ((rm & 0x1F) << 16);
+    if (rn > 31) {
+        throw std::out_of_range("Rn register out of range.");
+    }
+    inst |= ((rn & 0x1F) << 5);
+    if (rd > 31) {
+        throw std::out_of_range("Rd register out of range.");
+    }
+    inst |= (rd & 0x1F);
+    if (smallEndian) {
+        inst = __builtin_bswap32(inst); // convert to small endian
+    }
+    std::string instruction = common_encode(inst);
+    
+    logInstruction("{}{}{}, {}{}, {}{}", reg_char, rd, reg_char, rn, reg_char, rm, instruction);
+    
+    return instruction;
+}
+
+std::string encodeMovSP(RegType regType, uint8_t rd, uint8_t rn, bool smallEndian = true) {
+    std::string reg_char = (regType == X_REG) ? "x" : "w";
+    std::string instruction = common_encode(0); // 简化处理
+    std::string rd_str = (rd == 31) ? "sp" : reg_char + std::to_string(rd);
+    std::string rn_str = (rn == 31) ? "sp" : reg_char + std::to_string(rn);
+    
+    logInstruction("mov {}, {} | {}", rd_str, rn_str, instruction);
+    
+    return instruction;
 }
 
 int main() {
-    // 调用 exampleFunction1
-    callFunctionHelper(exampleFunction1);
-
-    // 调用 exampleFunction2
-    callFunctionHelper(exampleFunction2, 42);
-
-    // 调用 exampleFunction3，使用可变参数
-    // 注意：为了简化，直接传递参数而不是使用变长参数列表
-    callFunctionHelper(exampleFunction3, 3, 10, 20, 30);
-
+    encodeMul(W_REG, 1, 2, 3);
+    encodeMovSP(X_REG, 31, 2);
     return 0;
 }

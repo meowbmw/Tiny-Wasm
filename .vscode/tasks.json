@@ -4,7 +4,8 @@
             "label": "make build",
             "command": "make",
             "args": [
-                "build"
+                "build",
+                "curFile=${fileDirname}/${fileBasenameNoExtension}"
             ],
             "type": "process",
             "problemMatcher": [
@@ -39,6 +40,33 @@
             ]
         },
         {
+            "label": "make qemu-static-active",
+            "command": "make",
+            "args": [
+                "qemu-gdb",
+                "curFile=${fileDirname}/${fileBasenameNoExtension}"
+            ],
+            "type": "process",
+            "isBackground": true,
+            "problemMatcher": [
+                {
+                    "pattern": [
+                        {
+                            "regexp": ".",
+                            "file": 1,
+                            "location": 2,
+                            "message": 3
+                        }
+                    ],
+                    "background": {
+                        "activeOnStart": true,
+                        "beginsPattern": ".",
+                        "endsPattern": "."
+                    }
+                }
+            ]
+        },
+        {
             "label": "qemu-static-main",
             "dependsOrder": "sequence",
             "dependsOn": [
@@ -47,10 +75,19 @@
             ]
         },
         {
+            "label": "qemu-static-active",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "make build",
+                "make qemu-static-active"
+            ]
+        },
+        {
             "label": "make clean",
             "command": "make",
             "args": [
-                "clean"
+                "clean",
+                "curFile=${fileDirname}/${fileBasenameNoExtension}"
             ],
             "type": "process"
         }
