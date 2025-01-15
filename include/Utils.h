@@ -2,18 +2,19 @@
 #include <algorithm>
 #include <any>
 #include <bitset>
+#include <capstone/capstone.h>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <format>
 #include <fstream>
 #include <functional>
-#include <optional>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -23,10 +24,11 @@
 #include <typeinfo>
 #include <variant>
 #include <vector>
+
 using namespace std;
 // use this macro to support supplying parameter with default value
-// e.g. string instruction = silentEmit(WRAP_FUNCTION(encodeAddSubImm), regType, false, rd, rn, 0);
-#define WRAP_FUNCTION(Function)                                                                                                                      \
+// e.g. string instruction = silentCall(supply_default(encodeAddSubImm), regType, false, rd, rn, 0);
+#define supply_default(Function)                                                                                                                      \
   [](auto &&...args) {                                                                                                                               \
     return Function(std::forward<decltype(args)>(args)...);                                                                                          \
   }
@@ -51,6 +53,31 @@ string type_category_to_string(TypeCategory category) {
   default:
     return "UNKNOWN";
   }
+}
+string disassemble(uint32_t inst, uint64_t address = 0x1000) {
+  string assemblyString;
+  csh handle;
+  cs_insn *insn;
+  size_t count;
+  // Initialize Capstone
+  if (cs_open(CS_ARCH_ARM64, CS_MODE_ARM, &handle) != CS_ERR_OK) {
+    std::cerr << "Failed to initialize Capstone." << std::endl;
+    return "";
+  }
+  // Disassemble the machine code
+  count = cs_disasm(handle, reinterpret_cast<const uint8_t *>(&inst), sizeof(inst), address, 0, &insn);
+  if (count > 0) {
+    for (size_t i = 0; i < count; i++) {
+      assemblyString += format("{} {}", insn[i].mnemonic, insn[i].op_str);
+    }
+    // Free the memory allocated by Capstone
+    cs_free(insn, count);
+  } else {
+    std::cerr << "Failed to disassemble given code." << std::endl;
+  }
+  // Close Capstone
+  cs_close(&handle);
+  return assemblyString;
 }
 void err(string error_msg) {
   cout << error_msg << endl;

@@ -10,6 +10,29 @@ class WasmFunction {
 public:
   void processCodeVec() {
     int offset = 0;
+    fakeInsertBranch("main", BranchType());
+    insertLabel("setjmp");
+    wasm_instructions += setJmpStr;
+    insertLabel("main");
+
+    local_var_initialize(offset);
+    printOriginWasmOpcode(offset);
+
+    main_entry_initialize(offset);
+
+    jiting_wasm_code(offset);
+
+    main_entry_finalize();
+    fixUpfakeBranch();
+  }
+  void printOriginWasmOpcode(int &offset) {
+    cout << "Origin WASM Opcode: ";
+    for (int i = offset; i < code_vec.size(); ++i) {
+      cout << code_vec[i] << " ";
+    }
+    cout << endl;
+  }
+  void local_var_initialize(int &offset) {
     for (int i = 0; i < local_var_declare_count; ++i) {
       const unsigned int var_count_in_this_declare = stoul(code_vec[offset], nullptr, 16);
       const string var_type_in_this_declare = code_vec[offset + 1];
@@ -18,32 +41,17 @@ public:
       }
       offset += 2;
     }
-    cout << "Origin WASM Opcode: ";
-    for (int i = offset; i < code_vec.size(); ++i) {
-      cout << code_vec[i] << " ";
-    }
-    cout << endl;
     print_data(TypeCategory::PARAM);
     print_data(TypeCategory::LOCAL);
-
+  }
+  void main_entry_initialize(int &offset) {
     getStackPreallocateSize(offset);
-
-    emitSaveBeforeBL();                                   // todo: this is too brute-force, need optimizing
-    wasm_instructions += encodeMovRegister(X_REG, 0, 13); // x0 <- x13
-    wasm_instructions += encodeBranchRegister(14, true);  // call x14 = x1 setjmp
-    // wasm_instructions += encodeCompareImm(X_REG, 0, 0);
-    // wasm_instructions += encodeBranchCondition(3, reverse_cond_str_map["ne"]); // todo: check offset
-
-    emitRestoreAfterBL();
-
     prepareStack();
     initParam(); // initParam is storing to memory, prepareParams is storing to registers
     initLocal();
     printInitStack();
-
-    // emitSetJmp();
-    runningWasmCode(offset);
-
+  }
+  void main_entry_finalize() {
     restoreStack();
     emitRet();
     print_stack();
@@ -107,7 +115,7 @@ public:
   void printInitStack() {
     cout << "--- Printing initial stack ---" << endl;
     for (const auto &p : stackToVec) {
-      cout << format("[sp, #{}] = {}[{}]", p.first, type_category_to_string(p.second.first), p.second.second) << endl;
+      cout << format("[sp, #0x{:x}] = {}[{}]", p.first, type_category_to_string(p.second.first), p.second.second) << endl;
     }
   }
   void initParam() {
@@ -231,12 +239,6 @@ public:
     int backReg = 13;
     cout << "Backing up x0 buffer to x" << backReg << endl;
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, backReg, 0);
-    backReg = 14;
-    cout << "Backing up x1 setJmp to x" << backReg << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, backReg, 1);
-    backReg = 15;
-    cout << "Backing up x2 longJmp to x" << backReg << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, backReg, 2);
 
     cout << "Loading parameters" << endl;
     for (int i = 0; i < param_data.size(); ++i) {
@@ -266,6 +268,58 @@ public:
     pre_instructions_for_param_loading = "";
     wasm_instructions = ""; // no need to reset this?
     stack.clear();
+    fake_insert_map.clear();
+    label_map.clear();
+  }
+  void wrapper_setjmp() {
+    emitSaveBeforeBL();                                   // todo: this is too brute-force, need optimizing
+    wasm_instructions += encodeMovRegister(X_REG, 0, 13); // x0 <- x13
+    wasm_instructions += encodeBranchRegister(14, true);  // call x14 = x1 setjmp
+    // wasm_instructions += encodeCompareImm(X_REG, 0, 0);
+    // wasm_instructions += encodeBranchCondition(3, reverse_cond_str_map["ne"]); // todo: check offset
+    emitRestoreAfterBL();
+  }
+  void fakeInsertBranch(string label, BranchType branchType) {
+    /**
+     * To faciliate branch label determination, we use a fake insert technique
+     * we first insert a fake instruction, and replace it when we know where the label is
+     * We also use an unordered_map to keep track of the insertions
+     * its contents will be like <current label, {wasm_instructions.size(), BranchType}>
+     */
+    int64_t cur_location = wasm_instructions.size();
+    cout << format("Inserting fake branch at {}", cur_location) << endl;
+    wasm_instructions += "FFFFFFFFF"; // fake insert branch instruction
+    fake_insert_map.insert({label, {cur_location, branchType}});
+  }
+  void insertLabel(string label) {
+    cout << format("Setting Label: {} at {}", label, wasm_instructions.size()) << endl;
+    label_map.insert({label, wasm_instructions.size()});
+  }
+  void fixUpfakeBranch() {
+    /**
+     * After processing codevec finished, call this function to fix fake branch instructions
+     * it will replace fake instruction with real ones
+     */
+    for (const auto &x : fake_insert_map) {
+      const auto [begin, end] = fake_insert_map.equal_range(x.first);
+      for (auto it = begin; it != end; ++it) {
+        auto [origin_location, branch_type] = it->second;
+        cout << format("Fixing fake branch at {}", origin_location) << endl;
+        cout << "Before fix: " << wasm_instructions.substr(origin_location, 8) << endl;
+        int instructions_level_offset = (label_map[x.first] - origin_location) / 8;
+        cout << "Instructions level offset (estimated): " << instructions_level_offset << endl;
+        // todo: check correctness
+        streambuf *old = cout.rdbuf();
+        cout.rdbuf(0);
+        if (branch_type.withCondition) {
+          wasm_instructions.replace(origin_location, 9, encodeBranchCondition(instructions_level_offset, branch_type.cond));
+        } else {
+          wasm_instructions.replace(origin_location, 9, encodeBranch(instructions_level_offset, branch_type.withLink));
+        }
+        cout.rdbuf(old);
+        cout << "After fix: " << wasm_instructions.substr(origin_location, 8) << endl;
+      }
+    }
   }
   template <typename Func> auto getFunctionPointer(string full_instructions) -> Func {
     const size_t arraySize = full_instructions.length() / 2;
@@ -315,12 +369,10 @@ public:
       }
       cout << endl;
     }
-    auto instruction_set = getFunctionPointer<int64_t (*)(void *, void (*)(), void (*)())>(full_instructions);
-    auto setJmp_set = getFunctionPointer<void (*)()>(setJmpStr);
-    auto longJmp_set = getFunctionPointer<void (*)()>(longJmpStr);
+    auto instruction_set = getFunctionPointer<int64_t (*)(void *)>(full_instructions);
     void *buffer = malloc(1024);
     // !不需要做任何传参，因为参数已经放在寄存器里啦
-    int64_t ans = instruction_set(buffer, setJmp_set, longJmp_set);
+    int64_t ans = instruction_set(buffer);
     free(buffer);
     // munmap(reinterpret_cast<void *>(instruction_set), full_instructions); // Can't unmap here, will have memory leak here
     // WARN: reset things, very important if we want to call it again!
@@ -478,7 +530,6 @@ public:
      */
     streambuf *old = cout.rdbuf();
     cout.rdbuf(0);
-    cout << "Function SetJmp:" << endl;
     string instr;
     LdStType ldstType = LdStType::STR;
     instr += encodeLdpStp(X_REG, ldstType, 19, 20, 0, 0 << 3);
@@ -492,6 +543,7 @@ public:
     instr += encodeMovz(0, 0, W_REG, 0);
     instr += encodeReturn();
     cout.rdbuf(old);
+    cout << "Function SetJmp: " << instr << endl;
     return instr;
   }
   string getLongJmpInstr() {
@@ -511,7 +563,6 @@ public:
      */
     streambuf *old = cout.rdbuf();
     cout.rdbuf(0);
-    cout << "Function LongJmp:" << endl;
     string instr;
     LdStType ldstType = LdStType::LDR;
     instr += encodeLdpStp(X_REG, ldstType, 19, 20, 0, 0 << 3);
@@ -527,6 +578,7 @@ public:
     instr += encodeCSEL(X_REG, 0, 1, 0, reverse_cond_str_map.at("ne"));
     instr += encodeBranchRegister(30);
     cout.rdbuf(old);
+    cout << "Function LongJmp: " << instr << endl;
     return instr;
   }
   void emitGet(const uint64_t var_to_get, TypeCategory vecType) {
@@ -715,7 +767,7 @@ public:
       throw "Too big index {" + to_string(var_index) + "} for local data; skipping current op;";
     }
   }
-  void runningWasmCode(int i) {
+  void jiting_wasm_code(int i) {
     cout << "--- JITing wasm code ---" << endl;
     wasm_stack_pointer = wasm_stack_end_location - 8; // WARN!!! VERY IMPORTANT NOT TO USE THE END LOCATION OR IT WILL OVERWRITE X29
     cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
@@ -835,18 +887,7 @@ public:
     setJmpStr = getSetJmpInstr();
     longJmpStr = getLongJmpInstr();
   }
-  vector<string> code_vec;
-  u_int64_t local_var_declare_count = 0;
-  string wasm_instructions;
-  map<char, ArithOperation> operations_map;
-  string pre_instructions_for_param_loading;
-  vector<wasm_type> local_data;
-  vector<wasm_type> param_data;
-  vector<wasm_type> result_data;
-  vector<wasm_type> stack;
-  map<pair<TypeCategory, int>, int> vecToStack;        // {TypeCategory::PARAM, 0} : 0x4
-  map<pair<TypeCategory, int>, RegType> regTypeGetter; // {TypeCategory::PARAM, 0}: LDR32
-  map<int, pair<TypeCategory, int>> stackToVec;        // 0x4 : {TypeCategory::PARAM: 0}
+  // data section
   int stack_size = 0;
   int param_stack_start_location = 0;
   int param_stack_end_location = 0;
@@ -855,9 +896,26 @@ public:
   int wasm_stack_start_location = 0;
   int wasm_stack_end_location = 0;
   int wasm_stack_pointer = 0;
+  int type;
+  u_int64_t local_var_declare_count = 0;
+
+  string wasm_instructions;
+  string pre_instructions_for_param_loading;
   string setJmpStr;
   string longJmpStr;
-  int type;
+
+  vector<string> code_vec;
+  vector<wasm_type> local_data;
+  vector<wasm_type> param_data;
+  vector<wasm_type> result_data;
+  vector<wasm_type> stack;
+
+  map<char, ArithOperation> operations_map;
+  map<pair<TypeCategory, int>, int> vecToStack;        // {TypeCategory::PARAM, 0} : 0x4
+  map<pair<TypeCategory, int>, RegType> regTypeGetter; // {TypeCategory::PARAM, 0}: LDR32
+  map<int, pair<TypeCategory, int>> stackToVec;        // 0x4 : {TypeCategory::PARAM: 0}
+  unordered_multimap<string, pair<int64_t, BranchType>> fake_insert_map;
+  unordered_map<string, int64_t> label_map;
   /**
    * we have 4 vectors
    * vector<int>, vector<double> ..

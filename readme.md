@@ -47,7 +47,7 @@
     Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
     Trusted: yes
 
-    sudo apt install libcapstone-dev:arm64 python3-capstone nlohmann-json3-dev libgtest-dev build-essential gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+    sudo apt install libcapstone-dev:arm64 python3-capstone nlohmann-json3-dev libgtest-dev build-essential g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
 ## Run command:
 
     aarch64-linux-gnu-g++ main.cpp -o main && qemu-aarch64 -L /usr/aarch64-linux-gnu ./main
