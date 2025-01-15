@@ -103,8 +103,8 @@ void test_chapter(const string &chapter_number) {
   }
 }
 int main() {
-  vector<string> test_chapters = {"02", "03"};
-  // vector<string> test_chapters = {"04"};
+  // vector<string> test_chapters = {"02", "03"};
+  vector<string> test_chapters = {"04"};
   cout << "A simple testing program to check our JIT works as intended." << endl;
   cout << "Chapters to test: " << test_chapters << endl;
   for (auto &chapter_number : test_chapters) {

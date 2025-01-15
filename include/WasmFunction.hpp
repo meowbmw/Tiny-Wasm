@@ -20,8 +20,8 @@ public:
     wasm_instructions += setJmpStr;
     insertLabel("longjmp");
     wasm_instructions += longJmpStr;
-    insertLabel("divbyzero_exception");
-    wasm_instructions += encodeBranchRegister(14);//todo:
+    insertLabel("divbyzeroException");
+    wasm_instructions += encodeBranchRegister(14); // todo:
 
     insertLabel("entry");
     main_entry_initialize(offset);
@@ -285,14 +285,8 @@ public:
     fakeInsertBranch("setjmp", BranchType(false, true));
 
     wasm_instructions += encodeCompareImm(X_REG, 0, 0);
-    fakeInsertBranch("divbyzero_exception", BranchType(true, false, reverse_cond_str_map.at("ne"))); // todo: if not equal, goto exception handling
+    fakeInsertBranch("divbyzeroException", BranchType(true, false, reverse_cond_str_map.at("ne"))); // todo: if not equal, goto exception handling
 
-    emitRestoreAfterBL();
-  }
-  void wrapper_longjmp() {
-    emitSaveBeforeBL();                                   // todo: is this necessary?
-    wasm_instructions += encodeMovRegister(X_REG, 0, 13); // x0 <- x13
-    fakeInsertBranch("longjmp", BranchType(false, true));
     emitRestoreAfterBL();
   }
   void fakeInsertBranch(string label, BranchType branchType) {
@@ -706,32 +700,41 @@ public:
     wasm_stack_pointer += 8;
     // r12 = a
     string load_first_param_instr = encodeLoadStoreImm(regtype, LDR, 12, 31, wasm_stack_pointer);
+
+    constructFullinstr(load_first_param_instr + load_second_param_instr);
     // r11 = a op b
     string arith_instr;
     string check_div_instr;
     string branch_equal_zero_instr;
     switch (opType) {
     case '+':
-      arith_instr = encodeAddSubShift(false, regtype, 11, 12, 11);
+      wasm_instructions += encodeAddSubShift(false, regtype, 11, 12, 11);
       break;
     case '-':
-      arith_instr = encodeAddSubShift(true, regtype, 11, 12, 11);
+      wasm_instructions += encodeAddSubShift(true, regtype, 11, 12, 11);
       break;
     case '*':
-      arith_instr = encodeMul(regtype, 11, 12, 11);
+      wasm_instructions += encodeMul(regtype, 11, 12, 11);
       break;
     case '/':
-      check_div_instr = encodeCompareShift(regtype, 12, 11);
-      branch_equal_zero_instr = encodeBranchCondition(1, reverse_cond_str_map.at("eq"));
-      arith_instr = encodeDiv(regtype, isSigned, 11, 12, 11);
+      wasm_instructions += encodeCompareImm(regtype, 11, 0);
+      fakeInsertBranch("div", BranchType(true, false, reverse_cond_str_map.at("ne")));
+      // continues to longjmp if (b = 0), otherwise jump to div
+      emitSaveBeforeBL();
+      wasm_instructions += encodeMovRegister(X_REG, 0, 13); // x0 <- x13
+      fakeInsertBranch("longjmp", BranchType());
+      emitRestoreAfterBL();
+
+      insertLabel("div");
+      wasm_instructions += encodeDiv(regtype, isSigned, 11, 12, 11);
+
       break;
     default:
       throw "Unknown arithmetic operator";
       break;
     }
-    string store_to_stack_instr = encodeLoadStoreImm(regtype, STR, 11, 31, wasm_stack_pointer);
-    wasm_stack_pointer -= 8; // decrease wasm stack after push
-    constructFullinstr(load_first_param_instr + load_second_param_instr + arith_instr + store_to_stack_instr);
+    wasm_instructions += encodeLoadStoreImm(regtype, STR, 11, 31, wasm_stack_pointer); // store_to_stack
+    wasm_stack_pointer -= 8;                                                           // decrease wasm stack after push
   }
   void commonStackOp(char opType) {
     auto b = stack.back();
