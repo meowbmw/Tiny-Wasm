@@ -22,15 +22,16 @@ string encodeBranch(int32_t imm, bool withLink = false, bool smallEndian = true)
   return opcode.getInstruction();
 }
 
-string encodeBranchCondition(int32_t offset, uint8_t cond, bool smallEndian = true) {
+string encodeBranchCondition(int32_t imm19, uint8_t cond, bool smallEndian = true) {
   auto opcode = Arm64Opcode(smallEndian);
   opcode.setField(0b01010100, 24);
-  opcode.setField(offset, 5);
+  opcode.setImm19(imm19);
   opcode.setField(cond, 0, 4);
   return opcode.getInstruction();
 }
 
 string encodeBranchRegister(uint8_t rn, bool hasReturn = false, bool smallEndian = true) {
+  // if hasReturn, then it's blr, otherwise it's br
   auto opcode = Arm64Opcode(smallEndian);
   opcode.setField(0b1101011000011111000000, 10);
   opcode.setField(int(hasReturn), 21);

@@ -92,6 +92,9 @@ public:
   void setImm16(auto imm16){
     setField(imm16, 5, 16);
   }
+  void setImm19(auto imm19){
+    setField(imm19, 5, 19);
+  }
   // set other fields
   void setSf(auto regType) {
     setField((int)(regType == X_REG), 31, 1);

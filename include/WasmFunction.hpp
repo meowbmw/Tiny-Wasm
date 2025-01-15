@@ -10,15 +10,23 @@ class WasmFunction {
 public:
   void processCodeVec() {
     int offset = 0;
-    fakeInsertBranch("main", BranchType());
-    insertLabel("setjmp");
-    wasm_instructions += setJmpStr;
-    insertLabel("main");
-
-    local_var_initialize(offset);
+    local_var_initialize(offset); // doesn't modify wasm_instructions
     printOriginWasmOpcode(offset);
 
+    // start processing wasm_instructions here
+    fakeInsertBranch("entry", BranchType()); // b main
+
+    insertLabel("setjmp");
+    wasm_instructions += setJmpStr;
+    insertLabel("longjmp");
+    wasm_instructions += longJmpStr;
+    insertLabel("divbyzero_exception");
+    wasm_instructions += encodeBranchRegister(14);//todo:
+
+    insertLabel("entry");
     main_entry_initialize(offset);
+
+    wrapper_setjmp();
 
     jiting_wasm_code(offset);
 
@@ -274,9 +282,17 @@ public:
   void wrapper_setjmp() {
     emitSaveBeforeBL();                                   // todo: this is too brute-force, need optimizing
     wasm_instructions += encodeMovRegister(X_REG, 0, 13); // x0 <- x13
-    wasm_instructions += encodeBranchRegister(14, true);  // call x14 = x1 setjmp
-    // wasm_instructions += encodeCompareImm(X_REG, 0, 0);
-    // wasm_instructions += encodeBranchCondition(3, reverse_cond_str_map["ne"]); // todo: check offset
+    fakeInsertBranch("setjmp", BranchType(false, true));
+
+    wasm_instructions += encodeCompareImm(X_REG, 0, 0);
+    fakeInsertBranch("divbyzero_exception", BranchType(true, false, reverse_cond_str_map.at("ne"))); // todo: if not equal, goto exception handling
+
+    emitRestoreAfterBL();
+  }
+  void wrapper_longjmp() {
+    emitSaveBeforeBL();                                   // todo: is this necessary?
+    wasm_instructions += encodeMovRegister(X_REG, 0, 13); // x0 <- x13
+    fakeInsertBranch("longjmp", BranchType(false, true));
     emitRestoreAfterBL();
   }
   void fakeInsertBranch(string label, BranchType branchType) {
@@ -287,8 +303,8 @@ public:
      * its contents will be like <current label, {wasm_instructions.size(), BranchType}>
      */
     int64_t cur_location = wasm_instructions.size();
-    cout << format("Inserting fake branch at {}", cur_location) << endl;
-    wasm_instructions += "FFFFFFFFF"; // fake insert branch instruction
+    cout << format("Inserting fake branch to {} at {}", label, cur_location) << endl;
+    wasm_instructions += "FFFFFFFF"; // fake insert branch instruction
     fake_insert_map.insert({label, {cur_location, branchType}});
   }
   void insertLabel(string label) {
@@ -301,24 +317,24 @@ public:
      * it will replace fake instruction with real ones
      */
     for (const auto &x : fake_insert_map) {
-      const auto [begin, end] = fake_insert_map.equal_range(x.first);
-      for (auto it = begin; it != end; ++it) {
-        auto [origin_location, branch_type] = it->second;
-        cout << format("Fixing fake branch at {}", origin_location) << endl;
-        cout << "Before fix: " << wasm_instructions.substr(origin_location, 8) << endl;
-        int instructions_level_offset = (label_map[x.first] - origin_location) / 8;
-        cout << "Instructions level offset (estimated): " << instructions_level_offset << endl;
-        // todo: check correctness
-        streambuf *old = cout.rdbuf();
-        cout.rdbuf(0);
-        if (branch_type.withCondition) {
-          wasm_instructions.replace(origin_location, 9, encodeBranchCondition(instructions_level_offset, branch_type.cond));
-        } else {
-          wasm_instructions.replace(origin_location, 9, encodeBranch(instructions_level_offset, branch_type.withLink));
-        }
-        cout.rdbuf(old);
-        cout << "After fix: " << wasm_instructions.substr(origin_location, 8) << endl;
+      auto [origin_location, branch_type] = x.second;
+      cout << "++++++++++++++++" << endl;
+      cout << format("Fixing fake branch to {} at {}", x.first, origin_location) << endl;
+      cout << "Before fix: " << wasm_instructions.substr(origin_location, 8) << endl;
+      cout << wasm_instructions << endl;
+      int instructions_level_offset = (label_map[x.first] - origin_location) / 8;
+      cout << "Instructions level offset (estimated): " << instructions_level_offset << endl;
+      // todo: check correctness
+      streambuf *old = cout.rdbuf();
+      cout.rdbuf(0);
+      if (branch_type.withCondition) {
+        wasm_instructions.replace(origin_location, 8, encodeBranchCondition(instructions_level_offset, branch_type.cond));
+      } else {
+        wasm_instructions.replace(origin_location, 8, encodeBranch(instructions_level_offset, branch_type.withLink));
       }
+      cout.rdbuf(old);
+      cout << "After fix: " << wasm_instructions.substr(origin_location, 8) << endl;
+      cout << wasm_instructions << endl;
     }
   }
   template <typename Func> auto getFunctionPointer(string full_instructions) -> Func {
@@ -543,7 +559,7 @@ public:
     instr += encodeMovz(0, 0, W_REG, 0);
     instr += encodeReturn();
     cout.rdbuf(old);
-    cout << "Function SetJmp: " << instr << endl;
+    // cout << "Function SetJmp: " << instr << endl;
     return instr;
   }
   string getLongJmpInstr() {
@@ -578,7 +594,7 @@ public:
     instr += encodeCSEL(X_REG, 0, 1, 0, reverse_cond_str_map.at("ne"));
     instr += encodeBranchRegister(30);
     cout.rdbuf(old);
-    cout << "Function LongJmp: " << instr << endl;
+    // cout << "Function LongJmp: " << instr << endl;
     return instr;
   }
   void emitGet(const uint64_t var_to_get, TypeCategory vecType) {
