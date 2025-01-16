@@ -6,6 +6,68 @@
 using namespace std;
 using ArithOperation = std::function<wasm_type(wasm_type, wasm_type)>;
 
+uint8_t BACK_REG = 13;
+string getSetJmpInstr() {
+  /**
+   *  	stp	x19, x20, [x0, 0]
+        stp	x21, x22, [x0, 2<<3]
+        stp	x23, x24, [x0, 4<<3]
+        stp	x25, x26, [x0, 6<<3]
+        stp	x27, x28, [x0, 8<<3]
+        stp	x29, x30, [x0, 10<<3]
+        mov	x2,  sp
+        str	x2,  [x0, 13<<3]
+        mov	w0, #0
+        ret
+   */
+  string instr;
+  LdStType ldstType = LdStType::STR;
+  instr += encodeLdpStp(X_REG, ldstType, 19, 20, 0, 0);
+  instr += encodeLdpStp(X_REG, ldstType, 21, 22, 0, 2 << 3);
+  instr += encodeLdpStp(X_REG, ldstType, 23, 24, 0, 4 << 3);
+  instr += encodeLdpStp(X_REG, ldstType, 25, 26, 0, 6 << 3);
+  instr += encodeLdpStp(X_REG, ldstType, 27, 28, 0, 8 << 3);
+  instr += encodeLdpStp(X_REG, ldstType, 29, 30, 0, 10 << 3);
+  instr += encodeMovSP(X_REG, 2, 31);
+  instr += encodeLoadStoreImm(X_REG, ldstType, 2, 0, 13 << 3);
+  instr += encodeMovz(0, 0, W_REG, 0);
+  instr += encodeReturn();
+  // cout << "Function SetJmp: " << instr << endl;
+  return instr;
+}
+string getLongJmpInstr() {
+  /**
+   *  ldp	x19, x20, [x0, 0<<3]
+      ldp	x21, x22, [x0, 2<<3]
+      ldp	x23, x24, [x0, 4<<3]
+      ldp	x25, x26, [x0, 6<<3]
+      ldp	x27, x28, [x0, 8<<3]
+      ldp	x29, x30, [x0, 10<<3]
+      ldr	x5, [x0, 13<<3]; x5 <- [x0, 104]
+      mov	sp, x5; sp <- x5
+      cmp	x1, #0
+      mov	x0, #1
+      csel	x0, x1, x0, ne
+      br	x30
+   */
+  string instr;
+  LdStType ldstType = LdStType::LDR;
+  instr += encodeLdpStp(X_REG, ldstType, 19, 20, 0, 0 << 3);
+  instr += encodeLdpStp(X_REG, ldstType, 21, 22, 0, 2 << 3);
+  instr += encodeLdpStp(X_REG, ldstType, 23, 24, 0, 4 << 3);
+  instr += encodeLdpStp(X_REG, ldstType, 25, 26, 0, 6 << 3);
+  instr += encodeLdpStp(X_REG, ldstType, 27, 28, 0, 8 << 3);
+  instr += encodeLdpStp(X_REG, ldstType, 29, 30, 0, 10 << 3);
+  instr += encodeLoadStoreImm(X_REG, ldstType, 5, 0, 13 << 3);
+  instr += encodeMovSP(X_REG, 31, 5);
+  instr += encodeCompareImm(X_REG, 1, 0);
+  instr += encodeMovz(0, 1, X_REG, 0);
+  instr += encodeCSEL(X_REG, 0, 1, 0, reverse_cond_str_map.at("ne"));
+  instr += encodeBranchRegister(30);
+  // cout << "Function LongJmp: " << instr << endl;
+  return instr;
+}
+
 class WasmFunction {
 public:
   void processCodeVec() {
@@ -17,21 +79,34 @@ public:
     fakeInsertBranch("entry", BranchType()); // b main
 
     insertLabel("setjmp");
-    wasm_instructions += setJmpStr;
+    wasm_instructions += getSetJmpInstr();
     insertLabel("longjmp");
-    wasm_instructions += longJmpStr;
+    wasm_instructions += getLongJmpInstr();
     insertLabel("divbyzeroException");
-    wasm_instructions += encodeBranchRegister(14); // todo:
+    wasm_instructions += encodeMovRegister(X_REG, 30, 14); // x30 <- x14
+    wasm_instructions += encodeMovSP(X_REG, 31, 15);       // sp <- x31
+
+    // store return code 1 to [x13]
+    wasm_instructions += encodeMovz(11, 0x1, X_REG, 0);                   // x11=1, this register can be any that is not used and caller-saved
+    wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, BACK_REG, 0); // [x13]=x11=1
+    fakeInsertBranch("finalize", BranchType());
 
     insertLabel("entry");
     main_entry_initialize(offset);
 
     wrapper_setjmp();
-
     jiting_wasm_code(offset);
 
+    // store return code 0 to x[0]
+    wasm_instructions += encodeMovz(11, 0x0, X_REG, 0);                   // x11=0, this register can be any that is not used and caller-saved
+    wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, BACK_REG, 0); // [x13]=x11=0
+
+    insertLabel("finalize");
     main_entry_finalize();
+    streambuf *old = cout.rdbuf();
+    cout.rdbuf(0);
     fixUpfakeBranch();
+    cout.rdbuf(old);
   }
   void printOriginWasmOpcode(int &offset) {
     cout << "Origin WASM Opcode: ";
@@ -49,15 +124,15 @@ public:
       }
       offset += 2;
     }
-    print_data(TypeCategory::PARAM);
-    print_data(TypeCategory::LOCAL);
+    // print_data(TypeCategory::PARAM);
+    // print_data(TypeCategory::LOCAL);
   }
   void main_entry_initialize(int &offset) {
     getStackPreallocateSize(offset);
     prepareStack();
     initParam(); // initParam is storing to memory, prepareParams is storing to registers
     initLocal();
-    printInitStack();
+    // printInitStack();
   }
   void main_entry_finalize() {
     restoreStack();
@@ -85,6 +160,8 @@ public:
     /**
      * calculate how much size should be allocated for stack
      */
+    streambuf *old = cout.rdbuf();
+    cout.rdbuf(0);
     param_stack_start_location = 0;
     param_stack_end_location = param_stack_start_location;
     for (const auto &c : param_data) {
@@ -114,6 +191,7 @@ public:
       stack_size = wasm_stack_end_location;
     }
     cout << "Stack allocate size estimated to be: " << stack_size << endl;
+    cout.rdbuf(old);
   }
   void prepareStack() {
     cout << "Sub sp register" << endl;
@@ -244,7 +322,7 @@ public:
     if (param_data.size() == 0) {
       cout << "No params need to be load" << endl;
     }
-    int backReg = 13;
+    int backReg = BACK_REG;
     cout << "Backing up x0 buffer to x" << backReg << endl;
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, backReg, 0);
 
@@ -280,14 +358,14 @@ public:
     label_map.clear();
   }
   void wrapper_setjmp() {
-    emitSaveBeforeBL();                                   // todo: this is too brute-force, need optimizing
-    wasm_instructions += encodeMovRegister(X_REG, 0, 13); // x0 <- x13
+    wasm_instructions += encodeLdpStp(X_REG, STR, 29, 30, 31, -0x20, EncodingMode::PreIndex); // stp x29, x30, [sp, #-0x20]!
+
+    wasm_instructions += encodeMovRegister(X_REG, 0, BACK_REG); // x0 <- x13
     fakeInsertBranch("setjmp", BranchType(false, true));
 
     wasm_instructions += encodeCompareImm(X_REG, 0, 0);
     fakeInsertBranch("divbyzeroException", BranchType(true, false, reverse_cond_str_map.at("ne"))); // todo: if not equal, goto exception handling
-
-    emitRestoreAfterBL();
+    wasm_instructions += encodeLdpStp(X_REG, LDR, 29, 30, 31, 0x20, EncodingMode::PostIndex);       // ldp x29, x30, [sp], #0x20
   }
   void fakeInsertBranch(string label, BranchType branchType) {
     /**
@@ -297,12 +375,14 @@ public:
      * its contents will be like <current label, {wasm_instructions.size(), BranchType}>
      */
     int64_t cur_location = wasm_instructions.size();
-    cout << format("Inserting fake branch to {} at {}", label, cur_location) << endl;
+    cout << format("       {} {}", (branchType.withLink ? "bl" : "b" + (branchType.withCondition ? "." + cond_str_map.at(branchType.cond) : "")),
+                   label)
+         << endl;
     wasm_instructions += "FFFFFFFF"; // fake insert branch instruction
     fake_insert_map.insert({label, {cur_location, branchType}});
   }
   void insertLabel(string label) {
-    cout << format("Setting Label: {} at {}", label, wasm_instructions.size()) << endl;
+    cout << format("{}: ", label) << endl;
     label_map.insert({label, wasm_instructions.size()});
   }
   void fixUpfakeBranch() {
@@ -315,7 +395,7 @@ public:
       cout << "++++++++++++++++" << endl;
       cout << format("Fixing fake branch to {} at {}", x.first, origin_location) << endl;
       cout << "Before fix: " << wasm_instructions.substr(origin_location, 8) << endl;
-      cout << wasm_instructions << endl;
+      // cout << wasm_instructions << endl;
       int instructions_level_offset = (label_map[x.first] - origin_location) / 8;
       cout << "Instructions level offset (estimated): " << instructions_level_offset << endl;
       // todo: check correctness
@@ -328,7 +408,7 @@ public:
       }
       cout.rdbuf(old);
       cout << "After fix: " << wasm_instructions.substr(origin_location, 8) << endl;
-      cout << wasm_instructions << endl;
+      // cout << wasm_instructions << endl;
     }
   }
   template <typename Func> auto getFunctionPointer(string full_instructions) -> Func {
@@ -383,10 +463,15 @@ public:
     void *buffer = malloc(1024);
     // !不需要做任何传参，因为参数已经放在寄存器里啦
     int64_t ans = instruction_set(buffer);
+    auto return_code = *reinterpret_cast<int16_t *>(buffer);
+    cout << "Return code is: " << return_code << endl;
     free(buffer);
-    // munmap(reinterpret_cast<void *>(instruction_set), full_instructions); // Can't unmap here, will have memory leak here
+    // munmap(reinterpret_cast<void *>(instruction_set), full_instructions); // Can't unmap here, TODO: will have memory leak here
     // WARN: reset things, very important if we want to call it again!
     resetAfterExecution();
+    if (return_code){
+      throw string("Wasm trapped");
+    }
     return ans;
   }
   void print_data(TypeCategory category) {
@@ -460,136 +545,6 @@ public:
   void set_code_vec(vector<string> &v, size_t l = 0) {
     code_vec = v;
     local_var_declare_count = l;
-  }
-  void emitSaveBeforeBL() {
-    /** Store caller saved registers before function calls
-     *  sub sp, sp, #192
-        stp x0, x1, [sp, #0]
-        stp x2, x3, [sp, #16]
-        stp x4, x5, [sp, #32]
-        stp x6, x7, [sp, #48]
-        stp x8, x9, [sp, #64]
-        stp x10, x11, [sp, #80]
-        stp x12, x13, [sp, #96]
-        stp x14, x15, [sp, #112]
-        stp x16, x17, [sp, #128]
-        stp x18, x29, [sp, #144]
-        stp x30, xzr, [sp, #160]
-     */
-    cout << "*Emitting Instruction to save registers before function call:" << endl;
-    string instr;
-    LdStType ldstType = LdStType::STR;
-    instr += encodeAddSubImm(X_REG, true, 31, 31, 192);
-    instr += encodeLdpStp(X_REG, ldstType, 0, 1, 31, 0);
-    instr += encodeLdpStp(X_REG, ldstType, 2, 3, 31, 16);
-    instr += encodeLdpStp(X_REG, ldstType, 4, 5, 31, 32);
-    instr += encodeLdpStp(X_REG, ldstType, 6, 7, 31, 48);
-    instr += encodeLdpStp(X_REG, ldstType, 8, 9, 31, 64);
-    instr += encodeLdpStp(X_REG, ldstType, 10, 11, 31, 80);
-    instr += encodeLdpStp(X_REG, ldstType, 12, 13, 31, 96);
-    instr += encodeLdpStp(X_REG, ldstType, 14, 15, 31, 112);
-    instr += encodeLdpStp(X_REG, ldstType, 16, 17, 31, 128);
-    instr += encodeLdpStp(X_REG, ldstType, 18, 29, 31, 144);
-    instr += encodeLdpStp(X_REG, ldstType, 30, 31, 31, 160);
-    wasm_instructions += instr;
-  }
-  void emitRestoreAfterBL() {
-    /** Restore caller saved registers after return from function calls
-     *  ldp x0, x1, [sp, #0]
-        ldp x2, x3, [sp, #16]
-        ldp x4, x5, [sp, #32]
-        ldp x6, x7, [sp, #48]
-        ldp x8, x9, [sp, #64]
-        ldp x10, x11, [sp, #80]
-        ldp x12, x13, [sp, #96]
-        ldp x14, x15, [sp, #112]
-        ldp x16, x17, [sp, #128]
-        ldp x18, x29, [sp, #144]
-        ldp x30, xzr, [sp, #160]
-        add sp, sp, #192
-     */
-    cout << "*Emitting Instruction to restore registers after function call:" << endl;
-    string instr;
-    LdStType ldstType = LdStType::LDR;
-    instr += encodeLdpStp(X_REG, ldstType, 0, 1, 31, 0);
-    instr += encodeLdpStp(X_REG, ldstType, 2, 3, 31, 16);
-    instr += encodeLdpStp(X_REG, ldstType, 4, 5, 31, 32);
-    instr += encodeLdpStp(X_REG, ldstType, 6, 7, 31, 48);
-    instr += encodeLdpStp(X_REG, ldstType, 8, 9, 31, 64);
-    instr += encodeLdpStp(X_REG, ldstType, 10, 11, 31, 80);
-    instr += encodeLdpStp(X_REG, ldstType, 12, 13, 31, 96);
-    instr += encodeLdpStp(X_REG, ldstType, 14, 15, 31, 112);
-    instr += encodeLdpStp(X_REG, ldstType, 16, 17, 31, 128);
-    instr += encodeLdpStp(X_REG, ldstType, 18, 29, 31, 144);
-    instr += encodeLdpStp(X_REG, ldstType, 30, 31, 31, 160);
-    instr += encodeAddSubImm(X_REG, false, 31, 31, 192);
-    wasm_instructions += instr;
-  }
-  string getSetJmpInstr() {
-    /**
-     *  	stp	x19, x20, [x0, 0<<3]
-          stp	x21, x22, [x0, 2<<3]
-          stp	x23, x24, [x0, 4<<3]
-          stp	x25, x26, [x0, 6<<3]
-          stp	x27, x28, [x0, 8<<3]
-          stp	x29, x30, [x0, 10<<3]
-          mov	x2,  sp
-          str	x2,  [x0, 13<<3]
-          mov	w0, #0
-          ret
-     */
-    streambuf *old = cout.rdbuf();
-    cout.rdbuf(0);
-    string instr;
-    LdStType ldstType = LdStType::STR;
-    instr += encodeLdpStp(X_REG, ldstType, 19, 20, 0, 0 << 3);
-    instr += encodeLdpStp(X_REG, ldstType, 21, 22, 0, 2 << 3);
-    instr += encodeLdpStp(X_REG, ldstType, 23, 24, 0, 4 << 3);
-    instr += encodeLdpStp(X_REG, ldstType, 25, 26, 0, 6 << 3);
-    instr += encodeLdpStp(X_REG, ldstType, 27, 28, 0, 8 << 3);
-    instr += encodeLdpStp(X_REG, ldstType, 29, 30, 0, 10 << 3);
-    instr += encodeMovSP(X_REG, 2, 31);
-    instr += encodeLoadStoreImm(X_REG, ldstType, 2, 0, 13 << 3);
-    instr += encodeMovz(0, 0, W_REG, 0);
-    instr += encodeReturn();
-    cout.rdbuf(old);
-    // cout << "Function SetJmp: " << instr << endl;
-    return instr;
-  }
-  string getLongJmpInstr() {
-    /**
-     *  ldp	x19, x20, [x0, 0<<3]
-        ldp	x21, x22, [x0, 2<<3]
-        ldp	x23, x24, [x0, 4<<3]
-        ldp	x25, x26, [x0, 6<<3]
-        ldp	x27, x28, [x0, 8<<3]
-        ldp	x29, x30, [x0, 10<<3]
-        ldr	x5, [x0, 13<<3]; x5 <- [x0, 104]
-        mov	sp, x5; sp <- x5
-        cmp	x1, #0
-        mov	x0, #1
-        csel	x0, x1, x0, ne
-        br	x30
-     */
-    streambuf *old = cout.rdbuf();
-    cout.rdbuf(0);
-    string instr;
-    LdStType ldstType = LdStType::LDR;
-    instr += encodeLdpStp(X_REG, ldstType, 19, 20, 0, 0 << 3);
-    instr += encodeLdpStp(X_REG, ldstType, 21, 22, 0, 2 << 3);
-    instr += encodeLdpStp(X_REG, ldstType, 23, 24, 0, 4 << 3);
-    instr += encodeLdpStp(X_REG, ldstType, 25, 26, 0, 6 << 3);
-    instr += encodeLdpStp(X_REG, ldstType, 27, 28, 0, 8 << 3);
-    instr += encodeLdpStp(X_REG, ldstType, 29, 30, 0, 10 << 3);
-    instr += encodeLoadStoreImm(X_REG, ldstType, 5, 0, 13 << 3);
-    instr += encodeMovSP(X_REG, 31, 5);
-    instr += encodeCompareImm(X_REG, 1, 0);
-    instr += encodeMovz(0, 1, X_REG, 0);
-    instr += encodeCSEL(X_REG, 0, 1, 0, reverse_cond_str_map.at("ne"));
-    instr += encodeBranchRegister(30);
-    cout.rdbuf(old);
-    // cout << "Function LongJmp: " << instr << endl;
-    return instr;
   }
   void emitGet(const uint64_t var_to_get, TypeCategory vecType) {
     /**
@@ -720,10 +675,11 @@ public:
       wasm_instructions += encodeCompareImm(regtype, 11, 0);
       fakeInsertBranch("div", BranchType(true, false, reverse_cond_str_map.at("ne")));
       // continues to longjmp if (b = 0), otherwise jump to div
-      emitSaveBeforeBL();
+      wasm_instructions += encodeMovRegister(X_REG, 14, 30); // x14 <- x30
+      wasm_instructions += encodeMovSP(X_REG, 15, 31);       // x15 <- sp
+
       wasm_instructions += encodeMovRegister(X_REG, 0, 13); // x0 <- x13
       fakeInsertBranch("longjmp", BranchType());
-      emitRestoreAfterBL();
 
       insertLabel("div");
       wasm_instructions += encodeDiv(regtype, isSigned, 11, 12, 11);
@@ -789,7 +745,7 @@ public:
   void jiting_wasm_code(int i) {
     cout << "--- JITing wasm code ---" << endl;
     wasm_stack_pointer = wasm_stack_end_location - 8; // WARN!!! VERY IMPORTANT NOT TO USE THE END LOCATION OR IT WILL OVERWRITE X29
-    cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
+    // cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
     while (i < code_vec.size()) {
       /**
        * WebAssembly Opcodes
@@ -877,7 +833,7 @@ public:
         commonStackOp('/');
         i += 1;
       }
-      cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
+      // cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
     }
   }
   WasmFunction() {
@@ -894,8 +850,9 @@ public:
     operations_map['/'] = [](wasm_type a, wasm_type b) {
       std::visit(
           [](auto &&value) {
-            if (value == 0)
-              cout << "! Division by zero in wasm code" << endl;
+            if (value == 0) {
+              // cout << "! Division by zero in wasm code" << endl;
+            }
             return wasm_type(0);
             // disabled for now to check arm64 trap!!
             // throw std::runtime_error("Division by zero");
@@ -903,8 +860,6 @@ public:
           b);
       return a / b;
     };
-    setJmpStr = getSetJmpInstr();
-    longJmpStr = getLongJmpInstr();
   }
   // data section
   int stack_size = 0;
@@ -920,8 +875,6 @@ public:
 
   string wasm_instructions;
   string pre_instructions_for_param_loading;
-  string setJmpStr;
-  string longJmpStr;
 
   vector<string> code_vec;
   vector<wasm_type> local_data;

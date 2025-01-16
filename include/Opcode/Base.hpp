@@ -117,7 +117,7 @@ public:
     }
     instruction = toHexString(inst).substr(2);
     if (enablePrint) {
-      cout << format("Emit: {} | {}", assemblyString, instruction) << endl;
+      cout << format("       {} | {}", assemblyString, instruction) << endl;
     }
   }
   string getInstruction() {
@@ -137,6 +137,6 @@ public:
 };
 string encodeReturn() {
   const string instr = "C0035FD6";
-  cout << format("Emit: ret | {}", instr) << endl;
+  cout << format("       ret | {}", instr) << endl;
   return instr;
 }

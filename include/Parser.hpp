@@ -161,10 +161,10 @@ public:
     cout << "------ Processing function " << i << ": " << funcIndexNameMapper[i] << " ------" << endl;
     wasmFunctionVec[i].prepareParams();
     wasmFunctionVec[i].processCodeVec();
-    cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
-    cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
-         << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
-    cout << "Total result count: " << wasmFunctionVec[i].result_data.size() << endl;
+    // cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
+    // cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
+    //      << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
+    // cout << "Total result count: " << wasmFunctionVec[i].result_data.size() << endl;
     cout << endl;
   }
   void funcBatchProcess(bool execute = false) {

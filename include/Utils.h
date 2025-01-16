@@ -19,6 +19,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <exception>
+#include <csignal>
 #include <sys/mman.h>
 #include <type_traits>
 #include <typeinfo>
