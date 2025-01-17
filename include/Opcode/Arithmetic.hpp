@@ -11,6 +11,7 @@ string encodeAddSubShift(bool isSub, RegType regType, uint8_t rd, uint8_t rn, ui
   opcode.setSf(regType);
   opcode.setField(0b1011, 24);
   opcode.setField((int)(isSub), 30);
+  opcode.setField((int)(isCmp), 29);
   opcode.setShift(shift);
   opcode.setRm(rm);
   opcode.setRn(rn);

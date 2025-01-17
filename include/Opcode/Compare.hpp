@@ -5,12 +5,12 @@
 string encodeCompareNegativeShift(RegType regType, uint8_t rn, uint8_t rm, uint8_t imm6 = 0, uint8_t shift = 0, bool smallEndian = true) {
   // CMN shifted register:
   // An alias of adds, only discards the result
-  return encodeAddSubShift(false, regType, 31, rn, rm, imm6, shift, smallEndian);
+  return encodeAddSubShift(false, regType, 31, rn, rm, imm6, shift, true, smallEndian);
 }
 string encodeCompareShift(RegType regType, uint8_t rn, uint8_t rm, uint8_t imm6 = 0, uint8_t shift = 0, bool smallEndian = true) {
   // CMP shifted register:
   // An alias of subs, only discards the result
-  return encodeAddSubShift(true, regType, 31, rn, rm, imm6, shift, smallEndian);
+  return encodeAddSubShift(true, regType, 31, rn, rm, imm6, shift, true, smallEndian);
 }
 string encodeCompareImm(RegType regType, uint8_t rn, uint16_t imm12, bool shift = 0, bool smallEndian = true) {
   return encodeAddSubImm(regType, true, 31, rn, imm12, shift, true, true, smallEndian);

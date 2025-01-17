@@ -80,9 +80,19 @@ public:
 
     insertLabel("setjmp");
     wasm_instructions += getSetJmpInstr();
+
+    insertLabel("preparelongjmp");
+    wasm_instructions += encodeMovRegister(X_REG, 14, 30); // x14 <- x30
+    wasm_instructions += encodeMovSP(X_REG, 15, 31);       // x15 <- sp
+    wasm_instructions += encodeMovRegister(X_REG, 0, 13);  // x0 <- x13
+    fakeInsertBranch("longjmp", BranchType());
+
     insertLabel("longjmp");
     wasm_instructions += getLongJmpInstr();
-    insertLabel("divbyzeroException");
+
+    insertLabel("raiseException");
+    // doing this because the sp we backed up is wrong, its after stp (sp is decreased)
+    // also x30 is set to the instruction after bl setjmp, not the origin return address, so it's also wrong
     wasm_instructions += encodeMovRegister(X_REG, 30, 14); // x30 <- x14
     wasm_instructions += encodeMovSP(X_REG, 31, 15);       // sp <- x31
 
@@ -337,11 +347,11 @@ public:
             } else if (typeInfo == 'd') {
               throw std::invalid_argument("Fmov not supported yet!");
             } else if (typeInfo == 'l') {
-              const string instr = WrapperEncodeMovInt64(i, value, RegType::X_REG);
+              const string instr = WrapperEncodeMovInt64(i, value);
               // cout << format("Emit: mov x{}, {} | {}", i, value, convertEndian(instr)) << endl;
               pre_instructions_for_param_loading += instr;
             } else if (typeInfo == 'i') {
-              const string instr = WrapperEncodeMovInt32(i, value, RegType::W_REG);
+              const string instr = WrapperEncodeMovInt32(i, value);
               // cout << format("Emit: mov s{}, {} | {}", i, value, convertEndian(instr)) << endl;
               pre_instructions_for_param_loading += instr;
             }
@@ -351,8 +361,8 @@ public:
     cout << "---Loading parameters finished---" << endl;
   }
   void resetAfterExecution() {
-    pre_instructions_for_param_loading = "";
-    wasm_instructions = ""; // no need to reset this?
+    pre_instructions_for_param_loading.clear();
+    wasm_instructions.clear(); // no need to reset this?
     stack.clear();
     fake_insert_map.clear();
     label_map.clear();
@@ -361,11 +371,11 @@ public:
     wasm_instructions += encodeLdpStp(X_REG, STR, 29, 30, 31, -0x20, EncodingMode::PreIndex); // stp x29, x30, [sp, #-0x20]!
 
     wasm_instructions += encodeMovRegister(X_REG, 0, BACK_REG); // x0 <- x13
-    fakeInsertBranch("setjmp", BranchType(false, true));
+    fakeInsertBranch("setjmp", BranchType(false, true));        // bl setjmp
 
     wasm_instructions += encodeCompareImm(X_REG, 0, 0);
-    fakeInsertBranch("divbyzeroException", BranchType(true, false, reverse_cond_str_map.at("ne"))); // todo: if not equal, goto exception handling
-    wasm_instructions += encodeLdpStp(X_REG, LDR, 29, 30, 31, 0x20, EncodingMode::PostIndex);       // ldp x29, x30, [sp], #0x20
+    fakeInsertBranch("raiseException", BranchType(true, false, reverse_cond_str_map.at("ne"))); // todo: if not equal, goto exception handling
+    wasm_instructions += encodeLdpStp(X_REG, LDR, 29, 30, 31, 0x20, EncodingMode::PostIndex);   // ldp x29, x30, [sp], #0x20
   }
   void fakeInsertBranch(string label, BranchType branchType) {
     /**
@@ -469,7 +479,7 @@ public:
     // munmap(reinterpret_cast<void *>(instruction_set), full_instructions); // Can't unmap here, TODO: will have memory leak here
     // WARN: reset things, very important if we want to call it again!
     resetAfterExecution();
-    if (return_code){
+    if (return_code) {
       throw string("Wasm trapped");
     }
     return ans;
@@ -598,13 +608,13 @@ public:
             throw std::invalid_argument("Don't support double const yet; need to properly implement fmov or store double first");
           } else if (typeInfo == 'i') {
             cout << format("i32.const {}", value) << endl;
-            string load_to_reg_instr = WrapperEncodeMovInt32(11, value, RegType::W_REG);
+            string load_to_reg_instr = WrapperEncodeMovInt32(11, value);
             // cout << format("Emit: mov {}, w11 | {}", value, convertEndian(load_to_reg_instr)) << endl;
             string store_to_stack_instr = encodeLoadStoreImm(W_REG, STR, 11, 31, wasm_stack_pointer);
             constructFullinstr(load_to_reg_instr + store_to_stack_instr);
           } else if (typeInfo == 'l') {
             cout << format("i64.const {}", value) << endl;
-            string load_to_reg_instr = WrapperEncodeMovInt64(11, value, RegType::X_REG);
+            string load_to_reg_instr = WrapperEncodeMovInt64(11, value);
             // cout << format("Emit: mov {}, x11 | {}", value, convertEndian(load_to_reg_instr)) << endl;
             string store_to_stack_instr = encodeLoadStoreImm(X_REG, STR, 11, 31, wasm_stack_pointer);
             constructFullinstr(load_to_reg_instr + store_to_stack_instr);
@@ -672,16 +682,27 @@ public:
       wasm_instructions += encodeMul(regtype, 11, 12, 11);
       break;
     case '/':
-      wasm_instructions += encodeCompareImm(regtype, 11, 0);
-      fakeInsertBranch("div", BranchType(true, false, reverse_cond_str_map.at("ne")));
-      // continues to longjmp if (b = 0), otherwise jump to div
-      wasm_instructions += encodeMovRegister(X_REG, 14, 30); // x14 <- x30
-      wasm_instructions += encodeMovSP(X_REG, 15, 31);       // x15 <- sp
+      wasm_instructions += encodeCompareImm(regtype, 11, 0); // cmp b, #0
+      fakeInsertBranch("preparelongjmp", BranchType(true, false, reverse_cond_str_map.at("eq")));
 
-      wasm_instructions += encodeMovRegister(X_REG, 0, 13); // x0 <- x13
-      fakeInsertBranch("longjmp", BranchType());
+      if (regtype == X_REG) {
+        wasm_instructions += WrapperEncodeMovInt64(5, 1UL << 63);
+        wasm_instructions += encodeCompareShift(X_REG, 11, 5);
+      } else {
+        wasm_instructions += WrapperEncodeMovInt32(5, 1 << 31);
+        wasm_instructions += encodeCompareShift(W_REG, 11, 5);
+      }
+      fakeInsertBranch("preparelongjmp", BranchType(true, false, reverse_cond_str_map.at("ge")));
 
-      insertLabel("div");
+      if (regtype == X_REG) {
+        wasm_instructions += WrapperEncodeMovInt64(5, 1UL << 63);
+        wasm_instructions += encodeCompareShift(X_REG, 11, 5);
+      } else {
+        wasm_instructions += WrapperEncodeMovInt32(5, 1 << 31);
+        wasm_instructions += encodeCompareShift(W_REG, 11, 5);
+      }
+      fakeInsertBranch("preparelongjmp", BranchType(true, false, reverse_cond_str_map.at("lt")));
+
       wasm_instructions += encodeDiv(regtype, isSigned, 11, 12, 11);
 
       break;

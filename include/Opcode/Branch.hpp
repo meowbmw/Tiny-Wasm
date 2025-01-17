@@ -38,3 +38,13 @@ string encodeBranchRegister(uint8_t rn, bool hasReturn = false, bool smallEndian
   opcode.setField(rn, 5, 5);
   return opcode.getInstruction();
 }
+
+string encodeAdr(uint8_t rd, int32_t imm, bool smallEndian = true) {
+  // todo: need to check correctness!!
+  auto opcode = Arm64Opcode(smallEndian);
+  opcode.setField(1, 28);
+  opcode.setField(imm & 0x3, 29, 2);
+  opcode.setField((imm >> 2) & 0x7FFFF, 5, 19);
+  opcode.setRd(rd);
+  return opcode.getInstruction();
+}
