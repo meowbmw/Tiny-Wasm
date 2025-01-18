@@ -682,27 +682,30 @@ public:
       wasm_instructions += encodeMul(regtype, 11, 12, 11);
       break;
     case '/':
-      wasm_instructions += encodeCompareImm(regtype, 11, 0); // cmp b, #0
-      fakeInsertBranch("preparelongjmp", BranchType(true, false, reverse_cond_str_map.at("eq")));
+      wasm_instructions += encodeCompareImm(regtype, 11, 0);                                      // cmp b, #0
+      fakeInsertBranch("preparelongjmp", BranchType(true, false, reverse_cond_str_map.at("eq"))); // checks for division by zero
 
+      // if b = -1, checks a
       if (regtype == X_REG) {
-        wasm_instructions += WrapperEncodeMovInt64(5, 1UL << 63);
+        wasm_instructions += WrapperEncodeMovInt64(5, -1);
         wasm_instructions += encodeCompareShift(X_REG, 11, 5);
-      } else {
-        wasm_instructions += WrapperEncodeMovInt32(5, 1 << 31);
-        wasm_instructions += encodeCompareShift(W_REG, 11, 5);
-      }
-      fakeInsertBranch("preparelongjmp", BranchType(true, false, reverse_cond_str_map.at("ge")));
+        fakeInsertBranch("normal_div", BranchType(true, false, reverse_cond_str_map.at("ne"))); // if b != -1, goto normal div
 
-      if (regtype == X_REG) {
-        wasm_instructions += WrapperEncodeMovInt64(5, 1UL << 63);
-        wasm_instructions += encodeCompareShift(X_REG, 11, 5);
+        wasm_instructions += WrapperEncodeMovInt64(5, INT64_MIN);
+        wasm_instructions += encodeCompareShift(X_REG, 12, 5);
+        fakeInsertBranch("normal_div", BranchType(true, false, reverse_cond_str_map.at("ne"))); // if a != INT64_MIN, goto normal div
       } else {
-        wasm_instructions += WrapperEncodeMovInt32(5, 1 << 31);
+        wasm_instructions += WrapperEncodeMovInt32(5, -1);
         wasm_instructions += encodeCompareShift(W_REG, 11, 5);
-      }
-      fakeInsertBranch("preparelongjmp", BranchType(true, false, reverse_cond_str_map.at("lt")));
+        fakeInsertBranch("normal_div", BranchType(true, false, reverse_cond_str_map.at("ne"))); // if b != -1, goto normal div
 
+        wasm_instructions += WrapperEncodeMovInt32(5, INT32_MIN);
+        wasm_instructions += encodeCompareShift(W_REG, 12, 5);
+        fakeInsertBranch("normal_div", BranchType(true, false, reverse_cond_str_map.at("ne"))); // if a != INT32_MIN, goto normal div
+      }
+      fakeInsertBranch("preparelongjmp", BranchType()); // this means a=INT32_MIN and b=-1, goto raise exception int overflow
+
+      insertLabel("normal_div");
       wasm_instructions += encodeDiv(regtype, isSigned, 11, 12, 11);
 
       break;
