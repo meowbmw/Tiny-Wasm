@@ -11,12 +11,21 @@ jobs:
   test-on-arm64:
     runs-on: ubuntu-latest
     steps:
+      - name: enable arm64 packages
+        run:
+          sudo dpkg --add-architecture arm64 &&
+          sudo apt update
+
       -
         name: install build essentials
         run:
-          sudo apt update &&
           sudo apt install gcc g++ libgtest-dev cmake make build-essential sed gcc-aarch64-linux-gnu g++-aarch64-linux-gnu  
       
+      -
+        name: install project needed packages
+        run:
+          sudo apt install libcapstone-dev:arm64 python3-capstone nlohmann-json3-dev libgtest-dev build-essential g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
       -
         name: install qemu
         run:

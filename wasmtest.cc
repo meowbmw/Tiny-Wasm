@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "nlohmann/json.hpp"
 #include "include/Parser.hpp"
+#include "nlohmann/json.hpp"
 using namespace std;
 using json = nlohmann::json;
 
@@ -60,22 +60,16 @@ void test_chapter(string chapter_number, string test_json) {
     cout << "Executing function " << function_index << ": " << function_name << endl;
     bool matched = false;
     bool exceptionThrown = false;
-    /*
+    int64_t ans;
     try {
-      // your code
-    } catch (ExceptionType &) // special exception type
-    {
-      exceptionThrown = true;
-    } catch (...) // or any exception at all
-    {
+      ans = curFunction.executeWasmInstr();
+    } catch (string s) {
       exceptionThrown = true;
     }
-    */
-    auto ans = curFunction.executeWasmInstr();
     if (v.second["type"] == "assert_trap") {
-      cout << format("Expecting: {}", "assert_trap") << endl;
-      cout << "Result: " << ans << endl;
-      matched = (to_string(ans) == "assert_trap");
+      cout << format("Expecting: {}", "trap") << endl;
+      cout << "Result: " << ((exceptionThrown) ? "trap" : to_string(ans)) << endl;
+      matched = exceptionThrown;
       cout << "Matched: " << (matched ? "True" : "False") << endl;
     } else if (curFunction.result_data.size() > 0) {
       cout << format("Expecting: {}", expect_str) << endl;
