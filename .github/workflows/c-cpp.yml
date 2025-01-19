@@ -9,7 +9,7 @@ on:
  
 jobs:
   test-on-arm64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: enable arm64 packages
         run:
