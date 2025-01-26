@@ -1,17 +1,6 @@
 #pragma once
 #include "Base.hpp"
 
-struct BranchType {
-  BranchType(bool with_condition = false, bool with_link = false, uint8_t Cond = 0) {
-    withCondition = with_condition;
-    withLink = with_link;
-    cond = Cond;
-  }
-  bool withCondition;
-  bool withLink;
-  uint8_t cond;
-};
-
 string encodeBranch(int32_t imm, bool withLink = false, bool smallEndian = true) {
   // offset is instruction level, i.e. forward 5 instruction => offset = 5
   // this is different from the origin b label!!

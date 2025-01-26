@@ -68,6 +68,16 @@ string getLongJmpInstr() {
   return instr;
 }
 
+struct controlFlowElement {
+  controlFlowElement(string s, int cur_length, vector<wasm_type> v) {
+    label = s;
+    current_wasm_length = cur_length;
+    signature = v;
+  }
+  string label;
+  int current_wasm_length;
+  vector<wasm_type> signature;
+};
 class WasmFunction {
 public:
   void processCodeVec() {
@@ -76,7 +86,7 @@ public:
     printOriginWasmOpcode(offset);
 
     // start processing wasm_instructions here
-    fakeInsertBranch("entry", BranchType()); // b main
+    fakeInsertBranch("entry", "b"); // b main
 
     insertLabel("setjmp");
     wasm_instructions += getSetJmpInstr();
@@ -85,7 +95,7 @@ public:
     wasm_instructions += encodeMovRegister(X_REG, 14, 30); // x14 <- x30
     wasm_instructions += encodeMovSP(X_REG, 15, 31);       // x15 <- sp
     wasm_instructions += encodeMovRegister(X_REG, 0, 13);  // x0 <- x13
-    fakeInsertBranch("longjmp", BranchType());
+    fakeInsertBranch("longjmp", "b");
 
     insertLabel("longjmp");
     wasm_instructions += getLongJmpInstr();
@@ -99,7 +109,7 @@ public:
     // store return code 1 to [x13]
     wasm_instructions += encodeMovz(11, 0x1, X_REG, 0);                   // x11=1, this register can be any that is not used and caller-saved
     wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, BACK_REG, 0); // [x13]=x11=1
-    fakeInsertBranch("finalize", BranchType());
+    fakeInsertBranch("finalize", "b");
 
     insertLabel("entry");
     main_entry_initialize(offset);
@@ -371,25 +381,17 @@ public:
     wasm_instructions += encodeLdpStp(X_REG, STR, 29, 30, 31, -0x20, EncodingMode::PreIndex); // stp x29, x30, [sp, #-0x20]!
 
     wasm_instructions += encodeMovRegister(X_REG, 0, BACK_REG); // x0 <- x13
-    fakeInsertBranch("setjmp", BranchType(false, true));        // bl setjmp
+    fakeInsertBranch("setjmp", "bl");                           // bl setjmp
 
     wasm_instructions += encodeCompareImm(X_REG, 0, 0);
-    fakeInsertBranch("raiseException", BranchType(true, false, reverse_cond_str_map.at("ne"))); // todo: if not equal, goto exception handling
-    wasm_instructions += encodeLdpStp(X_REG, LDR, 29, 30, 31, 0x20, EncodingMode::PostIndex);   // ldp x29, x30, [sp], #0x20
+    fakeInsertBranch("raiseException", "bne");                                                // todo: if not equal, goto exception handling
+    wasm_instructions += encodeLdpStp(X_REG, LDR, 29, 30, 31, 0x20, EncodingMode::PostIndex); // ldp x29, x30, [sp], #0x20
   }
-  void fakeInsertBranch(string label, BranchType branchType) {
-    /**
-     * To faciliate branch label determination, we use a fake insert technique
-     * we first insert a fake instruction, and replace it when we know where the label is
-     * We also use an unordered_map to keep track of the insertions
-     * its contents will be like <current label, {wasm_instructions.size(), BranchType}>
-     */
+  void fakeInsertBranch(string label, string BranchStr) {
     int64_t cur_location = wasm_instructions.size();
-    cout << format("       {} {}", (branchType.withLink ? "bl" : "b" + (branchType.withCondition ? "." + cond_str_map.at(branchType.cond) : "")),
-                   label)
-         << endl;
+    cout << format("       {} {}", BranchStr, label) << endl;
     wasm_instructions += "FFFFFFFF"; // fake insert branch instruction
-    fake_insert_map.insert({label, {cur_location, branchType}});
+    fake_insert_map.insert({label, {cur_location, BranchStr}});
   }
   void insertLabel(string label) {
     cout << format("{}: ", label) << endl;
@@ -401,7 +403,7 @@ public:
      * it will replace fake instruction with real ones
      */
     for (const auto &x : fake_insert_map) {
-      auto [origin_location, branch_type] = x.second;
+      auto [origin_location, BranchStr] = x.second;
       cout << "++++++++++++++++" << endl;
       cout << format("Fixing fake branch to {} at {}", x.first, origin_location) << endl;
       cout << "Before fix: " << wasm_instructions.substr(origin_location, 8) << endl;
@@ -411,10 +413,13 @@ public:
       // todo: check correctness
       streambuf *old = cout.rdbuf();
       cout.rdbuf(0);
-      if (branch_type.withCondition) {
-        wasm_instructions.replace(origin_location, 8, encodeBranchCondition(instructions_level_offset, branch_type.cond));
+      if (BranchStr == "b") {
+        wasm_instructions.replace(origin_location, 8, encodeBranch(instructions_level_offset));
+      } else if (BranchStr == "bl") {
+        wasm_instructions.replace(origin_location, 8, encodeBranch(instructions_level_offset, true));
       } else {
-        wasm_instructions.replace(origin_location, 8, encodeBranch(instructions_level_offset, branch_type.withLink));
+        // be,beq,bne,etc..
+        wasm_instructions.replace(origin_location, 8, encodeBranchCondition(instructions_level_offset, reverse_cond_str_map.at(BranchStr.substr(1))));
       }
       cout.rdbuf(old);
       cout << "After fix: " << wasm_instructions.substr(origin_location, 8) << endl;
@@ -682,28 +687,28 @@ public:
       wasm_instructions += encodeMul(regtype, 11, 12, 11);
       break;
     case '/':
-      wasm_instructions += encodeCompareImm(regtype, 11, 0);                                      // cmp b, #0
-      fakeInsertBranch("preparelongjmp", BranchType(true, false, reverse_cond_str_map.at("eq"))); // checks for division by zero
+      wasm_instructions += encodeCompareImm(regtype, 11, 0); // cmp b, #0
+      fakeInsertBranch("preparelongjmp", "beq");             // checks for division by zero
 
       // if b = -1, checks a
       if (regtype == X_REG) {
         wasm_instructions += WrapperEncodeMovInt64(5, -1);
         wasm_instructions += encodeCompareShift(X_REG, 11, 5);
-        fakeInsertBranch("normal_div", BranchType(true, false, reverse_cond_str_map.at("ne"))); // if b != -1, goto normal div
+        fakeInsertBranch("normal_div", "bne"); // if b != -1, goto normal div
 
         wasm_instructions += WrapperEncodeMovInt64(5, INT64_MIN);
         wasm_instructions += encodeCompareShift(X_REG, 12, 5);
-        fakeInsertBranch("normal_div", BranchType(true, false, reverse_cond_str_map.at("ne"))); // if a != INT64_MIN, goto normal div
+        fakeInsertBranch("normal_div", "bne"); // if a != INT64_MIN, goto normal div
       } else {
         wasm_instructions += WrapperEncodeMovInt32(5, -1);
         wasm_instructions += encodeCompareShift(W_REG, 11, 5);
-        fakeInsertBranch("normal_div", BranchType(true, false, reverse_cond_str_map.at("ne"))); // if b != -1, goto normal div
+        fakeInsertBranch("normal_div", "bne"); // if b != -1, goto normal div
 
         wasm_instructions += WrapperEncodeMovInt32(5, INT32_MIN);
         wasm_instructions += encodeCompareShift(W_REG, 12, 5);
-        fakeInsertBranch("normal_div", BranchType(true, false, reverse_cond_str_map.at("ne"))); // if a != INT32_MIN, goto normal div
+        fakeInsertBranch("normal_div", "bne"); // if a != INT32_MIN, goto normal div
       }
-      fakeInsertBranch("preparelongjmp", BranchType()); // this means a=INT32_MIN and b=-1, goto raise exception int overflow
+      fakeInsertBranch("preparelongjmp", "b"); // this means a=INT32_MIN and b=-1, goto raise exception int overflow
 
       insertLabel("normal_div");
       wasm_instructions += encodeDiv(regtype, isSigned, 11, 12, 11);
@@ -766,26 +771,60 @@ public:
       throw "Too big index {" + to_string(var_index) + "} for local data; skipping current op;";
     }
   }
+  void emitIfOp(int i) {
+    /**
+    https://github.com/sunfishcode/wasm-reference-manual/blob/master/WebAssembly.md#type-encoding-type
+    */
+    vector<wasm_type> signature; // should be all zeros with different types
+    if (code_vec[i] == "7f") {   // i32
+      signature.push_back(static_cast<int32_t>(0));
+    } else if (code_vec[i] == "7e") { // i64
+      signature.push_back(static_cast<int64_t>(0));
+    } else if (code_vec[i] == "7d") { // f32
+      throw "return f32 after if not implemented yet";
+    } else if (code_vec[i] == "7c") { // f64
+      throw "return f64 after if not implemented yet";
+    } else if (code_vec[i] == "70") { // funcref
+      throw "return funcref after if not implemented yet";
+    } else if (code_vec[i] == "60") { // func
+      throw "return func after if not implemented yet";
+    } else if (code_vec[i] == "40") { // void
+      // no need to push anything
+    } else {
+      throw format("invalid byte after if: {}. Check wasm binary integrity", code_vec[i]);
+    }
+    string label = "Unbound_if_" + to_string(if_label);
+    control_flow_stack.push_back(controlFlowElement(label, stack.size(), signature));
+    fakeInsertBranch(label, "bnz");
+
+    if_label += 1;
+  }
   void jiting_wasm_code(int i) {
     cout << "--- JITing wasm code ---" << endl;
     wasm_stack_pointer = wasm_stack_end_location - 8; // WARN!!! VERY IMPORTANT NOT TO USE THE END LOCATION OR IT WILL OVERWRITE X29
     // cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
+    control_flow_stack.push_back(controlFlowElement(
+        "LAST", 0, result_data)); // TODO: this might need to be called on every function enter, currently it is only executed once.
+    // This instruction is necessary for "end" to pop off control stack
     while (i < code_vec.size()) {
       /**
        * WebAssembly Opcodes
        * https://pengowray.github.io/wasm-ops/
        */
-      if (code_vec[i] == "0f") { // ret
-        break;                   // todo: maybe need further handling here??
-        // can't tell the difference between ret and end yet.
-        restoreStack();
-        emitRet();
-        ++i;
+      if (code_vec[i] == "04") { // if
+        // todo: currently don't support multi-value return
+        // we assume at most one return can occur, or simply none return
+        emitIfOp(i);
+        i += 2;
+      } else if (code_vec[i] == "05") { // else
+
+        i += 1;
+      } else if (code_vec[i] == "0f") { // ret
+
       } else if (code_vec[i] == "0b") { // end
-        break;                          // todo: maybe need further handling here??
-        restoreStack();
-        emitRet();
-        ++i;
+        auto [label, stack_length, signature] = control_flow_stack.back();
+        control_flow_stack.pop_back();
+        i += 1;
       } else if (code_vec[i] == "20") { // local.get
         commonLocalOp(i, "get");
         i += 2;
@@ -797,11 +836,13 @@ public:
         i += 2;
       } else if (code_vec[i] == "41") { // i32.const
         wasm_type elem = static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16));
+        // todo: read 1 byte is wrong here, should read by leb128 until end
         emitConst(elem);
         stack.push_back(elem);
         i += 2;
       } else if (code_vec[i] == "42") { // i64.const
         wasm_type elem = static_cast<int64_t>(stoul(code_vec[i + 1], nullptr, 16));
+        // todo: read 1 byte is wrong here, should read by leb128 until end
         emitConst(elem);
         stack.push_back(elem);
         i += 2;
@@ -894,6 +935,8 @@ public:
   int wasm_stack_start_location = 0;
   int wasm_stack_end_location = 0;
   int wasm_stack_pointer = 0;
+  int if_label = 0;
+  int else_label = 0;
   int type;
   u_int64_t local_var_declare_count = 0;
 
@@ -905,12 +948,13 @@ public:
   vector<wasm_type> param_data;
   vector<wasm_type> result_data;
   vector<wasm_type> stack;
+  vector<controlFlowElement> control_flow_stack;
 
   map<char, ArithOperation> operations_map;
   map<pair<TypeCategory, int>, int> vecToStack;        // {TypeCategory::PARAM, 0} : 0x4
   map<pair<TypeCategory, int>, RegType> regTypeGetter; // {TypeCategory::PARAM, 0}: LDR32
   map<int, pair<TypeCategory, int>> stackToVec;        // 0x4 : {TypeCategory::PARAM: 0}
-  unordered_multimap<string, pair<int64_t, BranchType>> fake_insert_map;
+  unordered_multimap<string, pair<int64_t, string>> fake_insert_map;
   unordered_map<string, int64_t> label_map;
   /**
    * we have 4 vectors
