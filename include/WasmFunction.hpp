@@ -410,9 +410,6 @@ public:
       // cout << wasm_instructions << endl;
       int instructions_level_offset = (label_map[x.first] - origin_location) / 8;
       cout << "Instructions level offset (estimated): " << instructions_level_offset << endl;
-      // todo: check correctness
-      streambuf *old = cout.rdbuf();
-      cout.rdbuf(0);
       if (BranchStr == "b") {
         wasm_instructions.replace(origin_location, 8, encodeBranch(instructions_level_offset));
       } else if (BranchStr == "bl") {
@@ -421,7 +418,6 @@ public:
         // be,beq,bne,etc..
         wasm_instructions.replace(origin_location, 8, encodeBranchCondition(instructions_level_offset, reverse_cond_str_map.at(BranchStr.substr(1))));
       }
-      cout.rdbuf(old);
       cout << "After fix: " << wasm_instructions.substr(origin_location, 8) << endl;
       // cout << wasm_instructions << endl;
     }
@@ -481,7 +477,7 @@ public:
     auto return_code = *reinterpret_cast<int16_t *>(buffer);
     cout << "Return code is: " << return_code << endl;
     free(buffer);
-    // munmap(reinterpret_cast<void *>(instruction_set), full_instructions); // Can't unmap here, TODO: will have memory leak here
+    munmap(reinterpret_cast<void *>(instruction_set), full_instructions.size()); // GC here
     // WARN: reset things, very important if we want to call it again!
     resetAfterExecution();
     if (return_code) {
