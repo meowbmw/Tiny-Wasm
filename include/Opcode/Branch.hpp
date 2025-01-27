@@ -1,6 +1,13 @@
 #pragma once
 #include "Base.hpp"
 
+string encodeReturn(uint8_t rn = 30, bool smallEndian = true) {
+  auto opcode = Arm64Opcode(smallEndian);
+  opcode.setField(0b1101011001011111000000, 10);
+  opcode.setRn(rn);
+  return opcode.getInstruction();
+}
+
 string encodeBranch(int32_t imm, bool withLink = false, bool smallEndian = true) {
   // offset is instruction level, i.e. forward 5 instruction => offset = 5
   // this is different from the origin b label!!

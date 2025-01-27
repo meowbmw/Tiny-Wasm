@@ -48,13 +48,26 @@ const unordered_map<string, uint8_t> reverse_cond_str_map = {
     {"al", 0b1110}, // Always (unconditional)
     {"nv", 0b1111}  // Never (reserved)
 };
+auto getWasmType(const wasm_type &var) {
+  if (std::holds_alternative<int32_t>(var)) {
+    return W_REG;
+  } else if (std::holds_alternative<int64_t>(var)) {
+    return X_REG;
+  } else if (std::holds_alternative<float>(var)) {
+    return S_REG;
+  } else if (std::holds_alternative<double>(var)) {
+    return D_REG;
+  } else {
+    throw "Unknown type";
+  }
+}
 class Arm64Opcode {
 public:
   void makeAssmeblyString() {
     assemblyString = disassemble(inst);
   }
-  void setField(auto val, int offset, int set_length = 31) {
-    auto limit = (1 << set_length) - 1;
+  void setField(auto val, int offset, int set_length = 32) {
+    auto limit = (1LL << set_length) - 1;
     if (val > limit) {
       throw std::out_of_range("Encode value out of range.");
     }
@@ -83,16 +96,16 @@ public:
   void setImm7(auto imm7) {
     setField(imm7, 15, 7);
   }
-  void setImm9(auto imm9){
+  void setImm9(auto imm9) {
     setField(imm9, 12, 9);
   }
   void setImm12(auto imm12) {
     setField(imm12, 10, 12);
   }
-  void setImm16(auto imm16){
+  void setImm16(auto imm16) {
     setField(imm16, 5, 16);
   }
-  void setImm19(auto imm19){
+  void setImm19(auto imm19) {
     setField(imm19, 5, 19);
   }
   // set other fields
@@ -108,7 +121,7 @@ public:
   void setSh(auto sh) {
     setField(sh, 22, 1);
   }
-  void setHw(auto hw){
+  void setHw(auto hw) {
     setField(hw, 21, 2);
   }
   void commonEncode() {
@@ -135,8 +148,9 @@ public:
   bool enablePrint = true;
   bool smallEndian = true;
 };
-string encodeReturn() {
-  const string instr = "C0035FD6";
-  cout << format("       ret | {}", instr) << endl;
-  return instr;
+
+string encodeNop(bool smallEndian = true) {
+  auto opcode = Arm64Opcode(smallEndian);
+  opcode.setField(0b11010101000000110010000000011111, 0);
+  return opcode.getInstruction();
 }

@@ -6,19 +6,21 @@ using json = nlohmann::json;
 // aarch64-linux-gnu-g++ -c arm64.s && aarch64-linux-gnu-objdump -d arm64.o
 // aarch64-linux-gnu-g++ main.cpp -o main && qemu-aarch64 -L /usr/aarch64-linux-gnu ./main
 // ccache /usr/bin/clang++ --target=aarch64-linux-gnu -std=c++20 -g main.cpp -o main -lcapstone
+auto normal_cout = cout.rdbuf();
+
 void test_chapter(const string &chapter_number) {
   ofstream parser_cout("parserOutput.txt");
-  auto normal_cout = cout.rdbuf();
+  cout.rdbuf(parser_cout.rdbuf()); // Redirect parser output to file; it's too much...
   ifstream f;
   string base_path = format("test/CH{}/", chapter_number);
   if (chapter_number == "02") {
     f = ifstream(base_path + "local.json");
   } else if (chapter_number == "03") {
     f = ifstream(base_path + "arithmetic.json");
-    // f = ifstream(base_path + "custom.json");
   } else if (chapter_number == "04") {
     f = ifstream(base_path + "div.json");
-    // f = ifstream(base_path + "custom.json");
+  } else if (chapter_number == "05") {
+    f = ifstream(base_path + "if.json");
   }
   json data = json::parse(f);
   multimap<string, json> command_map;
@@ -30,17 +32,17 @@ void test_chapter(const string &chapter_number) {
       if (parser_map.contains(cur_wasm_file) == false) {
         Parser cur_parser = Parser(base_path + cur_wasm_file);
         parser_map.insert({cur_wasm_file, cur_parser});
-        cout.rdbuf(parser_cout.rdbuf()); // Redirect parser output to file; it's too much...
         parser_map[cur_wasm_file].parse();
         cout << endl;
-        cout.rdbuf(normal_cout); // Restore cout
       }
     } else if (data["commands"][i].contains("action")) {
       command_map.insert({cur_wasm_file, data["commands"][i]});
     }
   }
   for (auto &v : command_map) {
-    cout << "---Asserting---" << endl;
+    cout << "=====================================================================" << endl;
+    cout << v.first << " " << v.second << endl;
+    cout << "------ Input ------" << endl;
     string function_name = v.second["action"]["field"];
     Parser &curParser = parser_map[v.first];
     int function_index = curParser.funcNameIndexMapper[function_name];
@@ -55,16 +57,14 @@ void test_chapter(const string &chapter_number) {
       if (v.second["action"]["args"][i]["type"] == "i32") {
         param_data[i] = static_cast<int32_t>(stoul(v_str));
       } else if (v.second["action"]["args"][i]["type"] == "i64") {
-        param_data[i] = static_cast<int64_t>(stoul(v_str));
+        param_data[i] = static_cast<int64_t>(stoull(v_str));
       } else {
         cout << "Unsupported param type, probably float" << endl;
       }
     }
     cout << "param_data: " << param_data << endl;
-    cout.rdbuf(parser_cout.rdbuf()); // Redirect parser output to file; it's too much...
+    cout << endl;
     curParser.funcSingleProcess(function_index);
-    cout.rdbuf(normal_cout); // Restore cout
-    cout << v.first << " " << v.second << endl;
     string expect_str = v.second["expected"][0]["value"].dump();
     expect_str = expect_str.substr(1, expect_str.size() - 2);
     cout << "Executing function " << function_index << ": " << function_name << endl;
@@ -95,18 +95,20 @@ void test_chapter(const string &chapter_number) {
     if (matched == false) {
       throw "Unmatched";
     }
+    cout << endl;
   }
 }
 int main() {
   vector<string> test_chapters = {"02", "03", "04"};
 
-  // vector<string> test_chapters = {"04"};
+  // vector<string> test_chapters = {"05"};
   cout << "A simple testing program to check our JIT works as intended." << endl;
   cout << "Chapters to test: " << test_chapters << endl;
   for (auto &chapter_number : test_chapters) {
     cout << "--- Testing chapter " << chapter_number << " ---" << endl;
     test_chapter(chapter_number);
-    cout << endl;
+    cout.rdbuf(normal_cout); // Restore cout
+    cout << "Ok" << endl;
   }
   return 0;
 }

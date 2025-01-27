@@ -358,11 +358,9 @@ public:
               throw std::invalid_argument("Fmov not supported yet!");
             } else if (typeInfo == 'l') {
               const string instr = WrapperEncodeMovInt64(i, value);
-              // cout << format("Emit: mov x{}, {} | {}", i, value, convertEndian(instr)) << endl;
               pre_instructions_for_param_loading += instr;
             } else if (typeInfo == 'i') {
               const string instr = WrapperEncodeMovInt32(i, value);
-              // cout << format("Emit: mov s{}, {} | {}", i, value, convertEndian(instr)) << endl;
               pre_instructions_for_param_loading += instr;
             }
           },
@@ -789,37 +787,56 @@ public:
     } else {
       throw format("invalid byte after if: {}. Check wasm binary integrity", code_vec[i]);
     }
-    string label = "Unbound_if_" + to_string(if_label);
+    string label = "Else/End_" + to_string(if_label++);
     control_flow_stack.push_back(controlFlowElement(label, stack.size(), signature));
-    fakeInsertBranch(label, "bnz");
-
-    if_label += 1;
+    RegType regtype = getWasmType(stack.back());
+    cout << "Compare for if:" << endl;
+    wasm_instructions += encodeLoadStoreImm(regtype, LDR, 11, 31, wasm_stack_pointer + 8);
+    wasm_instructions += encodeCompareImm(regtype, 11, 0);
+    fakeInsertBranch(label, "beq"); // if =0, jump to else or end; else continue
+    cout << "If true:" << endl;
+  }
+  void emitElseOp() {
+    auto [label, stack_length, signature] = control_flow_stack.back();
+    control_flow_stack.pop_back();
+    string else_label = "End_" + to_string(if_label++);
+    control_flow_stack.push_back(controlFlowElement(else_label, stack.size(), signature));
+    fakeInsertBranch(else_label, "b");
+    insertLabel(label);
+  }
+  void emitEndOp() {
+    auto [label, stack_length, signature] = control_flow_stack.back();
+    control_flow_stack.pop_back();
+    insertLabel(label);
   }
   void jiting_wasm_code(int i) {
     cout << "--- JITing wasm code ---" << endl;
     wasm_stack_pointer = wasm_stack_end_location - 8; // WARN!!! VERY IMPORTANT NOT TO USE THE END LOCATION OR IT WILL OVERWRITE X29
     // cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
-    control_flow_stack.push_back(controlFlowElement(
-        "LAST", 0, result_data)); // TODO: this might need to be called on every function enter, currently it is only executed once.
+    control_flow_stack.push_back(
+        controlFlowElement("end", 0, result_data)); // TODO: this might need to be called on every function enter, currently it is only executed once.
     // This instruction is necessary for "end" to pop off control stack
     while (i < code_vec.size()) {
       /**
        * WebAssembly Opcodes
        * https://pengowray.github.io/wasm-ops/
        */
-      if (code_vec[i] == "04") { // if
+      if (code_vec[i] == "01") {
+        // nop
+        wasm_instructions += encodeNop();
+        i += 1;
+      } else if (code_vec[i] == "04") { // if
         // todo: currently don't support multi-value return
         // we assume at most one return can occur, or simply none return
-        emitIfOp(i);
+        emitIfOp(i + 1);
         i += 2;
       } else if (code_vec[i] == "05") { // else
-
+        emitElseOp();
         i += 1;
       } else if (code_vec[i] == "0f") { // ret
-
+        i += 1;
       } else if (code_vec[i] == "0b") { // end
-        auto [label, stack_length, signature] = control_flow_stack.back();
-        control_flow_stack.pop_back();
+        emitEndOp();
         i += 1;
       } else if (code_vec[i] == "20") { // local.get
         commonLocalOp(i, "get");
@@ -932,7 +949,6 @@ public:
   int wasm_stack_end_location = 0;
   int wasm_stack_pointer = 0;
   int if_label = 0;
-  int else_label = 0;
   int type;
   u_int64_t local_var_declare_count = 0;
 
