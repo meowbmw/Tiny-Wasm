@@ -4,8 +4,10 @@
 #include <bitset>
 #include <capstone/capstone.h>
 #include <cassert>
+#include <csignal>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <format>
 #include <fstream>
 #include <functional>
@@ -14,13 +16,12 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <exception>
-#include <csignal>
 #include <sys/mman.h>
 #include <type_traits>
 #include <typeinfo>
@@ -30,7 +31,7 @@
 using namespace std;
 // use this macro to support supplying parameter with default value
 // e.g. string instruction = silentCall(supply_default(encodeAddSubImm), regType, false, rd, rn, 0);
-#define supply_default(Function)                                                                                                                      \
+#define supply_default(Function)                                                                                                                     \
   [](auto &&...args) {                                                                                                                               \
     return Function(std::forward<decltype(args)>(args)...);                                                                                          \
   }
@@ -237,6 +238,60 @@ unsigned int GetBits(const std::string &bits, int start, int end) {
   assert(start >= 0 && end < bits.size() && start <= end);
   std::string bitRange = bits.substr(bits.size() - end - 1, end - start + 1);
   return std::bitset<32>(bitRange).to_ulong();
+}
+auto decodeLEB128(span<string> inputs, int bits, bool isSigned = true) {
+  // todo: unfinished & untested, don't use this to decode
+  uint64_t result = 0;
+  int shift = 0;
+  int i = 0;
+  while (i < inputs.size()) {
+    auto input = stoul(inputs[i + 1], nullptr, 16);
+    result |= (input & 0x7f) << shift;
+    shift += 7;
+    if ((input & 0x80) == 0) {
+      break;
+    }
+  }
+  if (isSigned && (shift < bits) && (stoul(inputs[i], nullptr, 16) & 0x40)) {
+    result |= (~0LL << shift);
+  }
+  uint64_t mask = (1UL << bits) - 1;
+  if (isSigned) {
+    return (int64_t)result & mask;
+  }
+  return result & mask;
+}
+auto decodeULEB128(span<uint8_t> inputs, int bits) {
+  uint64_t result = 0;
+  int shift = 0;
+  for (auto input : inputs) {
+    result |= (input & 0x7f) << shift;
+    if ((input & 0x80) == 0) {
+      break;
+    }
+    shift += 7;
+  }
+  uint64_t mask = (1UL << bits) - 1;
+  return result & mask;
+}
+
+auto decodeSLEB128(vector<uint8_t> inputs, int bits) {
+  int64_t result = 0;
+  int shift = 0;
+  int i = 0;
+  while (i < inputs.size() && (inputs[i] & 0x80)) {
+    result |= (inputs[i] & 0x7f) << shift;
+    shift += 7;
+    if ((inputs[i] & 0x80) == 0) {
+      break;
+    }
+    ++i;
+  }
+  if ((shift < bits) && (inputs[i] & 0x40)) {
+    result |= (~0LL << shift);
+  }
+  uint64_t mask = (1UL << bits) - 1;
+  return result & mask;
 }
 
 std::string toBinaryString(uint32_t value) {
