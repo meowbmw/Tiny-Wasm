@@ -74,3 +74,29 @@ void WasmFunction::initLocal() {
     constructFullinstr(instr);
   }
 }
+
+WasmFunction::WasmFunction() {
+  // initiate arithmetic operations map
+  operations_map['+'] = [](wasm_type a, wasm_type b) {
+    return a + b;
+  };
+  operations_map['-'] = [](wasm_type a, wasm_type b) {
+    return a - b;
+  };
+  operations_map['*'] = [](wasm_type a, wasm_type b) {
+    return a * b;
+  };
+  operations_map['/'] = [](wasm_type a, wasm_type b) {
+    std::visit(
+        [](auto &&value) {
+          if (value == 0) {
+            // cout << "! Division by zero in wasm code" << endl;
+          }
+          return wasm_type(0);
+          // disabled for now to check arm64 trap!!
+          // throw std::runtime_error("Division by zero");
+        },
+        b);
+    return a / b;
+  };
+}

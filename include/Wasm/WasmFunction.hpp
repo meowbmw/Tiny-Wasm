@@ -1,7 +1,11 @@
 #pragma once
 #include "CommonHeader.hpp"
 
-uint8_t BACK_REG = 13;
+uint8_t REG_BUFFER = 19;
+uint8_t REG_WASM_STACK = 20;
+uint8_t REG_TYPE_SIZE_STACK = 21;
+uint8_t REG_POINTER_WASM_STACK = 22;
+uint8_t REG_POINTER_TYPE_SIZE = 23;
 
 class WasmFunction {
 public:
@@ -17,9 +21,9 @@ public:
     wasm_instructions += getSetJmpInstr();
 
     insertLabel("preparelongjmp");
-    wasm_instructions += encodeMovRegister(X_REG, 14, 30); // x14 <- x30
-    wasm_instructions += encodeMovSP(X_REG, 15, 31);       // x15 <- sp
-    wasm_instructions += encodeMovRegister(X_REG, 0, 13);  // x0 <- x13
+    wasm_instructions += encodeMovRegister(X_REG, 14, 30);        // x14 <- x30, this is just backing up, x14 can be any other register that isn't used, same thing applies to x15 <- sp
+    wasm_instructions += encodeMovSP(X_REG, 15, 31);              // x15 <- sp
+    wasm_instructions += encodeMovRegister(X_REG, 0, REG_BUFFER); // x0 <- x[REG_BUFFER]
     fakeInsertBranch("longjmp", "b");
 
     insertLabel("longjmp");
@@ -32,8 +36,8 @@ public:
     wasm_instructions += encodeMovSP(X_REG, 31, 15);       // sp <- x31
 
     // store return code 1 to [x13]
-    wasm_instructions += encodeMovz(11, 0x1, X_REG, 0);                   // x11=1, this register can be any that is not used and caller-saved
-    wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, BACK_REG, 0); // [x13]=x11=1
+    wasm_instructions += encodeMovz(11, 0x1, X_REG, 0);                     // x11=1, this register can be any that is not used and caller-saved
+    wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, REG_BUFFER, 0); // [x[REG_BUFFER]]=x11=1
     fakeInsertBranch("finalize", "b");
 
     insertLabel("entry");
@@ -43,8 +47,8 @@ public:
     jiting_wasm_code(offset);
 
     // store return code 0 to x[0]
-    wasm_instructions += encodeMovz(11, 0x0, X_REG, 0);                   // x11=0, this register can be any that is not used and caller-saved
-    wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, BACK_REG, 0); // [x13]=x11=0
+    wasm_instructions += encodeMovz(11, 0x0, X_REG, 0);                     // x11=0, this register can be any that is not used and caller-saved
+    wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, REG_BUFFER, 0); // [x[REG_BUFFER]]=x11=0
 
     insertLabel("finalize");
     main_entry_finalize();
@@ -70,13 +74,13 @@ public:
   }
   void main_entry_initialize(int &offset) {
     getStackPreallocateSize(offset);
-    prepareStack();
+    prepareSp();
     initParam(); // initParam is storing to memory, prepareParams is storing to registers
     initLocal();
     // printInitStack();
   }
   void main_entry_finalize() {
-    restoreStack();
+    restoreSP();
     emitRet();
     print_stack();
   }
@@ -98,9 +102,9 @@ public:
         elem);
   }
   void getStackPreallocateSize(const int offset);
-  void prepareStack();
+  void prepareSp();
   void printInitStack();
-  void restoreStack();
+  void restoreSP();
   void prepareParams() {
     /**
      * Store params to their respective location before calling our function
@@ -111,9 +115,12 @@ public:
     if (param_data.size() == 0) {
       cout << "No params need to be load" << endl;
     }
-    int backReg = BACK_REG;
-    cout << "Backing up x0 buffer to x" << backReg << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, backReg, 0);
+    cout << "Backing up x0 buffer to x" << +REG_BUFFER << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_BUFFER, 0);
+    cout << "Backing up x1 wasm_stack pointer to x" << +REG_WASM_STACK << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_WASM_STACK, 1);
+    cout << "Backing up x2 type_size_stack pointer to x" << +REG_TYPE_SIZE_STACK << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_TYPE_SIZE_STACK, 2);
 
     cout << "Loading parameters" << endl;
     for (int i = 0; i < param_data.size(); ++i) {
@@ -147,8 +154,8 @@ public:
   void wrapper_setjmp() {
     wasm_instructions += encodeLdpStp(X_REG, STR, 29, 30, 31, -0x20, EncodingMode::PreIndex); // stp x29, x30, [sp, #-0x20]!
 
-    wasm_instructions += encodeMovRegister(X_REG, 0, BACK_REG); // x0 <- x13
-    fakeInsertBranch("setjmp", "bl");                           // bl setjmp
+    wasm_instructions += encodeMovRegister(X_REG, 0, REG_BUFFER); // x0 <- x[REG_BUFFER]
+    fakeInsertBranch("setjmp", "bl");                             // bl setjmp
 
     wasm_instructions += encodeCompareImm(X_REG, 0, 0);
     fakeInsertBranch("raiseException", "bne");                                                // todo: if not equal, goto exception handling
@@ -242,6 +249,8 @@ public:
   void constructFullinstr(string sub_instr);
   void jiting_wasm_code(int i) {
     cout << "--- JITing wasm code ---" << endl;
+    // todo: need to rework everywhere wasm_stack_pointer is used!!!
+    
     wasm_stack_pointer = wasm_stack_end_location - 8; // WARN!!! VERY IMPORTANT NOT TO USE THE END LOCATION OR IT WILL OVERWRITE X29
     // cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
     control_flow_stack.push_back(
@@ -345,31 +354,7 @@ public:
       // cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
     }
   }
-  WasmFunction() {
-    // initiate arithmetic operations map
-    operations_map['+'] = [](wasm_type a, wasm_type b) {
-      return a + b;
-    };
-    operations_map['-'] = [](wasm_type a, wasm_type b) {
-      return a - b;
-    };
-    operations_map['*'] = [](wasm_type a, wasm_type b) {
-      return a * b;
-    };
-    operations_map['/'] = [](wasm_type a, wasm_type b) {
-      std::visit(
-          [](auto &&value) {
-            if (value == 0) {
-              // cout << "! Division by zero in wasm code" << endl;
-            }
-            return wasm_type(0);
-            // disabled for now to check arm64 trap!!
-            // throw std::runtime_error("Division by zero");
-          },
-          b);
-      return a / b;
-    };
-  }
+  WasmFunction();
   // data section
   int stack_size = 0;
   int param_stack_start_location = 0;

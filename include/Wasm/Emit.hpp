@@ -7,9 +7,6 @@ void WasmFunction::emitGet(const uint64_t var_to_get, TypeCategory vecType) {
    * push to wasm stack memory[var[i]]
    * var[i] -> x/w11 -> stack[top]
    */
-
-  // todo: probably problematic after introducing if-else structure
-  // may need a major overhaul
   RegType regtype = regTypeGetter[{vecType, var_to_get}];
   int stack_offset = vecToStack[{vecType, var_to_get}];
   cout << format("Getting {}[{}]", type_category_to_string(vecType), var_to_get) << endl;

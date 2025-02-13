@@ -14,8 +14,8 @@ string encodeMovRegister(RegType regType, uint8_t rd, uint8_t rm, bool smallEndi
   opcode.setRn(0b11111);
   return opcode.getInstruction();
 }
-// 将立即数转换为MOVZ指令的机器码
-string encodeMovz(uint8_t rd, uint16_t imm16, RegType regType, uint8_t shift, bool smallEndian = true) {
+
+string encodeMovz(uint8_t rd, uint16_t imm16, RegType regType, uint8_t shift = 0, bool smallEndian = true) {
   auto opcode = Arm64Opcode(smallEndian);
   opcode.setSf(regType);
   opcode.setField(0b10100101, 23);

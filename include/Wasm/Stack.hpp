@@ -38,7 +38,7 @@ void WasmFunction::getStackPreallocateSize(const int offset) {
   cout << "Stack allocate size estimated to be: " << stack_size << endl;
   cout.rdbuf(old);
 }
-void WasmFunction::prepareStack() {
+void WasmFunction::prepareSp() {
   cout << "Sub sp register" << endl;
   string instr = encodeAddSubImm(X_REG, true, 31, 31, stack_size); // sub sp, sp, stack_size
   constructFullinstr(instr);
@@ -49,7 +49,7 @@ void WasmFunction::printInitStack() {
     cout << format("[sp, #0x{:x}] = {}[{}]", p.first, type_category_to_string(p.second.first), p.second.second) << endl;
   }
 }
-void WasmFunction::restoreStack() {
+void WasmFunction::restoreSP() {
   // getting result and restoring sp register
   cout << "Moving stack top to register as result" << endl;
   string prepare_ans_instr;

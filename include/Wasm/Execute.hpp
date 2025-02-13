@@ -3,7 +3,7 @@
 
 template <typename Func> auto WasmFunction::getFunctionPointer(string full_instructions) -> Func {
   const size_t arraySize = full_instructions.length() / 2;
-  auto charArray = make_unique<unsigned char[]>(arraySize); // 使用智能指针
+  auto charArray = make_unique<unsigned char[]>(arraySize); // use smart pointer to auto handle memory reclaim
   for (size_t i = 0; i < arraySize; ++i) {
     const string byteStr = full_instructions.substr(i * 2, 2);
     charArray[i] = static_cast<unsigned char>(stoul(byteStr, nullptr, 16));
@@ -49,13 +49,17 @@ int64_t WasmFunction::executeWasmInstr() {
     }
     cout << endl;
   }
-  auto instruction_set = getFunctionPointer<int64_t (*)(void *)>(full_instructions);
-  void *buffer = malloc(1024);
+  auto instruction_set = getFunctionPointer<int64_t (*)(void *, void *, void *)>(full_instructions);
+  void *buffer = malloc(8192);
+  void *wasm_stack = malloc(8192);
+  void *type_size_stack = malloc(8192);
   // !不需要做任何传参，因为参数已经放在寄存器里啦
-  int64_t ans = instruction_set(buffer);
+  int64_t ans = instruction_set(buffer, wasm_stack, type_size_stack);
   auto return_code = *reinterpret_cast<int16_t *>(buffer);
-  cout << "Return code is: " << return_code << endl;
+  cout << "Return code is: " << return_code << endl; // anything other than 0 means exception raised!
   free(buffer);
+  free(wasm_stack);
+  free(type_size_stack);
   munmap(reinterpret_cast<void *>(instruction_set), full_instructions.size()); // GC here
   // WARN: reset things, very important if we want to call it again!
   resetAfterExecution();
