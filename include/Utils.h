@@ -43,7 +43,6 @@ template <typename Func, typename... Args> string silentCall(Func func, Args... 
   cout.rdbuf(old);
   return result;
 }
-using wasm_type = std::variant<int32_t, int64_t, float, double>;
 enum class TypeCategory { PARAM, RESULT, LOCAL };
 string type_category_to_string(TypeCategory category) {
   switch (category) {

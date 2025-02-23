@@ -48,6 +48,7 @@ const unordered_map<string, uint8_t> reverse_cond_str_map = {
     {"al", 0b1110}, // Always (unconditional)
     {"nv", 0b1111}  // Never (reserved)
 };
+using wasm_type = std::variant<int32_t, int64_t, float, double>;
 auto getWasmType(const wasm_type &var) {
   if (std::holds_alternative<int32_t>(var)) {
     return W_REG;
