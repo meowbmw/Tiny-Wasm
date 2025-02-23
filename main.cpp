@@ -3,9 +3,15 @@
 using namespace std;
 using json = nlohmann::json;
 
-// aarch64-linux-gnu-g++ -c arm64.s && aarch64-linux-gnu-objdump -d arm64.o
-// aarch64-linux-gnu-g++ main.cpp -o main && qemu-aarch64 -L /usr/aarch64-linux-gnu ./main
-// ccache /usr/bin/clang++ --target=aarch64-linux-gnu -std=c++20 -g main.cpp -o main -lcapstone
+/**
+ * Run command:
+    aarch64-linux-gnu-g++ -c arm64.s && aarch64-linux-gnu-objdump -d arm64.o
+    aarch64-linux-gnu-g++ main.cpp -o main && qemu-aarch64 -L /usr/aarch64-linux-gnu ./main
+    ccache /usr/bin/clang++ --target=aarch64-linux-gnu -std=c++20 -g main.cpp -o main -lcapstone
+ * HINT: lldb read memory usage
+ * read 4 bytes from [x20, x22]
+ * memory read -f x -c 4 `$x20 + $x22`
+ */
 auto normal_cout = cout.rdbuf();
 
 void test_chapter(const string &chapter_number) {

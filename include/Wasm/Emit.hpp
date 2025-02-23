@@ -54,13 +54,11 @@ void WasmFunction::emitConst(wasm_type elem) {
         } else if (typeInfo == 'i') {
           cout << format("i32.const {}", value) << endl;
           string load_to_reg_instr = WrapperEncodeMovInt32(11, value);
-          // cout << format("Emit: mov {}, w11 | {}", value, convertEndian(load_to_reg_instr)) << endl;
           string store_to_stack_instr = encodeLoadStoreImm(W_REG, STR, 11, 31, wasm_stack_pointer);
           constructFullinstr(load_to_reg_instr + store_to_stack_instr);
         } else if (typeInfo == 'l') {
           cout << format("i64.const {}", value) << endl;
           string load_to_reg_instr = WrapperEncodeMovInt64(11, value);
-          // cout << format("Emit: mov {}, x11 | {}", value, convertEndian(load_to_reg_instr)) << endl;
           string store_to_stack_instr = encodeLoadStoreImm(X_REG, STR, 11, 31, wasm_stack_pointer);
           constructFullinstr(load_to_reg_instr + store_to_stack_instr);
         }

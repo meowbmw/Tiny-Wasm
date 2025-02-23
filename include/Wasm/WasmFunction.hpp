@@ -131,9 +131,9 @@ public:
 
     cout << "Let's test push and pop here" << endl;
     cout << "Push(1)" << endl;
-    push(wasm_type(1));
+    wasm_instructions += push(wasm_type(1));
     cout << "Pop that out" << endl;
-    pop();
+    wasm_instructions += pop();
     cout << "-- Check Above!! --" << endl;
     cout << "Loading parameters" << endl;
     for (int i = 0; i < param_data.size(); ++i) {
@@ -259,8 +259,8 @@ public:
   void emitElseOp();
   void emitEndOp();
   void emitRet();
-  void push(wasm_type val);
-  void pop();
+  string push(wasm_type val);
+  string pop();
   void constructFullinstr(string sub_instr);
   void jiting_wasm_code(int i) {
     cout << "--- JITing wasm code ---" << endl;
