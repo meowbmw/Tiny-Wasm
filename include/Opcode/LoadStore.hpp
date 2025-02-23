@@ -27,6 +27,14 @@ string encodeLdpStp(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rt2,
   return opcode.getInstruction();
 }
 
+/**
+ * Usage: LDR <Wt>, [<Xn|SP>], #<simm>
+ * encodeLoadStoreImm(X_REG, LDR, 0, 31, 0x10); // LDR X0, [SP, #0x10]
+ * encodeLoadStoreImm(W_REG, STR, 0, 31, 0x10); // STR W0, [SP, #0x10]
+ * encodeLoadStoreImm(X_REG, LDR, 0, 31, 0x10, EncodingMode::PreIndex); // LDR X0, [SP, #0x10]!
+ * encodeLoadStoreImm(X_REG, LDR, 0, 31, 0x10, EncodingMode::PostIndex); // LDR X0, [SP], #0x10
+ *
+ */
 string encodeLoadStoreImm(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rn, int16_t imm, EncodingMode mode = EncodingMode::UnSignedOffset,
                           bool smallEndian = true) {
   auto opcode = Arm64Opcode(smallEndian);
@@ -52,5 +60,35 @@ string encodeLoadStoreImm(RegType regType, LdStType ldstType, uint8_t rt, uint8_
   }
   opcode.setRt(rt);
   opcode.setRn(rn);
+  return opcode.getInstruction();
+}
+
+/**
+ * This is different from load store imm, i.e.
+ * LDR Rt, [Rn, Rm]
+ */
+string encodeLoadStoreReg(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rn, uint8_t rm, int option = 0b011, bool smallEndian = true) {
+  /**
+   * https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/LDR--register---Load-register--register--?lang=en
+   */
+  auto opcode = Arm64Opcode(smallEndian);
+  opcode.setField(1, 31);
+  opcode.setField((int)(regType == X_REG), 30);
+  opcode.setField(0b111, 27);
+  opcode.setField((int)(ldstType == LDR), 22);
+  opcode.setField(1, 21);
+  /**
+   * Is the index extend/shift specifier, defaulting to LSL, and which must be omitted for the LSL option when <amount> is omitted, encoded in option:
+    option	<extend>
+    010	UXTW
+    011	LSL
+    110	SXTW
+    111	SXTX
+   */
+  opcode.setOption(option);
+  opcode.setField(1, 11);
+  opcode.setRm(rm);
+  opcode.setRn(rn);
+  opcode.setRt(rt);
   return opcode.getInstruction();
 }

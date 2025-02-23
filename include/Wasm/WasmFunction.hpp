@@ -1,11 +1,11 @@
 #pragma once
 #include "CommonHeader.hpp"
 
-uint8_t REG_BUFFER = 19;
-uint8_t REG_WASM_STACK = 20;
-uint8_t REG_TYPE_SIZE_STACK = 21;
-uint8_t REG_POINTER_WASM_STACK = 22;
-uint8_t REG_POINTER_TYPE_SIZE = 23;
+const uint8_t REG_BUFFER = 19;
+const uint8_t REG_WASM_STACK = 20;
+const uint8_t REG_TYPE_SIZE_STACK = 21;
+const uint8_t REG_POINTER_WASM_STACK = 22;
+const uint8_t REG_POINTER_TYPE_SIZE = 23;
 
 class WasmFunction {
 public:
@@ -21,7 +21,8 @@ public:
     wasm_instructions += getSetJmpInstr();
 
     insertLabel("preparelongjmp");
-    wasm_instructions += encodeMovRegister(X_REG, 14, 30);        // x14 <- x30, this is just backing up, x14 can be any other register that isn't used, same thing applies to x15 <- sp
+    wasm_instructions += encodeMovRegister(
+        X_REG, 14, 30); // x14 <- x30, this is just backing up, x14 can be any other register that isn't used, same thing applies to x15 <- sp
     wasm_instructions += encodeMovSP(X_REG, 15, 31);              // x15 <- sp
     wasm_instructions += encodeMovRegister(X_REG, 0, REG_BUFFER); // x0 <- x[REG_BUFFER]
     fakeInsertBranch("longjmp", "b");
@@ -122,6 +123,18 @@ public:
     cout << "Backing up x2 type_size_stack pointer to x" << +REG_TYPE_SIZE_STACK << endl;
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_TYPE_SIZE_STACK, 2);
 
+    // initialize both stack pointer with 0
+    cout << "Initialze REG_POINTER_WASM_STACK: x" << +REG_POINTER_WASM_STACK << " with 0" << endl;
+    pre_instructions_for_param_loading += encodeMovz(REG_POINTER_WASM_STACK, 0, X_REG);
+    cout << "Initialze REG_POINTER_TYPE_SIZE: x" << +REG_POINTER_TYPE_SIZE << " with 0" << endl;
+    pre_instructions_for_param_loading += encodeMovz(REG_POINTER_TYPE_SIZE, 0, X_REG);
+
+    cout << "Let's test push and pop here" << endl;
+    cout << "Push(1)" << endl;
+    push(wasm_type(1));
+    cout << "Pop that out" << endl;
+    pop();
+    cout << "-- Check Above!! --" << endl;
     cout << "Loading parameters" << endl;
     for (int i = 0; i < param_data.size(); ++i) {
       std::visit(
@@ -246,11 +259,12 @@ public:
   void emitElseOp();
   void emitEndOp();
   void emitRet();
+  void push(wasm_type val);
+  void pop();
   void constructFullinstr(string sub_instr);
   void jiting_wasm_code(int i) {
     cout << "--- JITing wasm code ---" << endl;
     // todo: need to rework everywhere wasm_stack_pointer is used!!!
-    
     wasm_stack_pointer = wasm_stack_end_location - 8; // WARN!!! VERY IMPORTANT NOT TO USE THE END LOCATION OR IT WILL OVERWRITE X29
     // cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
     control_flow_stack.push_back(

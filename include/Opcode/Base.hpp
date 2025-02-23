@@ -110,6 +110,9 @@ public:
     setField(imm19, 5, 19);
   }
   // set other fields
+  void setOption(auto option){
+    setField(option, 13);
+  }
   void setSf(auto regType) {
     setField((int)(regType == X_REG), 31, 1);
   }

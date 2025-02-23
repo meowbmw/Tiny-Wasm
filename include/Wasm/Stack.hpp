@@ -84,3 +84,58 @@ void WasmFunction::commonStackOp(char opType) {
   stack.pop_back();
   stack.push_back(operations_map[opType](a, b));
 }
+void WasmFunction::push(wasm_type val) {
+  /**
+   * There are mainly two things that needs to be done here
+   * Store the value to the wasm stack, update its pointer
+   * Update the type size stack and its pointer
+   * We wrap them up in this function to ensure that they are done together
+   */
+  auto regType = getWasmType(val);
+  std::visit(
+      [this, regType](auto &&value) {
+        // load value to r11
+        wasm_instructions += encodeMovz(11, value, regType);
+        // store value in r11 to wasm_stack[REG_POINTER_WASM_STACK]
+        wasm_instructions += encodeLoadStoreReg(regType, STR, 11, REG_WASM_STACK, REG_POINTER_WASM_STACK);
+        // add REG_POINTER_WASM_STACK by 8
+        wasm_instructions += encodeAddSubImm(X_REG, false, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
+        // load size info to register
+        if (regType == W_REG || regType == D_REG) {
+          wasm_instructions += encodeMovz(11, 4, X_REG);
+        } else {
+          wasm_instructions += encodeMovz(11, 8, X_REG);
+        }
+        // store size info in type_stack
+        wasm_instructions += encodeLoadStoreReg(X_REG, STR, 11, REG_TYPE_SIZE_STACK, REG_POINTER_TYPE_SIZE);
+        // add REG_POINTER_TYPE_SIZE by 8
+        wasm_instructions += encodeAddSubImm(X_REG, false, REG_POINTER_TYPE_SIZE, REG_POINTER_TYPE_SIZE, 8);
+      },
+      val);
+}
+void WasmFunction::pop() {
+  /*
+   * read type from type_stack
+   * read from wasm_stack using type
+   * update pointer
+   * NOTE: Pop result will be stored in r11
+   *
+   * HINT: lldb read memory usage
+   * read 4 bytes from [x20, x22]
+   * memory read -f x -c 4 `$x20 + $x22`
+   */
+  // decrease REG_POINTER_TYPE_SIZE
+  wasm_instructions += encodeAddSubImm(X_REG, true, REG_POINTER_TYPE_SIZE, REG_POINTER_TYPE_SIZE, 8);
+  // read from type_stack
+  // can't just use REG_POINTER_TYPE_SIZE, need to read the value in it
+  wasm_instructions += encodeLoadStoreReg(X_REG, LDR, 11, REG_TYPE_SIZE_STACK, REG_POINTER_TYPE_SIZE);
+  // decrease REG_POINTER_WASM_STACK
+  wasm_instructions += encodeAddSubImm(X_REG, true, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
+  // compare r11 with 4/8
+  wasm_instructions += encodeCompareImm(X_REG, 11, 4);
+  wasm_instructions += encodeBranchCondition(3, reverse_cond_str_map.at("ne")); // if size!= 4, goto 2 ahead
+  // TODO: only support W_REG(4) and X_REG(8) here
+  wasm_instructions += encodeLoadStoreReg(W_REG, LDR, 11, REG_WASM_STACK, REG_POINTER_WASM_STACK); // this means size == 4
+  wasm_instructions += encodeBranch(2);
+  wasm_instructions += encodeLoadStoreReg(X_REG, LDR, 11, REG_WASM_STACK, REG_POINTER_WASM_STACK);
+}
