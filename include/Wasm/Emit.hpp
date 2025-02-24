@@ -11,35 +11,30 @@ void WasmFunction::emitGet(const uint64_t var_to_get, TypeCategory vecType) {
   int stack_offset = vecToStack[{vecType, var_to_get}];
   cout << format("Getting {}[{}]", type_category_to_string(vecType), var_to_get) << endl;
   // Note: We use x11 as a bridge register for memory -> memory transfer!
-  string load_param_instr = encodeLoadStoreImm(regtype, LDR, 11, 31, stack_offset);
   // var[i] -> x/w11
-  string store_to_stack_instr = encodeLoadStoreImm(regtype, STR, 11, 31, wasm_stack_pointer);
+  string load_param_instr = encodeLoadStoreImm(regtype, LDR, 11, 31, stack_offset);
   // x/w11 -> stack[top]
-  wasm_stack_pointer -= 8; // decrease wasm stack after push
+  string store_to_stack_instr = push(regtype);
   constructFullinstr(load_param_instr + store_to_stack_instr);
 }
 void WasmFunction::emitSet(const uint64_t var_to_set, TypeCategory vecType, bool isTee) {
   /**
-   * Local.set 0
+   * Local.set i
    * Set memory[var[i]] to top value of wasm stack
    * stack[top] -> x/w11 -> var[i]
    */
   RegType regtype = regTypeGetter[{vecType, var_to_set}];
   int stack_offset = vecToStack[{vecType, var_to_set}];
   cout << format("Assigning to {}[{}]", type_category_to_string(vecType), var_to_set) << endl;
-  wasm_stack_pointer += 8;
-  string store_to_stack_instr = encodeLoadStoreImm(regtype, LDR, 11, 31, wasm_stack_pointer);
+  string load_to_reg_instr = pop(regtype, isTee);
   string reg_to_mem_instr = encodeLoadStoreImm(regtype, STR, 11, 31, stack_offset);
-  if (isTee) {
-    wasm_stack_pointer -= 8; // teeing keeps stack intact
-  }
-  constructFullinstr(store_to_stack_instr + reg_to_mem_instr);
+  constructFullinstr(load_to_reg_instr + reg_to_mem_instr);
 }
 void WasmFunction::emitConst(wasm_type elem) {
   /***
    * push value $elem onto wasm Stack
    * mov $elem, x11
-   * str x11, [sp+wasm_stack_pointer]
+   * str x11, stack[top]
    */
   std::visit(
       [this](auto &&value) {
@@ -47,24 +42,21 @@ void WasmFunction::emitConst(wasm_type elem) {
         if (typeInfo == 'f') {
           // todo: don't support fmov yet
           throw std::invalid_argument("Don't support float const yet; need to properly implement fmov or store float first");
-          // string load_to_reg_instr=toHexString(encodeFmovz()).substr(2);
-          // string store_to_stack_instr = toHexString(encodeLoadStoreUnsignedImm(LdStType::STR_F32, 11, 31, wasm_stack_pointer, false)).substr(2);
         } else if (typeInfo == 'd') {
           throw std::invalid_argument("Don't support double const yet; need to properly implement fmov or store double first");
         } else if (typeInfo == 'i') {
           cout << format("i32.const {}", value) << endl;
           string load_to_reg_instr = WrapperEncodeMovInt32(11, value);
-          string store_to_stack_instr = encodeLoadStoreImm(W_REG, STR, 11, 31, wasm_stack_pointer);
+          string store_to_stack_instr = push(W_REG);
           constructFullinstr(load_to_reg_instr + store_to_stack_instr);
         } else if (typeInfo == 'l') {
           cout << format("i64.const {}", value) << endl;
           string load_to_reg_instr = WrapperEncodeMovInt64(11, value);
-          string store_to_stack_instr = encodeLoadStoreImm(X_REG, STR, 11, 31, wasm_stack_pointer);
+          string store_to_stack_instr = push(X_REG);
           constructFullinstr(load_to_reg_instr + store_to_stack_instr);
         }
       },
       elem);
-  wasm_stack_pointer -= 8;
 }
 void WasmFunction::emitArithOp(char typeInfo, char opType, bool isSigned) {
   /*
@@ -102,13 +94,8 @@ void WasmFunction::emitArithOp(char typeInfo, char opType, bool isSigned) {
     regtype = X_REG;
     cout << format("i64.{}", opstr) << endl;
   }
-  wasm_stack_pointer += 8;
-  // r11 = b
-  string load_second_param_instr = encodeLoadStoreImm(regtype, LDR, 11, 31, wasm_stack_pointer);
-  wasm_stack_pointer += 8;
-  // r12 = a
-  string load_first_param_instr = encodeLoadStoreImm(regtype, LDR, 12, 31, wasm_stack_pointer);
-
+  string load_second_param_instr = pop(regtype, false, 12);
+  string load_first_param_instr = pop(regtype, false, 11);
   constructFullinstr(load_first_param_instr + load_second_param_instr);
   // r11 = a op b
   string arith_instr;
@@ -156,8 +143,7 @@ void WasmFunction::emitArithOp(char typeInfo, char opType, bool isSigned) {
     throw "Unknown arithmetic operator";
     break;
   }
-  wasm_instructions += encodeLoadStoreImm(regtype, STR, 11, 31, wasm_stack_pointer); // store_to_stack
-  wasm_stack_pointer -= 8;                                                           // decrease wasm stack after push
+  wasm_instructions += push(regtype);
 }
 void WasmFunction::emitIfOp(int i) {
   /**
@@ -182,24 +168,24 @@ void WasmFunction::emitIfOp(int i) {
     throw format("invalid byte after if: {}. Check wasm binary integrity", code_vec[i]);
   }
   string label = "Else/End_" + to_string(if_label++);
-  control_flow_stack.push_back(controlFlowElement(label, stack.size(), signature));
-  RegType regtype = getWasmType(stack.back());
+  control_flow_stack.push_back(controlFlowElement(label, signature));
   cout << "Compare for if:" << endl;
-  wasm_instructions += encodeLoadStoreImm(regtype, LDR, 11, 31, wasm_stack_pointer + 8);
-  wasm_instructions += encodeCompareImm(regtype, 11, 0);
+  // condition is defined to be i32 type, so going with W_REG here
+  wasm_instructions += pop(W_REG, true);
+  wasm_instructions += encodeCompareImm(W_REG, 11, 0);
   fakeInsertBranch(label, "beq"); // if =0, jump to else or end; else continue
   cout << "If true:" << endl;
 }
 void WasmFunction::emitElseOp() {
-  auto [label, stack_length, signature] = control_flow_stack.back();
+  auto [label, signature] = control_flow_stack.back();
   control_flow_stack.pop_back();
   string else_label = "End_" + to_string(if_label++);
-  control_flow_stack.push_back(controlFlowElement(else_label, stack.size(), signature));
+  control_flow_stack.push_back(controlFlowElement(else_label, signature));
   fakeInsertBranch(else_label, "b"); // this branch is for previous if end, should't continue executing else instructions, so jmp to end directly
   insertLabel(label);
 }
 void WasmFunction::emitEndOp() {
-  auto [label, stack_length, signature] = control_flow_stack.back();
+  auto [label, signature] = control_flow_stack.back();
   control_flow_stack.pop_back();
   insertLabel(label);
 }
@@ -209,6 +195,5 @@ void WasmFunction::emitRet() {
 }
 
 void WasmFunction::constructFullinstr(string sub_instr) {
-    wasm_instructions = wasm_instructions + sub_instr;
-  }
-  
+  wasm_instructions = wasm_instructions + sub_instr;
+}

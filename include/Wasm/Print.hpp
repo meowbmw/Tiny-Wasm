@@ -41,16 +41,3 @@ void WasmFunction::print_data(TypeCategory category) {
         v[i]);
   }
 }
-void WasmFunction::print_stack() {
-  cout << "--- Printing stack (This is not wasm stack!) ---" << endl;
-  if (stack.size() == 0) {
-    cout << "Empty stack!" << endl;
-  }
-  for (size_t i = 0; i < stack.size(); ++i) {
-    std::visit(
-        [&i](auto &&value) {
-          cout << format("stack[{}]: ({}) = {}", i, typeid(value).name(), value) << endl;
-        },
-        stack[i]);
-  }
-}

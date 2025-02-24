@@ -3,9 +3,7 @@
 
 const uint8_t REG_BUFFER = 19;
 const uint8_t REG_WASM_STACK = 20;
-const uint8_t REG_TYPE_SIZE_STACK = 21;
-const uint8_t REG_POINTER_WASM_STACK = 22;
-const uint8_t REG_POINTER_TYPE_SIZE = 23;
+const uint8_t REG_POINTER_WASM_STACK = 21;
 
 class WasmFunction {
 public:
@@ -83,12 +81,10 @@ public:
   void main_entry_finalize() {
     restoreSP();
     emitRet();
-    print_stack();
   }
   void allocateVar(const wasm_type &elem, int &stack_location) {
     std::visit(
         [&stack_location](auto &&value) {
-          // value 的类型会被自动推断为四种之一
           char typeInfo = typeid(value).name()[0];
           if (typeInfo == 'f') {
             stack_location += 4;
@@ -120,26 +116,15 @@ public:
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_BUFFER, 0);
     cout << "Backing up x1 wasm_stack pointer to x" << +REG_WASM_STACK << endl;
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_WASM_STACK, 1);
-    cout << "Backing up x2 type_size_stack pointer to x" << +REG_TYPE_SIZE_STACK << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_TYPE_SIZE_STACK, 2);
 
     // initialize both stack pointer with 0
     cout << "Initialze REG_POINTER_WASM_STACK: x" << +REG_POINTER_WASM_STACK << " with 0" << endl;
     pre_instructions_for_param_loading += encodeMovz(REG_POINTER_WASM_STACK, 0, X_REG);
-    cout << "Initialze REG_POINTER_TYPE_SIZE: x" << +REG_POINTER_TYPE_SIZE << " with 0" << endl;
-    pre_instructions_for_param_loading += encodeMovz(REG_POINTER_TYPE_SIZE, 0, X_REG);
 
-    cout << "Let's test push and pop here" << endl;
-    cout << "Push(1)" << endl;
-    wasm_instructions += push(wasm_type(1));
-    cout << "Pop that out" << endl;
-    wasm_instructions += pop();
-    cout << "-- Check Above!! --" << endl;
     cout << "Loading parameters" << endl;
     for (int i = 0; i < param_data.size(); ++i) {
       std::visit(
           [&i, this](auto &&value) {
-            // value 的类型会被自动推断为四种之一
             char typeInfo = typeid(value).name()[0];
             if (typeInfo == 'f') {
               throw std::invalid_argument("Fmov not supported yet!");
@@ -160,7 +145,6 @@ public:
   void resetAfterExecution() {
     pre_instructions_for_param_loading.clear();
     wasm_instructions.clear(); // no need to reset this?
-    stack.clear();
     fake_insert_map.clear();
     label_map.clear();
   }
@@ -180,7 +164,6 @@ public:
   template <typename Func> auto getFunctionPointer(string full_instructions) -> Func;
   int64_t executeWasmInstr();
   void print_data(TypeCategory category);
-  void print_stack();
   void add_data(TypeCategory category, const std::string &type) {
     wasm_type data;
     if (type == "7f") {
@@ -207,7 +190,6 @@ public:
     code_vec = v;
     local_var_declare_count = l;
   }
-  void commonStackOp(char opType);
   void commonLocalOp(int i, string opType) {
     u_int64_t var_index = stoul(code_vec[i + 1], nullptr, 16);
     cout << format("Local.{} {}", opType, var_index) << endl;
@@ -223,26 +205,10 @@ public:
       }
       if (opType == "get") {
         emitGet(var_index, typecategory);
-        if (typecategory == TypeCategory::PARAM) {
-          stack.push_back(param_data[var_index]);
-        } else {
-          stack.push_back(local_data[var_index]);
-        }
       } else if (opType == "set") {
         emitSet(var_index, typecategory);
-        if (typecategory == TypeCategory::PARAM) {
-          param_data[var_index] = stack.back();
-        } else {
-          local_data[var_index] = stack.back();
-        }
-        stack.pop_back();
       } else if (opType == "tee") {
         emitSet(var_index, typecategory, true);
-        if (typecategory == TypeCategory::PARAM) {
-          param_data[var_index] = stack.back();
-        } else {
-          local_data[var_index] = stack.back();
-        }
       } else {
         cout << "Unknown Local operation" << endl;
         throw "Unknown Local operation";
@@ -259,16 +225,13 @@ public:
   void emitElseOp();
   void emitEndOp();
   void emitRet();
-  string push(wasm_type val);
-  string pop();
+  string push(RegType regType, int reg = 11);
+  string pop(RegType regType, bool tee, int reg = 11);
   void constructFullinstr(string sub_instr);
   void jiting_wasm_code(int i) {
     cout << "--- JITing wasm code ---" << endl;
-    // todo: need to rework everywhere wasm_stack_pointer is used!!!
-    wasm_stack_pointer = wasm_stack_end_location - 8; // WARN!!! VERY IMPORTANT NOT TO USE THE END LOCATION OR IT WILL OVERWRITE X29
-    // cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
     control_flow_stack.push_back(
-        controlFlowElement("end", 0, result_data)); // TODO: this might need to be called on every function enter, currently it is only executed once.
+        controlFlowElement("end", result_data)); // TODO: this might need to be called on every function enter, currently it is only executed once.
     // This instruction is necessary for "end" to pop off control stack
     while (i < code_vec.size()) {
       /**
@@ -305,67 +268,52 @@ public:
         wasm_type elem = static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16));
         // todo: read 1 byte is wrong here, should read by leb128 until end
         emitConst(elem);
-        stack.push_back(elem);
         i += 2;
       } else if (code_vec[i] == "42") { // i64.const
         wasm_type elem = static_cast<int64_t>(stoul(code_vec[i + 1], nullptr, 16));
         // todo: read 1 byte is wrong here, should read by leb128 until end
         emitConst(elem);
-        stack.push_back(elem);
         i += 2;
       } else if (code_vec[i] == "43") { // f32.const
         wasm_type elem = hexToFloat(code_vec[i + 1] + code_vec[i + 2] + code_vec[i + 3] + code_vec[i + 4]);
         emitConst(elem);
-        stack.push_back(elem);
         i += 5;
       } else if (code_vec[i] == "44") { // f64.const
         wasm_type elem =
             hexToDouble(code_vec[i + 1] + code_vec[i + 2] + code_vec[i + 3] + code_vec[i + 4] + code_vec[i + 5] + code_vec[i + 6] + code_vec[i + 7]);
         emitConst(elem);
-        stack.push_back(elem);
         i += 9;
       } else if (code_vec[i] == "6a") { // i32.add
         emitArithOp('i', '+');
-        commonStackOp('+');
         i += 1;
       } else if (code_vec[i] == "6b") { // i32.sub
         emitArithOp('i', '-');
-        commonStackOp('-');
         i += 1;
       } else if (code_vec[i] == "6c") { // i32.mul
         emitArithOp('i', '*');
-        commonStackOp('*');
         i += 1;
       } else if (code_vec[i] == "6d") { // i32.div_s
         emitArithOp('i', '/', true);
-        commonStackOp('/');
         i += 1;
       } else if (code_vec[i] == "6e") { // i32.div_u
         emitArithOp('i', '/', false);
-        commonStackOp('/');
         i += 1;
       } else if (code_vec[i] == "7c") { // i64.add
         emitArithOp('l', '+');
-        commonStackOp('+');
         i += 1;
       } else if (code_vec[i] == "7d") { // i64.sub
         emitArithOp('l', '-');
-        commonStackOp('-');
         i += 1;
       } else if (code_vec[i] == "7e") { // i64.mul
         emitArithOp('l', '*');
-        commonStackOp('*');
         i += 1;
       } else if (code_vec[i] == "7f") { // i64.div_s
         emitArithOp('l', '/', true);
-        commonStackOp('/');
         i += 1;
       } else if (code_vec[i] == "80") { // i64.div_u
         emitArithOp('l', '/', false);
-        commonStackOp('/');
         i += 1;
       }
-      // cout << format("*Current wasm stack pointer is: {}", wasm_stack_pointer) << endl;
     }
   }
   WasmFunction();
@@ -377,7 +325,6 @@ public:
   int local_stack_end_location = 0;
   int wasm_stack_start_location = 0;
   int wasm_stack_end_location = 0;
-  int wasm_stack_pointer = 0;
   int if_label = 0;
   int type;
   u_int64_t local_var_declare_count = 0;
@@ -389,7 +336,6 @@ public:
   vector<wasm_type> local_data;
   vector<wasm_type> param_data;
   vector<wasm_type> result_data;
-  vector<wasm_type> stack;
   vector<controlFlowElement> control_flow_stack;
 
   map<char, ArithOperation> operations_map;

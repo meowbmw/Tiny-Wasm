@@ -7,13 +7,11 @@ using namespace std;
 using ArithOperation = std::function<wasm_type(wasm_type, wasm_type)>;
 
 struct controlFlowElement {
-  controlFlowElement(string s, int cur_length, vector<wasm_type> v) {
+  controlFlowElement(string s,  vector<wasm_type> v) {
     label = s;
-    current_wasm_length = cur_length;
     signature = v;
   }
   string label;
-  int current_wasm_length;
   vector<wasm_type> signature;
 };
 

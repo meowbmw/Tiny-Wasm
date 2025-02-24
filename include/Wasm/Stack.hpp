@@ -22,18 +22,11 @@ void WasmFunction::getStackPreallocateSize(const int offset) {
   cout << "Param end location: " << param_stack_end_location << endl;
   cout << "Local start location: " << local_stack_start_location << endl;
   cout << "Local end location: " << local_stack_end_location << endl;
-  wasm_stack_start_location = local_stack_end_location + 8;
-  int wasm_stack_size = (code_vec.size() - offset) * 4;
-  wasm_stack_end_location = wasm_stack_start_location + wasm_stack_size;
-  cout << "Wasm stack start location: " << wasm_stack_start_location << endl;
-  cout << format("Adding maximum possible wasm stack size: (code_vec.size: {} - offset: {}) * 4 = {}", code_vec.size(), offset, wasm_stack_size)
-       << endl;
-  cout << "Wasm stack end location: " << wasm_stack_end_location << endl;
   // align to neaest 16 byte
-  if (wasm_stack_end_location % 16 != 0) {
-    stack_size = 16 * (wasm_stack_end_location / 16 + 1);
+  if (local_stack_end_location % 16 != 0) {
+    stack_size = 16 * (local_stack_end_location / 16 + 1);
   } else {
-    stack_size = wasm_stack_end_location;
+    stack_size = local_stack_end_location;
   }
   cout << "Stack allocate size estimated to be: " << stack_size << endl;
   cout.rdbuf(old);
@@ -53,89 +46,63 @@ void WasmFunction::restoreSP() {
   // getting result and restoring sp register
   cout << "Moving stack top to register as result" << endl;
   string prepare_ans_instr;
-  int current_wasm_pointer = wasm_stack_pointer + 8;
   for (int i = 0; i < result_data.size(); ++i) {
     // todo: we should be iterating here; i < result.size()
     // but we are actually expecting i=0 only (1 result)
     std::visit(
-        [&i, &prepare_ans_instr, &current_wasm_pointer, this](auto &&value) {
+        [&i, &prepare_ans_instr, this](auto &&value) {
           char typeInfo = typeid(value).name()[0];
           if (typeInfo == 'f') {
             throw std::invalid_argument("Fmov not supported yet!");
           } else if (typeInfo == 'd') {
             throw std::invalid_argument("Fmov not supported yet!");
           } else if (typeInfo == 'l') {
-            prepare_ans_instr += encodeLoadStoreImm(X_REG, LDR, i, 31, current_wasm_pointer);
+            prepare_ans_instr += pop(X_REG, false, i);
           } else if (typeInfo == 'i') {
-            prepare_ans_instr += encodeLoadStoreImm(W_REG, LDR, i, 31, current_wasm_pointer);
+            prepare_ans_instr += pop(W_REG, false, i);
           }
         },
         result_data[i]);
-    current_wasm_pointer -= 8;
   }
   cout << "Restore sp register" << endl;
   const string restore_sp_instr = encodeAddSubImm(X_REG, false, 31, 31, stack_size); // add sp, sp, stack_size
   constructFullinstr(prepare_ans_instr + restore_sp_instr);
 }
-void WasmFunction::commonStackOp(char opType) {
-  auto b = stack.back();
-  stack.pop_back();
-  auto a = stack.back();
-  stack.pop_back();
-  stack.push_back(operations_map[opType](a, b));
-}
-string WasmFunction::push(wasm_type val) {
+string WasmFunction::push(RegType regType, int save_reg) {
   /**
-   * There are mainly two things that needs to be done here
-   * Store the value to the wasm stack, update its pointer
-   * Update the type size stack and its pointer
-   * We wrap them up in this function to ensure that they are done together
+   * Warn: We assume that value is already stored in save_reg (default = 11)
+   * This function does:
+   * (1) Save value to stack
+   * (2) Update its stack pointer
    */
-  auto regType = getWasmType(val);
+  cout << "***Push stack***" << endl;
   string instr;
-  std::visit(
-      [&instr, regType](auto &&value) {
-        // load value to r11
-        instr += encodeMovz(11, value, regType);
-        // store value in r11 to wasm_stack[REG_POINTER_WASM_STACK]
-        instr += encodeLoadStoreReg(regType, STR, 11, REG_WASM_STACK, REG_POINTER_WASM_STACK);
-        // add REG_POINTER_WASM_STACK by 8
-        instr += encodeAddSubImm(X_REG, false, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
-        // load size info to register
-        if (regType == W_REG || regType == D_REG) {
-          instr += encodeMovz(11, 4, X_REG);
-        } else {
-          instr += encodeMovz(11, 8, X_REG);
-        }
-        // store size info in type_stack
-        instr += encodeLoadStoreReg(X_REG, STR, 11, REG_TYPE_SIZE_STACK, REG_POINTER_TYPE_SIZE);
-        // add REG_POINTER_TYPE_SIZE by 8
-        instr += encodeAddSubImm(X_REG, false, REG_POINTER_TYPE_SIZE, REG_POINTER_TYPE_SIZE, 8);
-      },
-      val);
+  // store value in save_reg to wasm_stack[REG_POINTER_WASM_STACK]
+  instr += encodeLoadStoreReg(regType, STR, save_reg, REG_WASM_STACK, REG_POINTER_WASM_STACK);
+  // add REG_POINTER_WASM_STACK by 8
+  instr += encodeAddSubImm(X_REG, false, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
+  cout << "***Push stack End***" << endl;
   return instr;
 }
-string WasmFunction::pop() {
+string WasmFunction::pop(RegType regType, bool tee = false, int save_reg) {
   /*
-   * read type from type_stack
-   * read from wasm_stack using type
-   * update pointer
-   * NOTE: Pop result will be stored in r11
+   * NOTE: result will be stored in save_reg (default = 11)
+   * This function does:
+   * (1) update pointer
+   * (2) read from wasm_stack
+   * (3) (Optional) if teeing, restore pointer
    */
-  // decrease REG_POINTER_TYPE_SIZE
+
+  cout << format("***{} stack***", tee == true ? "Tee" : "Pop") << endl;
   string instr;
-  instr += encodeAddSubImm(X_REG, true, REG_POINTER_TYPE_SIZE, REG_POINTER_TYPE_SIZE, 8);
-  // read from type_stack
-  // can't just use REG_POINTER_TYPE_SIZE, need to read the value in it
-  instr += encodeLoadStoreReg(X_REG, LDR, 11, REG_TYPE_SIZE_STACK, REG_POINTER_TYPE_SIZE);
   // decrease REG_POINTER_WASM_STACK
   instr += encodeAddSubImm(X_REG, true, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
-  // compare r11 with 4/8
-  instr += encodeCompareImm(X_REG, 11, 4);
-  instr += encodeBranchCondition(3, reverse_cond_str_map.at("ne")); // if size!= 4, goto 2 ahead
-  // TODO: only support W_REG(4) and X_REG(8) here
-  instr += encodeLoadStoreReg(W_REG, LDR, 11, REG_WASM_STACK, REG_POINTER_WASM_STACK); // this means size == 4
-  instr += encodeBranch(2);
-  instr += encodeLoadStoreReg(X_REG, LDR, 11, REG_WASM_STACK, REG_POINTER_WASM_STACK);
+  instr += encodeLoadStoreReg(regType, LDR, save_reg, REG_WASM_STACK, REG_POINTER_WASM_STACK);
+  if (tee) {
+    cout << "Teeing so restoring stack pointers!" << endl;
+    instr += encodeAddSubImm(X_REG, false, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
+  }
+  cout << format("***{} stack end***", tee == true ? "Tee" : "Pop") << endl;
+  cout << "***Pop stack end***" << endl;
   return instr;
 }
