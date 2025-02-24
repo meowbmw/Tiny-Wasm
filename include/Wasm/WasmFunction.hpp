@@ -221,6 +221,7 @@ public:
   void emitSet(const uint64_t var_to_set, TypeCategory vecType, bool isTee = false);
   void emitConst(wasm_type elem);
   void emitArithOp(char typeInfo, char opType, bool isSigned = true);
+  void emitCompareOp(RegType regtype, string condStr);
   void emitIfOp(int i);
   void emitElseOp();
   void emitEndOp();
@@ -283,7 +284,71 @@ public:
             hexToDouble(code_vec[i + 1] + code_vec[i + 2] + code_vec[i + 3] + code_vec[i + 4] + code_vec[i + 5] + code_vec[i + 6] + code_vec[i + 7]);
         emitConst(elem);
         i += 9;
-      } else if (code_vec[i] == "6a") { // i32.add
+      }
+      // integer comparsion
+      else if (code_vec[i] == "46") { // i32.eq
+        emitCompareOp(W_REG, "eq");
+        i += 1;
+      } else if (code_vec[i] == "51") { // i64.eq
+        emitCompareOp(X_REG, "eq");
+        i += 1;
+      } else if (code_vec[i] == "47") { // i32.ne
+        emitCompareOp(W_REG, "ne");
+        i += 1;
+      } else if (code_vec[i] == "52") { // i64.ne
+        emitCompareOp(X_REG, "ne");
+        i += 1;
+      } else if (code_vec[i] == "48") { // i32.lt_s
+        emitCompareOp(W_REG, "lt");
+        i += 1;
+      } else if (code_vec[i] == "49") { // i32.lt_u
+        emitCompareOp(W_REG, "cc");
+        i += 1;
+      } else if (code_vec[i] == "4a") { // i32.gt_s
+        emitCompareOp(W_REG, "gt");
+        i += 1;
+      } else if (code_vec[i] == "4b") { // i32.gt_u
+        emitCompareOp(W_REG, "hi");
+        i += 1;
+      } else if (code_vec[i] == "4c") { // i32.le_s
+        emitCompareOp(W_REG, "le");
+        i += 1;
+      } else if (code_vec[i] == "4d") { // i32.le_u
+        emitCompareOp(W_REG, "ls");
+        i += 1;
+      } else if (code_vec[i] == "4e") { // i32.ge_s
+        emitCompareOp(W_REG, "ge");
+        i += 1;
+      } else if (code_vec[i] == "4f") { // i32.ge_u
+        emitCompareOp(W_REG, "cs");
+        i += 1;
+      } else if (code_vec[i] == "53") { // i64.lt_s
+        emitCompareOp(X_REG, "lt");
+        i += 1;
+      } else if (code_vec[i] == "54") { // i64.lt_u
+        emitCompareOp(X_REG, "cc");
+        i += 1;
+      } else if (code_vec[i] == "55") { // i64.gt_s
+        emitCompareOp(X_REG, "gt");
+        i += 1;
+      } else if (code_vec[i] == "56") { // i64.gt_u
+        emitCompareOp(X_REG, "hi");
+        i += 1;
+      } else if (code_vec[i] == "57") { // i64.le_s
+        emitCompareOp(X_REG, "le");
+        i += 1;
+      } else if (code_vec[i] == "58") { // i64.le_u
+        emitCompareOp(X_REG, "ls");
+        i += 1;
+      } else if (code_vec[i] == "59") { // i64.ge_s
+        emitCompareOp(X_REG, "ge");
+        i += 1;
+      } else if (code_vec[i] == "5a") { // i64.ge_u
+        emitCompareOp(X_REG, "cs");
+        i += 1;
+      }
+      // arithmetic
+      else if (code_vec[i] == "6a") { // i32.add
         emitArithOp('i', '+');
         i += 1;
       } else if (code_vec[i] == "6b") { // i32.sub

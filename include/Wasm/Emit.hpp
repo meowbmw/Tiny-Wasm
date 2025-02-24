@@ -58,6 +58,30 @@ void WasmFunction::emitConst(wasm_type elem) {
       },
       elem);
 }
+void WasmFunction::emitCompareOp(RegType regtype, string condStr) {
+  switch (regtype) {
+  case X_REG:
+    cout << "i64." << condStr << endl;
+    break;
+  case W_REG:
+    cout << "i32." << condStr << endl;
+    break;
+  default:
+    throw "Unsupported reg type (float or double)";
+  }
+  // todo: this could be simplified by one cset instruction
+  wasm_instructions += encodeMovz(3, 1, X_REG); // x3=1
+  wasm_instructions += encodeMovz(4, 0, X_REG); // x4=0
+  // pop b
+  string load_second_param_instr = pop(regtype, false, 12);
+  // pop a
+  string load_first_param_instr = pop(regtype, false, 11);
+  // we should load second first, then load first!!!
+  constructFullinstr(load_second_param_instr + load_first_param_instr);
+  wasm_instructions += encodeCompareShift(regtype, 11, 12);                          // cmp a, b
+  wasm_instructions += encodeCSEL(X_REG, 0, 3, 4, reverse_cond_str_map.at(condStr)); // x0 = (condStr) ? 1 : 0
+  wasm_instructions += push(X_REG, 0);                                               // push result(x0) to stack
+}
 void WasmFunction::emitArithOp(char typeInfo, char opType, bool isSigned) {
   /*
    * A wrapper for common arithmatic operations: +, -, *, /
@@ -94,9 +118,11 @@ void WasmFunction::emitArithOp(char typeInfo, char opType, bool isSigned) {
     regtype = X_REG;
     cout << format("i64.{}", opstr) << endl;
   }
-  string load_second_param_instr = pop(regtype, false, 12);
-  string load_first_param_instr = pop(regtype, false, 11);
-  constructFullinstr(load_first_param_instr + load_second_param_instr);
+  // pop b to r11
+  string load_second_param_instr = pop(regtype, false, 11);
+  // pop a to r12
+  string load_first_param_instr = pop(regtype, false, 12);
+  constructFullinstr(load_second_param_instr + load_first_param_instr);
   // r11 = a op b
   string arith_instr;
   string check_div_instr;

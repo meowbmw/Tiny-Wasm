@@ -43,7 +43,19 @@
       i32.const 0
     end
     local.tee 0)
+  (func (;4;) (type 0) (param i32) (result i32)
+    local.get 0
+    i32.const 0
+    i32.lt_s
+    if (result i32)  ;; label = @1
+      i32.const 0
+      local.get 0
+      i32.sub
+    else
+      local.get 0
+    end)
   (export "singular" (func 0))
   (export "as-return-value" (func 1))
   (export "as-local.set-value" (func 2))
-  (export "as-local.tee-value" (func 3)))
+  (export "as-local.tee-value" (func 3))
+  (export "abs" (func 4)))
