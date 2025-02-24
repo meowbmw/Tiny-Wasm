@@ -1,0 +1,158 @@
+#pragma once
+#include "WasmFunction.hpp"
+
+void WasmFunction::jiting_wasm_code(int i) {
+  cout << "--- JITing wasm code ---" << endl;
+  control_flow_stack.push_back(
+      controlFlowElement("end", result_data)); // TODO: this might need to be called on every function enter, currently it is only executed once.
+  // This instruction is necessary for "end" to pop off control stack
+  while (i < code_vec.size()) {
+    /**
+     * WebAssembly Opcodes
+     * https://pengowray.github.io/wasm-ops/
+     */
+    if (code_vec[i] == "01") {
+      // nop
+      wasm_instructions += encodeNop();
+      i += 1;
+    } else if (code_vec[i] == "04") { // if
+      // todo: currently don't support multi-value return
+      // we assume at most one return can occur, or simply none return
+      emitIfOp(i + 1);
+      i += 2;
+    } else if (code_vec[i] == "05") { // else
+      emitElseOp();
+      i += 1;
+    } else if (code_vec[i] == "0f") { // ret
+      i += 1;
+    } else if (code_vec[i] == "0b") { // end
+      emitEndOp();
+      i += 1;
+    } else if (code_vec[i] == "1a") { // drop
+      emitDrop();
+      i += 1;
+    } else if (code_vec[i] == "20") { // local.get
+      commonLocalOp(i, "get");
+      i += 2;
+    } else if (code_vec[i] == "21") { // local.set
+      commonLocalOp(i, "set");
+      i += 2;
+    } else if (code_vec[i] == "22") { // local.tee
+      commonLocalOp(i, "tee");
+      i += 2;
+    } else if (code_vec[i] == "41") { // i32.const
+      wasm_type elem = static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16));
+      // todo: read 1 byte is wrong here, should read by leb128 until end
+      emitConst(elem);
+      i += 2;
+    } else if (code_vec[i] == "42") { // i64.const
+      wasm_type elem = static_cast<int64_t>(stoul(code_vec[i + 1], nullptr, 16));
+      // todo: read 1 byte is wrong here, should read by leb128 until end
+      emitConst(elem);
+      i += 2;
+    } else if (code_vec[i] == "43") { // f32.const
+      wasm_type elem = hexToFloat(code_vec[i + 1] + code_vec[i + 2] + code_vec[i + 3] + code_vec[i + 4]);
+      emitConst(elem);
+      i += 5;
+    } else if (code_vec[i] == "44") { // f64.const
+      wasm_type elem =
+          hexToDouble(code_vec[i + 1] + code_vec[i + 2] + code_vec[i + 3] + code_vec[i + 4] + code_vec[i + 5] + code_vec[i + 6] + code_vec[i + 7]);
+      emitConst(elem);
+      i += 9;
+    }
+    // integer comparsion
+    else if (code_vec[i] == "46") { // i32.eq
+      emitCompareOp(W_REG, "eq");
+      i += 1;
+    } else if (code_vec[i] == "51") { // i64.eq
+      emitCompareOp(X_REG, "eq");
+      i += 1;
+    } else if (code_vec[i] == "47") { // i32.ne
+      emitCompareOp(W_REG, "ne");
+      i += 1;
+    } else if (code_vec[i] == "52") { // i64.ne
+      emitCompareOp(X_REG, "ne");
+      i += 1;
+    } else if (code_vec[i] == "48") { // i32.lt_s
+      emitCompareOp(W_REG, "lt");
+      i += 1;
+    } else if (code_vec[i] == "49") { // i32.lt_u
+      emitCompareOp(W_REG, "cc");
+      i += 1;
+    } else if (code_vec[i] == "4a") { // i32.gt_s
+      emitCompareOp(W_REG, "gt");
+      i += 1;
+    } else if (code_vec[i] == "4b") { // i32.gt_u
+      emitCompareOp(W_REG, "hi");
+      i += 1;
+    } else if (code_vec[i] == "4c") { // i32.le_s
+      emitCompareOp(W_REG, "le");
+      i += 1;
+    } else if (code_vec[i] == "4d") { // i32.le_u
+      emitCompareOp(W_REG, "ls");
+      i += 1;
+    } else if (code_vec[i] == "4e") { // i32.ge_s
+      emitCompareOp(W_REG, "ge");
+      i += 1;
+    } else if (code_vec[i] == "4f") { // i32.ge_u
+      emitCompareOp(W_REG, "cs");
+      i += 1;
+    } else if (code_vec[i] == "53") { // i64.lt_s
+      emitCompareOp(X_REG, "lt");
+      i += 1;
+    } else if (code_vec[i] == "54") { // i64.lt_u
+      emitCompareOp(X_REG, "cc");
+      i += 1;
+    } else if (code_vec[i] == "55") { // i64.gt_s
+      emitCompareOp(X_REG, "gt");
+      i += 1;
+    } else if (code_vec[i] == "56") { // i64.gt_u
+      emitCompareOp(X_REG, "hi");
+      i += 1;
+    } else if (code_vec[i] == "57") { // i64.le_s
+      emitCompareOp(X_REG, "le");
+      i += 1;
+    } else if (code_vec[i] == "58") { // i64.le_u
+      emitCompareOp(X_REG, "ls");
+      i += 1;
+    } else if (code_vec[i] == "59") { // i64.ge_s
+      emitCompareOp(X_REG, "ge");
+      i += 1;
+    } else if (code_vec[i] == "5a") { // i64.ge_u
+      emitCompareOp(X_REG, "cs");
+      i += 1;
+    }
+    // arithmetic
+    else if (code_vec[i] == "6a") { // i32.add
+      emitArithOp('i', '+');
+      i += 1;
+    } else if (code_vec[i] == "6b") { // i32.sub
+      emitArithOp('i', '-');
+      i += 1;
+    } else if (code_vec[i] == "6c") { // i32.mul
+      emitArithOp('i', '*');
+      i += 1;
+    } else if (code_vec[i] == "6d") { // i32.div_s
+      emitArithOp('i', '/', true);
+      i += 1;
+    } else if (code_vec[i] == "6e") { // i32.div_u
+      emitArithOp('i', '/', false);
+      i += 1;
+    } else if (code_vec[i] == "7c") { // i64.add
+      emitArithOp('l', '+');
+      i += 1;
+    } else if (code_vec[i] == "7d") { // i64.sub
+      emitArithOp('l', '-');
+      i += 1;
+    } else if (code_vec[i] == "7e") { // i64.mul
+      emitArithOp('l', '*');
+      i += 1;
+    } else if (code_vec[i] == "7f") { // i64.div_s
+      emitArithOp('l', '/', true);
+      i += 1;
+    } else if (code_vec[i] == "80") { // i64.div_u
+      emitArithOp('l', '/', false);
+      i += 1;
+    }
+  }
+}

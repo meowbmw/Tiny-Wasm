@@ -215,6 +215,13 @@ void WasmFunction::emitEndOp() {
   control_flow_stack.pop_back();
   insertLabel(label);
 }
+
+// Drop one element from stack
+void WasmFunction::emitDrop() {
+  cout << "Drop" << endl;
+  // decrease REG_POINTER_WASM_STACK
+  wasm_instructions += encodeAddSubImm(X_REG, true, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
+}
 void WasmFunction::emitRet() {
   string instr = encodeReturn();
   constructFullinstr(instr);

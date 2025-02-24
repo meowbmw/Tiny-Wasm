@@ -6,4 +6,5 @@
 #include "Wasm/Execute.hpp"
 #include "Wasm/Branch.hpp"
 #include "Wasm/Exception.hpp"
+#include "Wasm/JIT.hpp"
 
