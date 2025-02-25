@@ -4,3 +4,4 @@
 #include "Opcode/Compare.hpp"
 #include "Opcode/LoadStore.hpp"
 #include "Opcode/Mov.hpp"
+#include "Opcode/BitManipulate.hpp"

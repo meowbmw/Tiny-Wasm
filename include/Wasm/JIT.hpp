@@ -154,5 +154,19 @@ void WasmFunction::jiting_wasm_code(int i) {
       emitArithOp('l', '/', false);
       i += 1;
     }
+    // other operations
+    else if (code_vec[i] == "45") { // i32.eqz
+      emitEqz(W_REG);
+      i += 1;
+    } else if (code_vec[i] == "50") { // i64.eqz
+      emitEqz(X_REG);
+      i += 1;
+    } else if (code_vec[i] == "68") { // i32.ctz
+      emitCtz(W_REG);
+      i += 1;
+    } else if (code_vec[i] == "7a") { // i64.ctz
+      emitCtz(X_REG);
+      i += 1;
+    }
   }
 }

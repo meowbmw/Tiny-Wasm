@@ -30,3 +30,17 @@ string encodeCSEL(RegType regType, uint8_t rd, uint8_t rn, uint8_t rm, uint8_t c
   opcode.setCond(cond);
   return opcode.getInstruction();
 }
+
+// This instruction sets the destination register to 1 if the condition is TRUE, and otherwise sets it to 0.
+// CSET <Wd>, <invcond>
+string encodeCSET(RegType regType, uint8_t rd, uint8_t cond, bool smallEndian = true) {
+  auto opcode = Arm64Opcode(smallEndian);
+  opcode.setSf(regType);
+  opcode.setField(0b110101, 23);
+  opcode.setRm(0b11111);
+  opcode.setCond(cond);
+  opcode.setField(1, 10);
+  opcode.setRn(0b11111);
+  opcode.setRd(rd);
+  return opcode.getInstruction();
+}

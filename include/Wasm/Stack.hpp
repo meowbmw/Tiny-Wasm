@@ -93,15 +93,15 @@ string WasmFunction::pop(RegType regType, bool tee = false, int save_reg) {
    * (3) (Optional) if teeing, restore pointer
    */
 
-  cout << format("       {} stack", tee == true ? "=Tee" : "-Pop") << endl;
+  cout << format("       {} stack", tee == true ? "|Tee" : "-Pop") << endl;
   string instr;
   // decrease REG_POINTER_WASM_STACK
   instr += encodeAddSubImm(X_REG, true, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
   instr += encodeLoadStoreReg(regType, LDR, save_reg, REG_WASM_STACK, REG_POINTER_WASM_STACK);
   if (tee) {
-    cout << "Teeing so restoring stack pointers!" << endl;
+    cout << "       Teeing so restoring stack pointers!" << endl;
     instr += encodeAddSubImm(X_REG, false, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
   }
-  cout << format("       {} stack end", tee == true ? "=Tee" : "-Pop") << endl;
+  cout << format("       {} stack end", tee == true ? "|Tee" : "-Pop") << endl;
   return instr;
 }

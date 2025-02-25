@@ -222,11 +222,16 @@ public:
   void emitConst(wasm_type elem);
   void emitArithOp(char typeInfo, char opType, bool isSigned = true);
   void emitCompareOp(RegType regtype, string condStr);
+  void emitBlock(int i);
+  void emitBr(int i);
+  void emitBr_if(int i);
   void emitIfOp(int i);
   void emitElseOp();
   void emitEndOp();
   void emitDrop();
   void emitRet();
+  void emitCtz(RegType regtype);
+  void emitEqz(RegType regtype);
   string push(RegType regType, int reg = 11);
   string pop(RegType regType, bool tee, int reg = 11);
   void constructFullinstr(string sub_instr);
@@ -238,8 +243,6 @@ public:
   int param_stack_end_location = 0;
   int local_stack_start_location = 0;
   int local_stack_end_location = 0;
-  int wasm_stack_start_location = 0;
-  int wasm_stack_end_location = 0;
   int if_label = 0;
   int type;
   u_int64_t local_var_declare_count = 0;

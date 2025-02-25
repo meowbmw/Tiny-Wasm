@@ -171,31 +171,45 @@ void WasmFunction::emitArithOp(char typeInfo, char opType, bool isSigned) {
   }
   wasm_instructions += push(regtype);
 }
+auto getSignature(string s) {
+  vector<wasm_type> signature;
+  if (s == "7f") { // i32
+    signature.push_back(static_cast<int32_t>(0));
+  } else if (s == "7e") { // i64
+    signature.push_back(static_cast<int64_t>(0));
+  } else if (s == "7d") { // f32
+    throw "return f32 after if not implemented yet";
+  } else if (s == "7c") { // f64
+    throw "return f64 after if not implemented yet";
+  } else if (s == "70") { // funcref
+    throw "return funcref after if not implemented yet";
+  } else if (s == "60") { // func
+    throw "return func after if not implemented yet";
+  } else if (s == "40") { // void
+    // no need to push anything
+  } else {
+    throw format("invalid byte after if: {}. Check wasm binary integrity", s);
+  }
+  return signature;
+}
+void WasmFunction::emitBlock(int i) {
+  vector<wasm_type> signature = getSignature(code_vec[i]); // should be all zeros with different types
+}
+void WasmFunction::emitBr(int i) {
+
+};
+void WasmFunction::emitBr_if(int i) {
+
+};
+
 void WasmFunction::emitIfOp(int i) {
   /**
   https://github.com/sunfishcode/wasm-reference-manual/blob/master/WebAssembly.md#type-encoding-type
   */
-  vector<wasm_type> signature; // should be all zeros with different types
-  if (code_vec[i] == "7f") {   // i32
-    signature.push_back(static_cast<int32_t>(0));
-  } else if (code_vec[i] == "7e") { // i64
-    signature.push_back(static_cast<int64_t>(0));
-  } else if (code_vec[i] == "7d") { // f32
-    throw "return f32 after if not implemented yet";
-  } else if (code_vec[i] == "7c") { // f64
-    throw "return f64 after if not implemented yet";
-  } else if (code_vec[i] == "70") { // funcref
-    throw "return funcref after if not implemented yet";
-  } else if (code_vec[i] == "60") { // func
-    throw "return func after if not implemented yet";
-  } else if (code_vec[i] == "40") { // void
-    // no need to push anything
-  } else {
-    throw format("invalid byte after if: {}. Check wasm binary integrity", code_vec[i]);
-  }
+  vector<wasm_type> signature = getSignature(code_vec[i]); // should be all zeros with different types
   string label = "Else/End_" + to_string(if_label++);
   control_flow_stack.push_back(controlFlowElement(label, signature));
-  cout << "Compare for if:" << endl;
+  cout << "If" << endl;
   // condition is defined to be i32 type, so going with W_REG here
   wasm_instructions += pop(W_REG, true);
   wasm_instructions += encodeCompareImm(W_REG, 11, 0);
@@ -215,7 +229,39 @@ void WasmFunction::emitEndOp() {
   control_flow_stack.pop_back();
   insertLabel(label);
 }
-
+// Count trailing zeros; when all bits are zero, return number of bits, i.e. 32/64
+void WasmFunction::emitCtz(RegType regType) {
+  /**
+   * We need to check if input is 0, and if it is, we return 32/64
+   * Otherwise, use rbit and clz to emulate ctz
+   */
+  cout << format("{}.ctz", regType == X_REG ? "i64" : "i32") << endl;
+  // pop one element from stack to r11
+  wasm_instructions += pop(regType);
+  // moving 32/64 (depending on regType) to x1/w1
+  wasm_instructions += encodeMovz(1, (regType == X_REG) ? 64 : 32, regType);
+  // store reversed r11 to r2
+  wasm_instructions += encodeRBIT(regType, 2, 11);
+  // count r2 leading zeros
+  wasm_instructions += encodeCLZ(regType, 2, 2);
+  // compare r11 with 0
+  wasm_instructions += encodeCompareImm(regType, 11, 0);
+  // csel r11, r1, r2, eq
+  wasm_instructions += encodeCSEL(regType, 11, 1, 2, reverse_cond_str_map.at("eq"));
+  // push r11 to stack
+  wasm_instructions += push(regType);
+}
+// The eqz instruction returns true if the operand is equal to zero, or false otherwise.
+// Signature: (i32/i64) : (i32)
+void WasmFunction::emitEqz(RegType regType) {
+  cout << format("{}.eqz", regType == X_REG ? "i64" : "i32") << endl;
+  wasm_instructions += pop(regType);
+  // there is no direct equivalent instruction in arm64
+  // so we do this by first compare with 0, then use cset to set result
+  wasm_instructions += encodeCompareImm(regType, 11, 0);
+  wasm_instructions += encodeCSET(W_REG, 11, reverse_cond_str_map.at("ne"));
+  wasm_instructions += push(W_REG);
+}
 // Drop one element from stack
 void WasmFunction::emitDrop() {
   cout << "Drop" << endl;
