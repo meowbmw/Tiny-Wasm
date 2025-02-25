@@ -238,6 +238,33 @@ unsigned int GetBits(const std::string &bits, int start, int end) {
   std::string bitRange = bits.substr(bits.size() - end - 1, end - start + 1);
   return std::bitset<32>(bitRange).to_ulong();
 }
+// decode unsigned leb128
+// returns [value, bytesRead]
+pair<uint64_t, size_t> decode_uleb128(const string &s, size_t offset) {
+  uint64_t result = 0;
+  size_t shift = 0;
+  size_t pos = offset;
+  uint8_t byte;
+
+  do {
+    // 确保有足够的字节可读
+    if (pos + 2 > s.length()) {
+      cout << "错误：解析 LEB128 时超出字符串范围" << endl;
+      return {0, 0}; // 返回错误
+    }
+
+    // 从十六进制字符串读取一个字节
+    byte = stoul(s.substr(pos, 2), nullptr, 16);
+    pos += 2;
+
+    // 计算数值
+    result |= (byte & 0x7f) << shift;
+    shift += 7;
+
+  } while (byte & 0x80); // 继续直到最高位为0
+
+  return {result, pos - offset};
+}
 auto decodeLEB128(span<string> inputs, int bits, bool isSigned = true) {
   // todo: unfinished & untested, don't use this to decode
   uint64_t result = 0;

@@ -84,7 +84,7 @@ string WasmFunction::push(RegType regType, int save_reg) {
   cout << "       +Push stack End" << endl;
   return instr;
 }
-string WasmFunction::pop(RegType regType, bool tee = false, int save_reg) {
+string WasmFunction::pop(RegType regType, bool tee, int save_reg) {
   /*
    * NOTE: result will be stored in save_reg (default = 11)
    * This function does:

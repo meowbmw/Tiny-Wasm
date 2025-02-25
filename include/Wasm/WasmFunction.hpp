@@ -228,12 +228,13 @@ public:
   void emitIfOp(int i);
   void emitElseOp();
   void emitEndOp();
+  void emitReturnOp();
   void emitDrop();
   void emitRet();
   void emitCtz(RegType regtype);
   void emitEqz(RegType regtype);
   string push(RegType regType, int reg = 11);
-  string pop(RegType regType, bool tee, int reg = 11);
+  string pop(RegType regType, bool tee = false, int reg = 11);
   void constructFullinstr(string sub_instr);
   void jiting_wasm_code(int i);
   WasmFunction();
@@ -244,6 +245,7 @@ public:
   int local_stack_start_location = 0;
   int local_stack_end_location = 0;
   int if_label = 0;
+  int block_label = 0;
   int type;
   u_int64_t local_var_declare_count = 0;
 

@@ -1,6 +1,6 @@
 #pragma once
-#include "Wasm/WasmFunction.hpp"
 #include "Wasm.hpp"
+#include "Wasm/WasmFunction.hpp"
 #include "WasmType.hpp"
 using namespace std;
 
@@ -22,19 +22,17 @@ public:
     initial_check();
     while (s.size() > 0) {
       const string type = s.substr(0, 2);
-      s = s.substr(2);                             // crop type
-      length = stoul(s.substr(0, 2), nullptr, 16); // Warn & TODO: we assume that the length is at max 1 byte!!!
-      s = s.substr(2);                             // crop length
+      s = s.substr(2); // crop type
+      auto [value, bytesRead] = decode_uleb128(s, 0);
+      length = value;
+      s = s.substr(bytesRead);
       if (type == "01") {
         parse_type();
-      }
-      if (type == "03") {
+      } else if (type == "03") {
         parse_function();
-      }
-      if (type == "07") {
+      } else if (type == "07") {
         parse_export();
-      }
-      if (type == "0a") {
+      } else if (type == "0a") {
         parse_code();
       }
       s = s.substr(length * 2); // move forward, remeber we need to times 2 because we are processing 2 char at a time; 2 char = 2 * 4 bits = 1 byte
@@ -58,28 +56,27 @@ public:
   }
   void parse_type() {
     // type section
-    const u_int64_t type_count = stoul(s.substr(0, 2), nullptr, 16);
-    uint64_t base_offset = 2; // Warn: skip one byte: 60 (function type identifier) as it is fixed
+    auto [type_count, base_offset] = decode_uleb128(s, 0); // Warn: skip one byte: 60 (function type identifier) as it is fixed
     cout << "Decoding type section: " << s.substr(0, length * 2) << endl;
     cout << "Total type count: " << type_count << endl;
     for (int i = 0; i < type_count; ++i) {
       WasmType curType;
-      const uint64_t param_count = stoul(s.substr(base_offset + 2, 2), nullptr, 16);
-      base_offset = base_offset + 2;
+      auto [param_count, bytesRead_param] = decode_uleb128(s, base_offset + 2);
+      base_offset = base_offset + bytesRead_param;
       for (int j = 0; j < param_count; ++j) {
-        curType.add_data(TypeCategory::PARAM, s.substr(base_offset + 2 + 2 * j, 2));
+        curType.add_data(TypeCategory::PARAM, s.substr(base_offset + bytesRead_param + 2 * j, 2));
       }
       base_offset = base_offset + 2 + 2 * param_count;
-      const uint64_t result_count = stoul(s.substr(base_offset, 2), nullptr, 16);
+      auto [result_count, bytesRead_result] = decode_uleb128(s, base_offset);
       for (int j = 0; j < result_count; ++j) {
-        curType.add_data(TypeCategory::RESULT, s.substr(base_offset + 2 + 2 * j, 2));
+        curType.add_data(TypeCategory::RESULT, s.substr(base_offset + bytesRead_result + 2 * j, 2));
       }
       if (DEBUG_TYPE_SECTION) {
         cout << "--- Info for type " << i << " ---" << endl;
         curType.print_data(TypeCategory::PARAM);
         curType.print_data(TypeCategory::RESULT);
       }
-      base_offset = base_offset + 2 + 2 * result_count;
+      base_offset = base_offset + bytesRead_result + 2 * result_count;
       wasmTypeVec.push_back(curType);
     }
   }

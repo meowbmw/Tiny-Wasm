@@ -27,6 +27,8 @@ void test_chapter(const string &chapter_number) {
     f = ifstream(base_path + "div.json");
   } else if (chapter_number == "05") {
     f = ifstream(base_path + "if.json");
+  } else if (chapter_number == "06") {
+    f = ifstream(base_path + "block.json");
   }
   json data = json::parse(f);
   multimap<string, json> command_map;
@@ -105,9 +107,9 @@ void test_chapter(const string &chapter_number) {
   }
 }
 int main() {
-  vector<string> test_chapters = {"02", "03", "04", "05"};
+  vector<string> test_chapters = {"02", "03", "04", "05", "06"};
 
-  // vector<string> test_chapters = {"05"};
+  // vector<string> test_chapters = {"07"};
   cout << "A simple testing program to check our JIT works as intended." << endl;
   cout << "Chapters to test: " << test_chapters << endl;
   for (auto &chapter_number : test_chapters) {

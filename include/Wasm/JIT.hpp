@@ -24,14 +24,26 @@ void WasmFunction::jiting_wasm_code(int i) {
       emitElseOp();
       i += 1;
     } else if (code_vec[i] == "0f") { // ret
+      emitReturnOp();
       i += 1;
     } else if (code_vec[i] == "0b") { // end
       emitEndOp();
       i += 1;
+    } else if (code_vec[i] == "02") { // block
+      emitBlock(i);
+      i += 2;
+    } else if (code_vec[i] == "0c") { // br
+      emitBr(i);
+      i += 2;
+    } else if (code_vec[i] == "0d") { // br_if
+      emitBr_if(i);
+      i += 2;
     } else if (code_vec[i] == "1a") { // drop
       emitDrop();
       i += 1;
-    } else if (code_vec[i] == "20") { // local.get
+    }
+    // local
+    else if (code_vec[i] == "20") { // local.get
       commonLocalOp(i, "get");
       i += 2;
     } else if (code_vec[i] == "21") { // local.set
@@ -40,7 +52,9 @@ void WasmFunction::jiting_wasm_code(int i) {
     } else if (code_vec[i] == "22") { // local.tee
       commonLocalOp(i, "tee");
       i += 2;
-    } else if (code_vec[i] == "41") { // i32.const
+    }
+    // const
+    else if (code_vec[i] == "41") { // i32.const
       wasm_type elem = static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16));
       // todo: read 1 byte is wrong here, should read by leb128 until end
       emitConst(elem);
@@ -169,4 +183,5 @@ void WasmFunction::jiting_wasm_code(int i) {
       i += 1;
     }
   }
+  insertLabel("end");
 }

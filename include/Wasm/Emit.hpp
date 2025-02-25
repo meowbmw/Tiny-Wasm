@@ -193,23 +193,34 @@ auto getSignature(string s) {
   return signature;
 }
 void WasmFunction::emitBlock(int i) {
-  vector<wasm_type> signature = getSignature(code_vec[i]); // should be all zeros with different types
+  cout << "Block" << endl;
+  vector<wasm_type> signature = getSignature(code_vec[i + 1]); // should be all zeros with different types
+  string label = "Block end #" + to_string(block_label++);
+  control_flow_stack.push_back(controlFlowElement(label, signature));
 }
 void WasmFunction::emitBr(int i) {
-
+  cout << "Br" << endl;
+  int depth = static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16));
+  auto [label, signature] = control_flow_stack[control_flow_stack.size() - depth - 1];
+  fakeInsertBranch(label, "b");
 };
 void WasmFunction::emitBr_if(int i) {
-
+  cout << "Br_if" << endl;
+  int depth = static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16));
+  auto [label, signature] = control_flow_stack[control_flow_stack.size() - depth - 1];
+  wasm_instructions += pop(W_REG, false);
+  wasm_instructions += encodeCompareImm(W_REG, 11, 1);
+  fakeInsertBranch(label, "beq"); // if true, branches according to label, otherwise falls through
 };
 
 void WasmFunction::emitIfOp(int i) {
   /**
   https://github.com/sunfishcode/wasm-reference-manual/blob/master/WebAssembly.md#type-encoding-type
   */
-  vector<wasm_type> signature = getSignature(code_vec[i]); // should be all zeros with different types
-  string label = "Else/End_" + to_string(if_label++);
-  control_flow_stack.push_back(controlFlowElement(label, signature));
   cout << "If" << endl;
+  vector<wasm_type> signature = getSignature(code_vec[i]); // should be all zeros with different types
+  string label = "Else/End #" + to_string(if_label++);
+  control_flow_stack.push_back(controlFlowElement(label, signature));
   // condition is defined to be i32 type, so going with W_REG here
   wasm_instructions += pop(W_REG, true);
   wasm_instructions += encodeCompareImm(W_REG, 11, 0);
@@ -219,7 +230,7 @@ void WasmFunction::emitIfOp(int i) {
 void WasmFunction::emitElseOp() {
   auto [label, signature] = control_flow_stack.back();
   control_flow_stack.pop_back();
-  string else_label = "End_" + to_string(if_label++);
+  string else_label = "End #" + to_string(if_label++);
   control_flow_stack.push_back(controlFlowElement(else_label, signature));
   fakeInsertBranch(else_label, "b"); // this branch is for previous if end, should't continue executing else instructions, so jmp to end directly
   insertLabel(label);
@@ -228,6 +239,11 @@ void WasmFunction::emitEndOp() {
   auto [label, signature] = control_flow_stack.back();
   control_flow_stack.pop_back();
   insertLabel(label);
+}
+void WasmFunction::emitReturnOp(){
+  cout << "Return" << endl;
+  auto [label, signature] = control_flow_stack[0];
+  fakeInsertBranch(label, "b"); 
 }
 // Count trailing zeros; when all bits are zero, return number of bits, i.e. 32/64
 void WasmFunction::emitCtz(RegType regType) {
