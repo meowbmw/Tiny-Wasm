@@ -37,7 +37,7 @@ public:
     // store return code 1 to [x13]
     wasm_instructions += encodeMovz(11, 0x1, X_REG, 0);                     // x11=1, this register can be any that is not used and caller-saved
     wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, REG_BUFFER, 0); // [x[REG_BUFFER]]=x11=1
-    fakeInsertBranch("finalize", "b");
+    fakeInsertBranch("Finalize", "b");
 
     insertLabel("entry");
     main_entry_initialize(offset);
@@ -45,11 +45,12 @@ public:
     wrapper_setjmp();
     jiting_wasm_code(offset);
 
+    cout << "Store return code:" << endl;
     // store return code 0 to x[0]
     wasm_instructions += encodeMovz(11, 0x0, X_REG, 0);                     // x11=0, this register can be any that is not used and caller-saved
     wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, REG_BUFFER, 0); // [x[REG_BUFFER]]=x11=0
 
-    insertLabel("finalize");
+    insertLabel("Finalize");
     main_entry_finalize();
     streambuf *old = cout.rdbuf();
     cout.rdbuf(0);
@@ -87,13 +88,13 @@ public:
         [&stack_location](auto &&value) {
           char typeInfo = typeid(value).name()[0];
           if (typeInfo == 'f') {
-            stack_location += 4;
+            stack_location += 8;
           } else if (typeInfo == 'd') {
             stack_location += 8;
           } else if (typeInfo == 'l') {
-            stack_location += 4;
+            stack_location += 8;
           } else if (typeInfo == 'i') {
-            stack_location += 4;
+            stack_location += 8;
           }
         },
         elem);
@@ -223,6 +224,7 @@ public:
   void emitArithOp(char typeInfo, char opType, bool isSigned = true);
   void emitCompareOp(RegType regtype, string condStr);
   void emitBlock(int i);
+  void emitLoop(int i);
   void emitBr(int i);
   void emitBr_if(int i);
   void emitIfOp(int i);
@@ -246,6 +248,7 @@ public:
   int local_stack_end_location = 0;
   int if_label = 0;
   int block_label = 0;
+  int loop_label = 0;
   int type;
   u_int64_t local_var_declare_count = 0;
 

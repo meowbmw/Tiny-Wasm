@@ -18,7 +18,7 @@ void WasmFunction::initParam() {
           if (typeInfo == 'f') {
             instr = encodeLoadStoreImm(S_REG, STR, fp_reg_used, 31, offset);
             regTypeGetter[{TypeCategory::PARAM, i}] = S_REG;
-            offset -= 4;
+            offset -= 8;
             fp_reg_used += 1;
           } else if (typeInfo == 'd') {
             instr = encodeLoadStoreImm(D_REG, STR, fp_reg_used, 31, offset);
@@ -28,12 +28,12 @@ void WasmFunction::initParam() {
           } else if (typeInfo == 'l') {
             instr = encodeLoadStoreImm(X_REG, STR, general_reg_used, 31, offset);
             regTypeGetter[{TypeCategory::PARAM, i}] = X_REG;
-            offset -= 4;
+            offset -= 8;
             general_reg_used += 1;
           } else if (typeInfo == 'i') {
             instr = encodeLoadStoreImm(W_REG, STR, general_reg_used, 31, offset);
             regTypeGetter[{TypeCategory::PARAM, i}] = W_REG;
-            offset -= 4;
+            offset -= 8;
             general_reg_used += 1;
           }
         },
@@ -55,7 +55,7 @@ void WasmFunction::initLocal() {
             // xzr/wzr have same number as sp (31)
             instr = encodeLoadStoreImm(W_REG, STR, 31, 31, offset);
             regTypeGetter[{TypeCategory::LOCAL, i}] = S_REG;
-            offset -= 4;
+            offset -= 8;
           } else if (typeInfo == 'd') {
             instr = encodeLoadStoreImm(X_REG, STR, 31, 31, offset);
             regTypeGetter[{TypeCategory::LOCAL, i}] = D_REG;
@@ -63,11 +63,11 @@ void WasmFunction::initLocal() {
           } else if (typeInfo == 'l') {
             instr = encodeLoadStoreImm(X_REG, STR, 31, 31, offset);
             regTypeGetter[{TypeCategory::LOCAL, i}] = X_REG;
-            offset -= 4;
+            offset -= 8;
           } else if (typeInfo == 'i') {
             instr = encodeLoadStoreImm(W_REG, STR, 31, 31, offset);
             regTypeGetter[{TypeCategory::LOCAL, i}] = W_REG;
-            offset -= 4;
+            offset -= 8;
           }
         },
         local_data[i]);

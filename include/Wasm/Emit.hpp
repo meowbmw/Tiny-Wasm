@@ -1,6 +1,28 @@
 #pragma once
 #include "WasmFunction.hpp"
 
+auto getSignature(string s) {
+  vector<wasm_type> signature;
+  if (s == "7f") { // i32
+    signature.push_back(static_cast<int32_t>(0));
+  } else if (s == "7e") { // i64
+    signature.push_back(static_cast<int64_t>(0));
+  } else if (s == "7d") { // f32
+    throw "return f32 after if not implemented yet";
+  } else if (s == "7c") { // f64
+    throw "return f64 after if not implemented yet";
+  } else if (s == "70") { // funcref
+    throw "return funcref after if not implemented yet";
+  } else if (s == "60") { // func
+    throw "return func after if not implemented yet";
+  } else if (s == "40") { // void
+    // no need to push anything
+  } else {
+    throw format("invalid byte after if: {}. Check wasm binary integrity", s);
+  }
+  return signature;
+}
+
 void WasmFunction::emitGet(const uint64_t var_to_get, TypeCategory vecType) {
   /**
    * Local.get i
@@ -61,10 +83,10 @@ void WasmFunction::emitConst(wasm_type elem) {
 void WasmFunction::emitCompareOp(RegType regtype, string condStr) {
   switch (regtype) {
   case X_REG:
-    cout << "i64." << condStr << endl;
+    cout << "i64." << condCodeToWasmOp.at(condStr) << endl;
     break;
   case W_REG:
-    cout << "i32." << condStr << endl;
+    cout << "i32." << condCodeToWasmOp.at(condStr) << endl;
     break;
   default:
     throw "Unsupported reg type (float or double)";
@@ -171,42 +193,27 @@ void WasmFunction::emitArithOp(char typeInfo, char opType, bool isSigned) {
   }
   wasm_instructions += push(regtype);
 }
-auto getSignature(string s) {
-  vector<wasm_type> signature;
-  if (s == "7f") { // i32
-    signature.push_back(static_cast<int32_t>(0));
-  } else if (s == "7e") { // i64
-    signature.push_back(static_cast<int64_t>(0));
-  } else if (s == "7d") { // f32
-    throw "return f32 after if not implemented yet";
-  } else if (s == "7c") { // f64
-    throw "return f64 after if not implemented yet";
-  } else if (s == "70") { // funcref
-    throw "return funcref after if not implemented yet";
-  } else if (s == "60") { // func
-    throw "return func after if not implemented yet";
-  } else if (s == "40") { // void
-    // no need to push anything
-  } else {
-    throw format("invalid byte after if: {}. Check wasm binary integrity", s);
-  }
-  return signature;
-}
 void WasmFunction::emitBlock(int i) {
   cout << "Block" << endl;
   vector<wasm_type> signature = getSignature(code_vec[i + 1]); // should be all zeros with different types
   string label = "Block end #" + to_string(block_label++);
   control_flow_stack.push_back(controlFlowElement(label, signature));
 }
+void WasmFunction::emitLoop(int i) {
+  vector<wasm_type> signature = getSignature(code_vec[i + 1]); // should be all zeros with different types
+  string label = "Loop #" + to_string(loop_label++);
+  insertLabel(label);
+  control_flow_stack.push_back(controlFlowElement(label, signature));
+}
 void WasmFunction::emitBr(int i) {
-  cout << "Br" << endl;
   int depth = static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16));
+  cout << format("Br {}", depth) << endl;
   auto [label, signature] = control_flow_stack[control_flow_stack.size() - depth - 1];
   fakeInsertBranch(label, "b");
 };
 void WasmFunction::emitBr_if(int i) {
-  cout << "Br_if" << endl;
   int depth = static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16));
+  cout << format("Br_if {}", depth) << endl;
   auto [label, signature] = control_flow_stack[control_flow_stack.size() - depth - 1];
   wasm_instructions += pop(W_REG, false);
   wasm_instructions += encodeCompareImm(W_REG, 11, 1);
@@ -238,12 +245,15 @@ void WasmFunction::emitElseOp() {
 void WasmFunction::emitEndOp() {
   auto [label, signature] = control_flow_stack.back();
   control_flow_stack.pop_back();
-  insertLabel(label);
+  // need to determine if it is bound before inserting
+  if (!label_map.contains(label)) {
+    insertLabel(label);
+  }
 }
-void WasmFunction::emitReturnOp(){
+void WasmFunction::emitReturnOp() {
   cout << "Return" << endl;
   auto [label, signature] = control_flow_stack[0];
-  fakeInsertBranch(label, "b"); 
+  fakeInsertBranch(label, "b");
 }
 // Count trailing zeros; when all bits are zero, return number of bits, i.e. 32/64
 void WasmFunction::emitCtz(RegType regType) {

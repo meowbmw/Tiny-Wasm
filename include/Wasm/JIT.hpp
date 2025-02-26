@@ -4,7 +4,7 @@
 void WasmFunction::jiting_wasm_code(int i) {
   cout << "--- JITing wasm code ---" << endl;
   control_flow_stack.push_back(
-      controlFlowElement("end", result_data)); // TODO: this might need to be called on every function enter, currently it is only executed once.
+      controlFlowElement("Code end", result_data)); // TODO: this might need to be called on every function enter, currently it is only executed once.
   // This instruction is necessary for "end" to pop off control stack
   while (i < code_vec.size()) {
     /**
@@ -32,6 +32,9 @@ void WasmFunction::jiting_wasm_code(int i) {
     } else if (code_vec[i] == "02") { // block
       emitBlock(i);
       i += 2;
+    } else if (code_vec[i] == "03") { // loop
+      emitLoop(i);
+      i += 2;
     } else if (code_vec[i] == "0c") { // br
       emitBr(i);
       i += 2;
@@ -55,15 +58,17 @@ void WasmFunction::jiting_wasm_code(int i) {
     }
     // const
     else if (code_vec[i] == "41") { // i32.const
-      wasm_type elem = static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16));
+      auto [value, bytesRead] = decode_sleb128_from_vec(code_vec, i + 1);
+      wasm_type elem = static_cast<int32_t>(value);
       // todo: read 1 byte is wrong here, should read by leb128 until end
       emitConst(elem);
-      i += 2;
+      i += bytesRead + 1;
     } else if (code_vec[i] == "42") { // i64.const
-      wasm_type elem = static_cast<int64_t>(stoul(code_vec[i + 1], nullptr, 16));
+      auto [value, bytesRead] = decode_sleb128_from_vec(code_vec, i + 1);
+      wasm_type elem = static_cast<int64_t>(value);
       // todo: read 1 byte is wrong here, should read by leb128 until end
       emitConst(elem);
-      i += 2;
+      i += bytesRead + 1;
     } else if (code_vec[i] == "43") { // f32.const
       wasm_type elem = hexToFloat(code_vec[i + 1] + code_vec[i + 2] + code_vec[i + 3] + code_vec[i + 4]);
       emitConst(elem);
@@ -183,5 +188,4 @@ void WasmFunction::jiting_wasm_code(int i) {
       i += 1;
     }
   }
-  insertLabel("end");
 }
