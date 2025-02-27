@@ -51,27 +51,27 @@ const unordered_map<string, uint8_t> reverse_cond_str_map = {
 
 // 条件代码映射：从 ARM 条件代码到 WebAssembly 比较操作的映射
 const unordered_map<std::string, std::string> condCodeToWasmOp = {
-  // 相等和不等比较
-  {"eq", "eq"},     // 相等 (Equal)：两个值完全相同
-  {"ne", "ne"},     // 不相等 (Not Equal)：两个值不同
-  
-  // 有符号比较 (Signed comparisons)
-  {"lt", "lt_s"},   // 有符号小于 (Less Than Signed)：考虑符号的小于比较
-  {"gt", "gt_s"},   // 有符号大于 (Greater Than Signed)：考虑符号的大于比较
-  {"le", "le_s"},   // 有符号小于等于 (Less than or Equal Signed)
-  {"ge", "ge_s"},   // 有符号大于等于 (Greater than or Equal Signed)
-  
-  // 无符号比较 (Unsigned comparisons)
-  {"cc", "lt_u"},   // 无符号小于 (Carry Clear = Less Than Unsigned)：不考虑符号的小于比较
-  {"hi", "gt_u"},   // 无符号大于 (HIgher)：不考虑符号的大于比较
-  {"ls", "le_u"},   // 无符号小于等于 (Lower or Same)
-  {"cs", "ge_u"},   // 无符号大于等于 (Carry Set = Greater than or Equal Unsigned)
-  
-  // 其他可能用到的条件码
-  {"mi", "lt_s"},   // 负数 (MInus)：结果是负数，相当于有符号小于0
-  {"pl", "ge_s"},   // 正数或零 (PLus)：结果是正数或零，相当于有符号大于等于0
-  {"vs", "overflow"}, // 溢出 (oVerflow Set)：运算导致溢出
-  {"vc", "no_overflow"} // 无溢出 (oVerflow Clear)：运算没有导致溢出
+    // 相等和不等比较
+    {"eq", "eq"}, // 相等 (Equal)：两个值完全相同
+    {"ne", "ne"}, // 不相等 (Not Equal)：两个值不同
+
+    // 有符号比较 (Signed comparisons)
+    {"lt", "lt_s"}, // 有符号小于 (Less Than Signed)：考虑符号的小于比较
+    {"gt", "gt_s"}, // 有符号大于 (Greater Than Signed)：考虑符号的大于比较
+    {"le", "le_s"}, // 有符号小于等于 (Less than or Equal Signed)
+    {"ge", "ge_s"}, // 有符号大于等于 (Greater than or Equal Signed)
+
+    // 无符号比较 (Unsigned comparisons)
+    {"cc", "lt_u"}, // 无符号小于 (Carry Clear = Less Than Unsigned)：不考虑符号的小于比较
+    {"hi", "gt_u"}, // 无符号大于 (HIgher)：不考虑符号的大于比较
+    {"ls", "le_u"}, // 无符号小于等于 (Lower or Same)
+    {"cs", "ge_u"}, // 无符号大于等于 (Carry Set = Greater than or Equal Unsigned)
+
+    // 其他可能用到的条件码
+    {"mi", "lt_s"},       // 负数 (MInus)：结果是负数，相当于有符号小于0
+    {"pl", "ge_s"},       // 正数或零 (PLus)：结果是正数或零，相当于有符号大于等于0
+    {"vs", "overflow"},   // 溢出 (oVerflow Set)：运算导致溢出
+    {"vc", "no_overflow"} // 无溢出 (oVerflow Clear)：运算没有导致溢出
 };
 using wasm_type = std::variant<int32_t, int64_t, float, double>;
 auto getWasmType(const wasm_type &var) {
@@ -135,7 +135,7 @@ public:
     setField(imm19, 5, 19);
   }
   // set other fields
-  void setOption(auto option){
+  void setOption(auto option) {
     setField(option, 13);
   }
   void setSf(auto regType) {
@@ -159,7 +159,7 @@ public:
     }
     instruction = toHexString(inst).substr(2);
     if (enablePrint) {
-      cout << format("       {} | {}", assemblyString, instruction) << endl;
+      cout << format("{}{} | {}", commonIndentString, assemblyString, instruction) << endl;
     }
   }
   string getInstruction() {

@@ -5,7 +5,7 @@ void WasmFunction::initParam() {
   /**
    * Todo: only support 8 params for now!! need to support load from stack if we want to support more params
    */
-  cout << "       +Store parameters from register to stack" << endl;
+  cout << commonIndentString + "+Store parameters from register to stack" << endl;
   string instr;
   int offset = param_stack_end_location;
   int fp_reg_used = 0;
@@ -43,7 +43,7 @@ void WasmFunction::initParam() {
   }
 }
 void WasmFunction::initLocal() {
-  cout << "       +Store locals initialized with 0 to stack" << endl;
+  cout << commonIndentString + "+Store locals initialized with 0 to stack" << endl;
   string instr;
   int offset = local_stack_end_location;
   for (int i = 0; i < local_data.size(); ++i) {

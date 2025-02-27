@@ -32,7 +32,7 @@ void WasmFunction::getStackPreallocateSize(const int offset) {
   cout.rdbuf(old);
 }
 void WasmFunction::prepareSp() {
-  cout << "       -Sub sp register" << endl;
+  cout << commonIndentString + "-Sub sp register" << endl;
   string instr = encodeAddSubImm(X_REG, true, 31, 31, stack_size); // sub sp, sp, stack_size
   constructFullinstr(instr);
 }
@@ -75,13 +75,13 @@ string WasmFunction::push(RegType regType, int save_reg) {
    * (1) Save value to stack
    * (2) Update its stack pointer
    */
-  cout << "       +Push stack" << endl;
+  cout << commonIndentString + "+Push stack" << endl;
   string instr;
   // store value in save_reg to wasm_stack[REG_POINTER_WASM_STACK]
   instr += encodeLoadStoreReg(regType, STR, save_reg, REG_WASM_STACK, REG_POINTER_WASM_STACK);
   // add REG_POINTER_WASM_STACK by 8
   instr += encodeAddSubImm(X_REG, false, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
-  cout << "       +Push stack End" << endl;
+  cout << commonIndentString + "+Push stack End" << endl;
   return instr;
 }
 string WasmFunction::pop(RegType regType, bool tee, int save_reg) {
@@ -93,15 +93,15 @@ string WasmFunction::pop(RegType regType, bool tee, int save_reg) {
    * (3) (Optional) if teeing, restore pointer
    */
 
-  cout << format("       {} stack", tee == true ? "|Tee" : "-Pop") << endl;
+  cout << format("{}{} stack", commonIndentString, tee == true ? "|Tee" : "-Pop") << endl;
   string instr;
   // decrease REG_POINTER_WASM_STACK
   instr += encodeAddSubImm(X_REG, true, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
   instr += encodeLoadStoreReg(regType, LDR, save_reg, REG_WASM_STACK, REG_POINTER_WASM_STACK);
   if (tee) {
-    cout << "       Teeing so restoring stack pointers!" << endl;
+    cout << commonIndentString + "Teeing so restoring stack pointers!" << endl;
     instr += encodeAddSubImm(X_REG, false, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
   }
-  cout << format("       {} stack end", tee == true ? "|Tee" : "-Pop") << endl;
+  cout << format("{}{} stack end", commonIndentString, tee == true ? "|Tee" : "-Pop") << endl;
   return instr;
 }

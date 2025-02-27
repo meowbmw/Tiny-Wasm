@@ -43,6 +43,9 @@ template <typename Func, typename... Args> string silentCall(Func func, Args... 
   cout.rdbuf(old);
   return result;
 }
+
+const string commonIndentString = "       ";
+
 enum class TypeCategory { PARAM, RESULT, LOCAL };
 string type_category_to_string(TypeCategory category) {
   switch (category) {

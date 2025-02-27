@@ -1,9 +1,8 @@
 #pragma once
-#include "OverloadOperator.h"
-#include "Utils.h"
+#include "CommonHeader.hpp"
 using namespace std;
 
-class WasmType {
+class WasmFunctionType {
 public:
   void print_data(TypeCategory category) {
     cout << "--- Printing " + type_category_to_string(category) + " data---" << endl;

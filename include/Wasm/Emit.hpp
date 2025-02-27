@@ -31,7 +31,7 @@ void WasmFunction::emitGet(const uint64_t var_to_get, TypeCategory vecType) {
    */
   RegType regtype = regTypeGetter[{vecType, var_to_get}];
   int stack_offset = vecToStack[{vecType, var_to_get}];
-  cout << format("       Getting {}[{}]", type_category_to_string(vecType), var_to_get) << endl;
+  cout << format("{}Getting {}[{}]", commonIndentString, type_category_to_string(vecType), var_to_get) << endl;
   // Note: We use x11 as a bridge register for memory -> memory transfer!
   // var[i] -> x/w11
   string load_param_instr = encodeLoadStoreImm(regtype, LDR, 11, 31, stack_offset);
@@ -48,7 +48,7 @@ void WasmFunction::emitSet(const uint64_t var_to_set, TypeCategory vecType, bool
   RegType regtype = regTypeGetter[{vecType, var_to_set}];
   int stack_offset = vecToStack[{vecType, var_to_set}];
   string load_to_reg_instr = pop(regtype, isTee);
-  cout << format("       Assigning to {}[{}]", type_category_to_string(vecType), var_to_set) << endl;
+  cout << format("{}Assigning to {}[{}]", commonIndentString, type_category_to_string(vecType), var_to_set) << endl;
   string reg_to_mem_instr = encodeLoadStoreImm(regtype, STR, 11, 31, stack_offset);
   constructFullinstr(load_to_reg_instr + reg_to_mem_instr);
 }
@@ -199,9 +199,14 @@ void WasmFunction::emitBlock(int i) {
   string label = "Block end #" + to_string(block_label++);
   control_flow_stack.push_back(controlFlowElement(label, signature));
 }
-void WasmFunction::emitCall(int function_index){
-  cout << format("Calling function index: {}", function_index) << endl;
-  
+void WasmFunction::emitCall(int function_index) {
+  cout << format("Call {}", function_index);
+  cout << commonIndentString + "Loading parameters to register before calling";
+  const auto v = getWasmFunctionType(function_index).param_data;
+
+  for (int i = 0; i < v.size(); ++i) {
+  }
+  cout << format("{}Calling function index: {}", commonIndentString, function_index) << endl;
 }
 void WasmFunction::emitLoop(int i) {
   vector<wasm_type> signature = getSignature(code_vec[i + 1]); // should be all zeros with different types

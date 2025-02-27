@@ -1,5 +1,5 @@
 #pragma once
-#include "CommonHeader.hpp"
+#include "WasmFunctionType.hpp"
 
 const uint8_t REG_BUFFER = 19;
 const uint8_t REG_WASM_STACK = 20;
@@ -192,6 +192,9 @@ public:
     code_vec = v;
     local_var_declare_count = l;
   }
+  WasmFunctionType getWasmFunctionType(int i) {
+    return wasmFunctionTypeVec[wasmFunctionToTypeMapper[i]];
+  }
   void commonLocalOp(int i, string opType) {
     u_int64_t var_index = stoul(code_vec[i + 1], nullptr, 16);
     cout << format("Local.{} {}", opType, var_index) << endl;
@@ -259,6 +262,8 @@ public:
   vector<wasm_type> local_data;
   vector<wasm_type> param_data;
   vector<wasm_type> result_data;
+  vector<WasmFunctionType> wasmFunctionTypeVec;
+  vector<int> wasmFunctionToTypeMapper;
   vector<controlFlowElement> control_flow_stack;
 
   map<pair<TypeCategory, int>, int> vecToStack;        // {TypeCategory::PARAM, 0} : 0x4

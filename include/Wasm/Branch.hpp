@@ -3,7 +3,7 @@
 
 void WasmFunction::fakeInsertBranch(string label, string BranchStr) {
   int64_t cur_location = wasm_instructions.size();
-  cout << format("       {} {}", BranchStr, label) << endl;
+  cout << format("{}{} {}", commonIndentString, BranchStr, label) << endl;
   wasm_instructions += "FFFFFFFF"; // fake insert branch instruction
   fake_insert_map.insert({label, {cur_location, BranchStr}});
 }

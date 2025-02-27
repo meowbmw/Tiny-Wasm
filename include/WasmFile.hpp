@@ -1,7 +1,7 @@
 #pragma once
 #include "Wasm.hpp"
 #include "Wasm/WasmFunction.hpp"
-#include "WasmType.hpp"
+#include "Wasm/WasmFunctionType.hpp"
 using namespace std;
 
 const bool DEBUG_EXPORT_SECTION = false;
@@ -61,7 +61,7 @@ public:
     cout << "Decoding type section: " << s.substr(0, length * 2) << endl;
     cout << "Total type count: " << type_count << endl;
     for (int i = 0; i < type_count; ++i) {
-      WasmType curType;
+      WasmFunctionType curType;
       auto [param_count, bytesRead_param] = decode_uleb128(s, base_offset + bytes_read);
       base_offset = base_offset + bytesRead_param;
       for (int j = 0; j < param_count; ++j) {
@@ -78,7 +78,7 @@ public:
         curType.print_data(TypeCategory::RESULT);
       }
       base_offset = base_offset + bytesRead_result + 2 * result_count;
-      wasmTypeVec.push_back(curType);
+      wasmFunctionTypeVec.push_back(curType);
     }
   }
   void parse_function() {
@@ -89,7 +89,7 @@ public:
     cout << "Total function count: " << function_count << endl;
     for (int i = 0; i < function_count; ++i) {
       auto [function_type, bytes_read_type] = decode_uleb128(s, base_offset);
-      funcTypeVec.push_back(function_type);
+      wasmFunctionToTypeMapper.push_back(function_type);
       if (DEBUG_FUNCTION_SECTION) {
         cout << "--- Info for function " << i << " ---" << endl;
         cout << "Type is: " << function_type << endl;
@@ -153,9 +153,11 @@ public:
     }
   }
   void initFunctionbyType(int i) {
-    wasmFunctionVec[i].type = funcTypeVec[i];
-    wasmFunctionVec[i].param_data = wasmTypeVec[funcTypeVec[i]].param_data;
-    wasmFunctionVec[i].result_data = wasmTypeVec[funcTypeVec[i]].result_data;
+    wasmFunctionVec[i].type = wasmFunctionToTypeMapper[i];
+    wasmFunctionVec[i].param_data = wasmFunctionTypeVec[wasmFunctionToTypeMapper[i]].param_data;
+    wasmFunctionVec[i].result_data = wasmFunctionTypeVec[wasmFunctionToTypeMapper[i]].result_data;
+    wasmFunctionVec[i].wasmFunctionTypeVec = wasmFunctionTypeVec;
+    wasmFunctionVec[i].wasmFunctionToTypeMapper = wasmFunctionToTypeMapper;
   }
   void funcSingleProcess(int i) {
     cout << "------ Processing function " << i << ": " << funcIndexNameMapper[i] << " ------" << endl;
@@ -170,7 +172,7 @@ public:
   void funcBatchProcess(bool execute = false) {
     // give function their respective param, result and local vec.
     // generate respective machine code
-    for (int i = 0; i < funcTypeVec.size(); ++i) {
+    for (int i = 0; i < wasmFunctionToTypeMapper.size(); ++i) {
       initFunctionbyType(i);
       funcSingleProcess(i);
       if (execute) {
@@ -191,8 +193,8 @@ public:
   int64_t result;
   unsigned int length = 0;
   vector<WasmFunction> wasmFunctionVec; // used to store function code
-  vector<WasmType> wasmTypeVec;         // used to store type definition
-  vector<int> funcTypeVec;
+  vector<WasmFunctionType> wasmFunctionTypeVec;         // used to store type definition
+  vector<int> wasmFunctionToTypeMapper; // map function id to wasmType
   map<string, int> funcNameIndexMapper;
   map<int, string> funcIndexNameMapper;
 };
