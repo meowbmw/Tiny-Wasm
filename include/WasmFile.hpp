@@ -15,7 +15,7 @@ const bool DEBUG_CODE_SECTION = false;
 // const bool DEBUG_CODE_SECTION = true;
 const string WASM_TO_READ = "test/local.2.wasm";
 
-class Parser {
+class WasmFile {
 public:
   void parse() {
     cout << "Parsing wasm file: " << WASM_PATH << endl;
@@ -56,7 +56,7 @@ public:
   }
   void parse_type() {
     // type section
-    auto [type_count, bytes_read] = decode_uleb128(s, 0); 
+    auto [type_count, bytes_read] = decode_uleb128(s, 0);
     uint64_t base_offset = 2; // Warn: skip one byte: 60 (function type identifier) as it is fixed
     cout << "Decoding type section: " << s.substr(0, length * 2) << endl;
     cout << "Total type count: " << type_count << endl;
@@ -83,17 +83,18 @@ public:
   }
   void parse_function() {
     // function section
-    auto [function_count, bytes_read] = decode_uleb128(s, 0); 
-    uint64_t base_offset = 0;
+    auto [function_count, bytes_read] = decode_uleb128(s, 0);
+    uint64_t base_offset = bytes_read;
     cout << "Decoding function section: " << s.substr(0, length * 2) << endl;
     cout << "Total function count: " << function_count << endl;
     for (int i = 0; i < function_count; ++i) {
-      auto function_type = stoul(s.substr(base_offset + 2 * i + 2, 2), nullptr, 16);
+      auto [function_type, bytes_read_type] = decode_uleb128(s, base_offset);
       funcTypeVec.push_back(function_type);
       if (DEBUG_FUNCTION_SECTION) {
         cout << "--- Info for function " << i << " ---" << endl;
         cout << "Type is: " << function_type << endl;
       }
+      base_offset += bytes_read_type;
     }
   }
   void parse_export() {
@@ -178,9 +179,9 @@ public:
       }
     }
   }
-  Parser() {
+  WasmFile() {
   }
-  Parser(string wasmpath) {
+  WasmFile(string wasmpath) {
     WASM_PATH = wasmpath;
     s = readBinary(WASM_PATH);
   }

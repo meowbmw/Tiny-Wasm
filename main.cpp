@@ -1,4 +1,4 @@
-#include "include/Parser.hpp"
+#include "include/WasmFile.hpp"
 #include "nlohmann/json.hpp"
 using namespace std;
 using json = nlohmann::json;
@@ -34,15 +34,15 @@ void test_chapter(const string &chapter_number) {
   }
   json data = json::parse(f);
   multimap<string, json> command_map;
-  map<string, Parser> parser_map;
+  map<string, WasmFile> wasmFile_map;
   string cur_wasm_file;
   for (size_t i = 0; i < data["commands"].size(); ++i) {
     if (data["commands"][i].contains("filename")) {
       cur_wasm_file = data["commands"][i]["filename"];
-      if (parser_map.contains(cur_wasm_file) == false) {
-        Parser cur_parser = Parser(base_path + cur_wasm_file);
-        parser_map.insert({cur_wasm_file, cur_parser});
-        parser_map[cur_wasm_file].parse();
+      if (wasmFile_map.contains(cur_wasm_file) == false) {
+        WasmFile cur_wasmFile = WasmFile(base_path + cur_wasm_file);
+        wasmFile_map.insert({cur_wasm_file, cur_wasmFile});
+        wasmFile_map[cur_wasm_file].parse();
         cout << endl;
       }
     } else if (data["commands"][i].contains("action")) {
@@ -54,7 +54,7 @@ void test_chapter(const string &chapter_number) {
     cout << v.first << " " << v.second << endl;
     cout << "------ Input ------" << endl;
     string function_name = v.second["action"]["field"];
-    Parser &curParser = parser_map[v.first];
+    WasmFile &curParser = wasmFile_map[v.first];
     int function_index = curParser.funcNameIndexMapper[function_name];
     curParser.initFunctionbyType(function_index);
     // NOTE: USING REFERENCE IS VERY VERY IMPORTANT HERE!!!

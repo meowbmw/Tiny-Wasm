@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "include/Parser.hpp"
+#include "include/WasmFile.hpp"
 #include "nlohmann/json.hpp"
 using namespace std;
 using json = nlohmann::json;
@@ -13,16 +13,16 @@ void test_chapter(string chapter_number, string test_json) {
   ifstream f(base_path + test_json);
   json data = json::parse(f);
   multimap<string, json> command_map;
-  map<string, Parser> parser_map;
+  map<string, WasmFile> wasmFile_map;
   string cur_wasm_file;
   for (size_t i = 0; i < data["commands"].size(); ++i) {
     if (data["commands"][i].contains("filename")) {
       cur_wasm_file = data["commands"][i]["filename"];
-      if (parser_map.contains(cur_wasm_file) == false) {
-        Parser cur_parser = Parser(base_path + cur_wasm_file);
-        parser_map.insert({cur_wasm_file, cur_parser});
+      if (wasmFile_map.contains(cur_wasm_file) == false) {
+        WasmFile cur_wasmFile = WasmFile(base_path + cur_wasm_file);
+        wasmFile_map.insert({cur_wasm_file, cur_wasmFile});
         cout.rdbuf(parser_cout.rdbuf()); // Redirect parser output to file; it's too much...
-        parser_map[cur_wasm_file].parse();
+        wasmFile_map[cur_wasm_file].parse();
         cout.rdbuf(normal_cout.rdbuf()); // Restore cout
       }
     } else if (data["commands"][i].contains("action")) {
@@ -32,7 +32,7 @@ void test_chapter(string chapter_number, string test_json) {
   for (auto &v : command_map) {
     cout << "---Asserting---" << endl;
     string function_name = v.second["action"]["field"];
-    Parser &curParser = parser_map[v.first];
+    WasmFile &curParser = wasmFile_map[v.first];
     int function_index = curParser.funcNameIndexMapper[function_name];
     curParser.initFunctionbyType(function_index);
     // NOTE: USING REFERENCE IS VERY VERY IMPORTANT HERE!!!
