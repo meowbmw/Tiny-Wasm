@@ -26,7 +26,6 @@ int64_t WasmFunction::executeWasmInstr() {
    *
    */
   // Warn: Append pre wasm_instructions here
-  // string full_instructions = pre_instructions_for_param_loading + encodeBranch(1) + wasm_instructions;
   string full_instructions = pre_instructions_for_param_loading + wasm_instructions;
   cout << "Machine instruction to load: " << full_instructions << endl;
   if (pre_instructions_for_param_loading.size() > 0) {

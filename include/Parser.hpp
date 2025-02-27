@@ -56,12 +56,13 @@ public:
   }
   void parse_type() {
     // type section
-    auto [type_count, base_offset] = decode_uleb128(s, 0); // Warn: skip one byte: 60 (function type identifier) as it is fixed
+    auto [type_count, bytes_read] = decode_uleb128(s, 0); 
+    uint64_t base_offset = 2; // Warn: skip one byte: 60 (function type identifier) as it is fixed
     cout << "Decoding type section: " << s.substr(0, length * 2) << endl;
     cout << "Total type count: " << type_count << endl;
     for (int i = 0; i < type_count; ++i) {
       WasmType curType;
-      auto [param_count, bytesRead_param] = decode_uleb128(s, base_offset + 2);
+      auto [param_count, bytesRead_param] = decode_uleb128(s, base_offset + bytes_read);
       base_offset = base_offset + bytesRead_param;
       for (int j = 0; j < param_count; ++j) {
         curType.add_data(TypeCategory::PARAM, s.substr(base_offset + bytesRead_param + 2 * j, 2));
@@ -82,7 +83,7 @@ public:
   }
   void parse_function() {
     // function section
-    const u_int64_t function_count = stoul(s.substr(0, 2), nullptr, 16);
+    auto [function_count, bytes_read] = decode_uleb128(s, 0); 
     uint64_t base_offset = 0;
     cout << "Decoding function section: " << s.substr(0, length * 2) << endl;
     cout << "Total function count: " << function_count << endl;

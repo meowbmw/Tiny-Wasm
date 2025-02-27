@@ -5,6 +5,7 @@ void WasmFunction::initParam() {
   /**
    * Todo: only support 8 params for now!! need to support load from stack if we want to support more params
    */
+  cout << "       +Store parameters from register to stack" << endl;
   string instr;
   int offset = param_stack_end_location;
   int fp_reg_used = 0;
@@ -42,6 +43,7 @@ void WasmFunction::initParam() {
   }
 }
 void WasmFunction::initLocal() {
+  cout << "       +Store locals initialized with 0 to stack" << endl;
   string instr;
   int offset = local_stack_end_location;
   for (int i = 0; i < local_data.size(); ++i) {
@@ -73,30 +75,4 @@ void WasmFunction::initLocal() {
         local_data[i]);
     constructFullinstr(instr);
   }
-}
-
-WasmFunction::WasmFunction() {
-  // initiate arithmetic operations map
-  operations_map['+'] = [](wasm_type a, wasm_type b) {
-    return a + b;
-  };
-  operations_map['-'] = [](wasm_type a, wasm_type b) {
-    return a - b;
-  };
-  operations_map['*'] = [](wasm_type a, wasm_type b) {
-    return a * b;
-  };
-  operations_map['/'] = [](wasm_type a, wasm_type b) {
-    std::visit(
-        [](auto &&value) {
-          if (value == 0) {
-            // cout << "! Division by zero in wasm code" << endl;
-          }
-          return wasm_type(0);
-          // disabled for now to check arm64 trap!!
-          // throw std::runtime_error("Division by zero");
-        },
-        b);
-    return a / b;
-  };
 }

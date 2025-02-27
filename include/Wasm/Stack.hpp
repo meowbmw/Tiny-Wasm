@@ -32,7 +32,7 @@ void WasmFunction::getStackPreallocateSize(const int offset) {
   cout.rdbuf(old);
 }
 void WasmFunction::prepareSp() {
-  cout << "Sub sp register" << endl;
+  cout << "       -Sub sp register" << endl;
   string instr = encodeAddSubImm(X_REG, true, 31, 31, stack_size); // sub sp, sp, stack_size
   constructFullinstr(instr);
 }

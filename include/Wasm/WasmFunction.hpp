@@ -15,6 +15,29 @@ public:
     // start processing wasm_instructions here
     fakeInsertBranch("entry", "b"); // b main
 
+    injectExceptionHandling();
+
+    insertLabel("entry");
+    main_entry_initialize(offset);
+
+    wrapper_setjmp();
+    jiting_wasm_code(offset);
+
+    cout << "Store return code:" << endl;
+    // store return code 0 to x[0]
+    wasm_instructions += encodeMovz(11, 0x0, X_REG, 0);                     // x11=0, this register can be any that is not used and caller-saved
+    wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, REG_BUFFER, 0); // [x[REG_BUFFER]]=x11=0
+
+    insertLabel("Finalize");
+    restoreSP();
+    wasm_instructions += encodeReturn();
+    streambuf *old = cout.rdbuf();
+    cout.rdbuf(0);
+    fixUpfakeBranch();
+    cout.rdbuf(old);
+  }
+  void printOriginWasmOpcode(int &offset);
+  void injectExceptionHandling() {
     insertLabel("setjmp");
     wasm_instructions += getSetJmpInstr();
 
@@ -38,26 +61,7 @@ public:
     wasm_instructions += encodeMovz(11, 0x1, X_REG, 0);                     // x11=1, this register can be any that is not used and caller-saved
     wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, REG_BUFFER, 0); // [x[REG_BUFFER]]=x11=1
     fakeInsertBranch("Finalize", "b");
-
-    insertLabel("entry");
-    main_entry_initialize(offset);
-
-    wrapper_setjmp();
-    jiting_wasm_code(offset);
-
-    cout << "Store return code:" << endl;
-    // store return code 0 to x[0]
-    wasm_instructions += encodeMovz(11, 0x0, X_REG, 0);                     // x11=0, this register can be any that is not used and caller-saved
-    wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, REG_BUFFER, 0); // [x[REG_BUFFER]]=x11=0
-
-    insertLabel("Finalize");
-    main_entry_finalize();
-    streambuf *old = cout.rdbuf();
-    cout.rdbuf(0);
-    fixUpfakeBranch();
-    cout.rdbuf(old);
   }
-  void printOriginWasmOpcode(int &offset);
   void initParam();
   void initLocal();
   void local_var_initialize(int &offset) {
@@ -78,10 +82,6 @@ public:
     initParam(); // initParam is storing to memory, prepareParams is storing to registers
     initLocal();
     // printInitStack();
-  }
-  void main_entry_finalize() {
-    restoreSP();
-    emitRet();
   }
   void allocateVar(const wasm_type &elem, int &stack_location) {
     std::visit(
@@ -122,7 +122,7 @@ public:
     cout << "Initialze REG_POINTER_WASM_STACK: x" << +REG_POINTER_WASM_STACK << " with 0" << endl;
     pre_instructions_for_param_loading += encodeMovz(REG_POINTER_WASM_STACK, 0, X_REG);
 
-    cout << "Loading parameters" << endl;
+    cout << "---Loading parameters---" << endl;
     for (int i = 0; i < param_data.size(); ++i) {
       std::visit(
           [&i, this](auto &&value) {
@@ -150,6 +150,7 @@ public:
     label_map.clear();
   }
   void wrapper_setjmp() {
+    cout << "Setting up setjmp" << endl;
     wasm_instructions += encodeLdpStp(X_REG, STR, 29, 30, 31, -0x20, EncodingMode::PreIndex); // stp x29, x30, [sp, #-0x20]!
 
     wasm_instructions += encodeMovRegister(X_REG, 0, REG_BUFFER); // x0 <- x[REG_BUFFER]
@@ -223,6 +224,7 @@ public:
   void emitConst(wasm_type elem);
   void emitArithOp(char typeInfo, char opType, bool isSigned = true);
   void emitCompareOp(RegType regtype, string condStr);
+  void emitCall(int function_index);
   void emitBlock(int i);
   void emitLoop(int i);
   void emitBr(int i);
@@ -232,14 +234,12 @@ public:
   void emitEndOp();
   void emitReturnOp();
   void emitDrop();
-  void emitRet();
   void emitCtz(RegType regtype);
   void emitEqz(RegType regtype);
   string push(RegType regType, int reg = 11);
   string pop(RegType regType, bool tee = false, int reg = 11);
   void constructFullinstr(string sub_instr);
   void jiting_wasm_code(int i);
-  WasmFunction();
   // data section
   int stack_size = 0;
   int param_stack_start_location = 0;
@@ -261,7 +261,6 @@ public:
   vector<wasm_type> result_data;
   vector<controlFlowElement> control_flow_stack;
 
-  map<char, ArithOperation> operations_map;
   map<pair<TypeCategory, int>, int> vecToStack;        // {TypeCategory::PARAM, 0} : 0x4
   map<pair<TypeCategory, int>, RegType> regTypeGetter; // {TypeCategory::PARAM, 0}: LDR32
   map<int, pair<TypeCategory, int>> stackToVec;        // 0x4 : {TypeCategory::PARAM: 0}

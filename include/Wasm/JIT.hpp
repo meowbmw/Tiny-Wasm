@@ -4,7 +4,7 @@
 void WasmFunction::jiting_wasm_code(int i) {
   cout << "--- JITing wasm code ---" << endl;
   control_flow_stack.push_back(
-      controlFlowElement("Code end", result_data)); // TODO: this might need to be called on every function enter, currently it is only executed once.
+      controlFlowElement("Function end", result_data)); // TODO: this might need to be called on every function enter, currently it is only executed once.
   // This instruction is necessary for "end" to pop off control stack
   while (i < code_vec.size()) {
     /**
@@ -44,6 +44,10 @@ void WasmFunction::jiting_wasm_code(int i) {
     } else if (code_vec[i] == "1a") { // drop
       emitDrop();
       i += 1;
+    } else if (code_vec[i] == "10") { // call
+      auto [function_index, bytesRead] = decode_uleb128_from_vec(code_vec, i + 1);
+      emitCall(function_index);
+      i += bytesRead + 1;
     }
     // local
     else if (code_vec[i] == "20") { // local.get
