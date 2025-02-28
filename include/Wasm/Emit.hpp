@@ -219,7 +219,9 @@ void WasmFunction::emitCall(int function_index) {
     }
   }
   cout << format("{}Calling function index: {}", commonIndentString, function_index) << endl;
-  fakeInsertBranch("TODO", "bl");
+  wasm_instructions +=
+      WrapperEncodeMovInt64(called_function_register, reinterpret_cast<uint64_t>(symbol_table[function_index])); // mov call_reg, function_address
+  wasm_instructions += encodeBranchRegister(called_function_register, true);                                     // blr call_reg
 }
 void WasmFunction::emitLoop(int i) {
   vector<wasm_type> signature = getSignature(code_vec[i + 1]); // should be all zeros with different types

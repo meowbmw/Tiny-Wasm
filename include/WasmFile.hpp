@@ -203,6 +203,8 @@ public:
   vector<WasmFunctionType> wasmFunctionTypeVec; // used to store type definition
   vector<int> wasmFunctionToTypeMapper;         // map function id to wasmType
 
-  map<string, int> funcNameIndexMapper;
-  map<int, string> funcIndexNameMapper;
+  map<string, int> funcNameIndexMapper; // function name to index
+  map<int, string> funcIndexNameMapper; // function index to name
+
+  map<int, int64_t (*)(void *, void *)> symbol_table;
 };

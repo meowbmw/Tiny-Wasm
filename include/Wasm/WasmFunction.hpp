@@ -254,6 +254,7 @@ public:
   int loop_label = 0;
   int type;
   u_int64_t local_var_declare_count = 0;
+  const uint8_t called_function_register = 8;
 
   string functionName;
   string wasm_instructions;
@@ -270,6 +271,8 @@ public:
   map<pair<TypeCategory, int>, int> vecToStack;        // {TypeCategory::PARAM, 0} : 0x4
   map<pair<TypeCategory, int>, RegType> regTypeGetter; // {TypeCategory::PARAM, 0}: LDR32
   map<int, pair<TypeCategory, int>> stackToVec;        // 0x4 : {TypeCategory::PARAM: 0}
+  map<int, int64_t (*)(void *, void *)> symbol_table;
+
   unordered_multimap<string, pair<int64_t, string>> fake_insert_map;
   unordered_map<string, int64_t> label_map;
   /**
