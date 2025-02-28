@@ -20,7 +20,7 @@ public:
     insertLabel("entry");
     main_entry_initialize(offset);
 
-    wrapper_setjmp();
+    enable_setjmp();
     jiting_wasm_code(offset);
 
     cout << "Store return code:" << endl;
@@ -66,8 +66,8 @@ public:
   void initLocal();
   void local_var_initialize(int &offset) {
     for (int i = 0; i < local_var_declare_count; ++i) {
-      const unsigned int var_count_in_this_declare = stoul(code_vec[offset], nullptr, 16);
-      const string var_type_in_this_declare = code_vec[offset + 1];
+      auto [var_count_in_this_declare, bytesread] = decode_uleb128_from_vec(code_vec, offset);
+      const string var_type_in_this_declare = code_vec[offset + bytesread];
       for (int j = 0; j < var_count_in_this_declare; ++j) {
         add_data(TypeCategory::LOCAL, var_type_in_this_declare);
       }
@@ -149,7 +149,7 @@ public:
     fake_insert_map.clear();
     label_map.clear();
   }
-  void wrapper_setjmp() {
+  void enable_setjmp() {
     cout << "Setting up setjmp" << endl;
     wasm_instructions += encodeLdpStp(X_REG, STR, 29, 30, 31, -0x20, EncodingMode::PreIndex); // stp x29, x30, [sp, #-0x20]!
 
@@ -255,6 +255,7 @@ public:
   int type;
   u_int64_t local_var_declare_count = 0;
 
+  string functionName;
   string wasm_instructions;
   string pre_instructions_for_param_loading;
 

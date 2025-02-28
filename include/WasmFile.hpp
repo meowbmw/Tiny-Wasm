@@ -153,6 +153,13 @@ public:
     }
   }
   void initFunctionbyType(int i) {
+    // assign name to wasmFunction
+    if (funcIndexNameMapper.contains(i)) {
+      wasmFunctionVec[i].functionName = funcIndexNameMapper[i];
+    } else {
+      // if its index is not present in export section, give it a predefined name
+      wasmFunctionVec[i].functionName = format("unnamed_func_{}", i);
+    }
     wasmFunctionVec[i].type = wasmFunctionToTypeMapper[i];
     wasmFunctionVec[i].param_data = wasmFunctionTypeVec[wasmFunctionToTypeMapper[i]].param_data;
     wasmFunctionVec[i].result_data = wasmFunctionTypeVec[wasmFunctionToTypeMapper[i]].result_data;
@@ -192,9 +199,10 @@ public:
   string WASM_PATH;
   int64_t result;
   unsigned int length = 0;
-  vector<WasmFunction> wasmFunctionVec; // used to store function code
-  vector<WasmFunctionType> wasmFunctionTypeVec;         // used to store type definition
-  vector<int> wasmFunctionToTypeMapper; // map function id to wasmType
+  vector<WasmFunction> wasmFunctionVec;         // used to store function code
+  vector<WasmFunctionType> wasmFunctionTypeVec; // used to store type definition
+  vector<int> wasmFunctionToTypeMapper;         // map function id to wasmType
+
   map<string, int> funcNameIndexMapper;
   map<int, string> funcIndexNameMapper;
 };

@@ -204,9 +204,22 @@ void WasmFunction::emitCall(int function_index) {
   cout << commonIndentString + "Loading parameters to register before calling";
   const auto v = getWasmFunctionType(function_index).param_data;
 
-  for (int i = 0; i < v.size(); ++i) {
+  for (int i = v.size() - 1; i >= 0; --i) {
+    wasm_type t = v[i]; // popping reversely??
+    switch (getWasmType(t)) {
+    case X_REG:
+      wasm_instructions += pop(X_REG, false, i);
+      break;
+    case W_REG:
+      wasm_instructions += pop(W_REG, false, i);
+      break;
+    default:
+      throw "Float type unsupported yet";
+      break;
+    }
   }
   cout << format("{}Calling function index: {}", commonIndentString, function_index) << endl;
+  fakeInsertBranch("TODO", "bl");
 }
 void WasmFunction::emitLoop(int i) {
   vector<wasm_type> signature = getSignature(code_vec[i + 1]); // should be all zeros with different types
