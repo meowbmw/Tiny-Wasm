@@ -45,6 +45,7 @@ void test_chapter(const string &chapter_number) {
         WasmFile cur_wasmFile = WasmFile(base_path + cur_wasm_file);
         wasmFile_map.insert({cur_wasm_file, cur_wasmFile});
         wasmFile_map[cur_wasm_file].parse();
+        wasmFile_map[cur_wasm_file].funcBatchProcess(); // do whole init now
         cout << endl;
       }
     } else if (data["commands"][i].contains("action")) {
@@ -58,7 +59,7 @@ void test_chapter(const string &chapter_number) {
     string function_name = v.second["action"]["field"];
     WasmFile &curParser = wasmFile_map[v.first];
     int function_index = curParser.funcNameIndexMapper[function_name];
-    curParser.initFunctionbyType(function_index);
+    // curParser.initFunctionbyType(function_index);
     // NOTE: USING REFERENCE IS VERY VERY IMPORTANT HERE!!!
     // OTHERWISE ORIGIN VALUE WON'T BE CHANGED!!
     auto &curFunction = curParser.wasmFunctionVec[function_index];
@@ -76,6 +77,7 @@ void test_chapter(const string &chapter_number) {
     }
     cout << "param_data: " << param_data << endl;
     cout << endl;
+    curParser.wasmFunctionVec[function_index].clear(); // TODO: this could be optimized, no need to clear and initialize again; but currently it will remain a simple hack to enable BatchProcess and SingleProcess to co-exist
     curParser.funcSingleProcess(function_index);
     string expect_str = v.second["expected"][0]["value"].dump();
     expect_str = expect_str.substr(1, expect_str.size() - 2);

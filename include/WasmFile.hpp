@@ -152,6 +152,29 @@ public:
       wasmFunctionVec.push_back(curFunc);
     }
   }
+  // preallocate memory for function and save it to symbol table
+  // it will be written when real code is generated
+  void preAllocateMemory(int i) {
+    size_t estimatedSize = wasmFunctionVec[i].code_vec.size() * 8; // a rough estimate of how much memory to allocate based on code_vec.size()
+    estimatedSize = max(estimatedSize, size_t(4096));
+    void *functionAddr = mmap(nullptr, estimatedSize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (functionAddr == MAP_FAILED) {
+      perror("mmap");
+      exit(1);
+    }
+    symbol_table[i] = reinterpret_cast<void *>(functionAddr);
+  }
+  void writeCodeToMemory(int i) {
+    // now that we have the jit code, we can fill in the blanks
+    const string instructions = wasmFunctionVec[i].jited_code + encodeReturn();
+    char *functionAddr = reinterpret_cast<char *>(symbol_table[i]);
+    const size_t arraySize = instructions.length() / 2;
+    for (size_t j = 0; j < arraySize; j++) {
+      const string byteStr = instructions.substr(j * 2, 2);
+      functionAddr[j] = static_cast<unsigned char>(stoul(byteStr, nullptr, 16));
+    }
+    __builtin___clear_cache(functionAddr, functionAddr + arraySize);
+  }
   void initFunctionbyType(int i) {
     // assign name to wasmFunction
     if (funcIndexNameMapper.contains(i)) {
@@ -168,8 +191,10 @@ public:
   }
   void funcSingleProcess(int i) {
     cout << "------ Processing function " << i << ": " << funcIndexNameMapper[i] << " ------" << endl;
+    wasmFunctionVec[i].symbol_table = symbol_table;
     wasmFunctionVec[i].generatePreWasmInstructions();
     wasmFunctionVec[i].processCodeVec();
+    writeCodeToMemory(i);
     // cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
     // cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
     //      << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
@@ -181,6 +206,9 @@ public:
     // generate respective machine code
     for (int i = 0; i < wasmFunctionToTypeMapper.size(); ++i) {
       initFunctionbyType(i);
+      preAllocateMemory(i);
+    }
+    for (int i = 0; i < wasmFunctionToTypeMapper.size(); ++i) {
       funcSingleProcess(i);
       if (execute) {
         cout << "Executing function " << i << ": " << funcIndexNameMapper[i] << endl;
@@ -206,5 +234,5 @@ public:
   map<string, int> funcNameIndexMapper; // function name to index
   map<int, string> funcIndexNameMapper; // function index to name
 
-  map<int, int64_t (*)()> symbol_table;
+  map<int, void *> symbol_table;
 };

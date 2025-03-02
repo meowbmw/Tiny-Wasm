@@ -57,7 +57,7 @@ int64_t WasmFunction::executeWasmInstr() {
   free(wasm_stack);
   munmap(reinterpret_cast<void *>(instruction_set), full_instructions.size()); // GC here
   // WARN: reset things, very important if we want to call it again!
-  resetAfterExecution();
+  clear();
   if (return_code) {
     throw string("Wasm trapped");
   }

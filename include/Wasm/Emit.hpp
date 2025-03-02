@@ -200,8 +200,8 @@ void WasmFunction::emitBlock(int i) {
   control_flow_stack.push_back(controlFlowElement(label, signature));
 }
 void WasmFunction::emitCall(int function_index) {
-  cout << format("Call {}", function_index);
-  cout << commonIndentString + "Loading parameters to register before calling";
+  cout << format("Call {}", function_index) << endl;
+  cout << commonIndentString + "Loading parameters to register before calling" << endl;
   const auto v = getWasmFunctionType(function_index).param_data;
 
   for (int i = v.size() - 1; i >= 0; --i) {
@@ -218,10 +218,20 @@ void WasmFunction::emitCall(int function_index) {
       break;
     }
   }
+  
   cout << format("{}Calling function index: {}", commonIndentString, function_index) << endl;
   wasm_instructions +=
       WrapperEncodeMovInt64(called_function_register, reinterpret_cast<uint64_t>(symbol_table[function_index])); // mov call_reg, function_address
-  wasm_instructions += encodeBranchRegister(called_function_register, true);                                     // blr call_reg
+
+  wasm_instructions += encodeMovRegister(
+      X_REG, 14, 30); // x14 <- x30, this is just backing up, x14 can be any other register that isn't used, same thing applies to x15 <- sp
+  wasm_instructions += encodeMovSP(X_REG, 15, 31); // x15 <- sp
+
+  wasm_instructions += encodeBranchRegister(called_function_register, true); // blr call_reg
+
+  // restore
+  wasm_instructions += encodeMovRegister(X_REG, 30, 14); // x30 <- x14
+  wasm_instructions += encodeMovSP(X_REG, 31, 15);       // sp <- x31
 }
 void WasmFunction::emitLoop(int i) {
   vector<wasm_type> signature = getSignature(code_vec[i + 1]); // should be all zeros with different types
