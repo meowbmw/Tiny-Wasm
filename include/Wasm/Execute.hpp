@@ -10,20 +10,18 @@
  */
 template <typename Func> auto getFunctionPointer(string full_instructions) -> Func {
   const size_t arraySize = full_instructions.length() / 2;
-  auto charArray = make_unique<unsigned char[]>(arraySize); // use smart pointer to auto handle memory reclaim
-  for (size_t i = 0; i < arraySize; ++i) {
-    const string byteStr = full_instructions.substr(i * 2, 2);
-    charArray[i] = static_cast<unsigned char>(stoul(byteStr, nullptr, 16));
-  }
-  Func instruction_set = nullptr;
-  instruction_set = reinterpret_cast<Func>(mmap(nullptr, arraySize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-  if (instruction_set == MAP_FAILED) {
+  void *ptr = mmap(nullptr, arraySize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (ptr == MAP_FAILED) {
     perror("mmap");
     exit(1);
   }
-  memcpy(reinterpret_cast<void *>(instruction_set), charArray.get(), arraySize);
-  __builtin___clear_cache(reinterpret_cast<char *>(instruction_set), reinterpret_cast<char *>(instruction_set) + arraySize);
-  return instruction_set;
+  char *functionAddr = reinterpret_cast<char *>(ptr);
+  for (size_t i = 0; i < arraySize; ++i) {
+    const string byteStr = full_instructions.substr(i * 2, 2);
+    functionAddr[i] = static_cast<unsigned char>(stoul(byteStr, nullptr, 16));
+  }
+  __builtin___clear_cache(functionAddr, functionAddr + arraySize);
+  return reinterpret_cast<Func>(functionAddr);
 }
 int64_t WasmFunction::executeWasmInstr() {
   string full_instructions = pre_instructions_for_param_loading + wasm_instructions;
