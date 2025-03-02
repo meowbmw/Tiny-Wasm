@@ -1,7 +1,14 @@
 #pragma once
 #include "WasmFunction.hpp"
 
-template <typename Func> auto WasmFunction::getFunctionPointer(string full_instructions) -> Func {
+/**
+ *
+ * Allocate memory with execute permission
+ * And load machine code into that
+ * Return a function pointer to the allocated address
+ *
+ */
+template <typename Func> auto getFunctionPointer(string full_instructions) -> Func {
   const size_t arraySize = full_instructions.length() / 2;
   auto charArray = make_unique<unsigned char[]>(arraySize); // use smart pointer to auto handle memory reclaim
   for (size_t i = 0; i < arraySize; ++i) {
@@ -19,13 +26,6 @@ template <typename Func> auto WasmFunction::getFunctionPointer(string full_instr
   return instruction_set;
 }
 int64_t WasmFunction::executeWasmInstr() {
-  /**
-   *
-   * Allocate memory with execute permission
-   * And load machine code into that
-   *
-   */
-  // Warn: Append pre wasm_instructions here
   string full_instructions = pre_instructions_for_param_loading + wasm_instructions;
   cout << "Machine instruction to load: " << full_instructions << endl;
   if (pre_instructions_for_param_loading.size() > 0) {
@@ -50,7 +50,7 @@ int64_t WasmFunction::executeWasmInstr() {
   }
   auto instruction_set = getFunctionPointer<int64_t (*)(void *, void *)>(full_instructions);
   void *buffer = calloc(2048, sizeof(int)); // use calloc to initialize memory to 0, to avoid garbage data
-  void *wasm_stack = calloc(2048, sizeof(int)); 
+  void *wasm_stack = calloc(2048, sizeof(int));
   // !不需要做任何传参，因为参数已经放在寄存器里啦
   int64_t ans = instruction_set(buffer, wasm_stack);
   auto return_code = *reinterpret_cast<int16_t *>(buffer);

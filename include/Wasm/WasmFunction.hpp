@@ -79,7 +79,7 @@ public:
   void main_entry_initialize(int &offset) {
     getStackPreallocateSize(offset);
     prepareSp();
-    initParam(); // initParam is storing to memory, prepareParams is storing to registers
+    initParam(); // initParam is storing to memory, generatePreWasmInstructions is storing to registers
     initLocal();
     // printInitStack();
   }
@@ -103,12 +103,19 @@ public:
   void prepareSp();
   void printInitStack();
   void restoreSP();
-  void prepareParams() {
-    /**
-     * Store params to their respective location before calling our function
-     * param_data[0] -> x0
-     * param_data[1] -> x1
-     */
+  /**
+   * @brief Prepares function parameters for execution in the WASM runtime
+   * 
+   * This function handles the setup necessary before executing a WASM function:
+   * 1. Backs up critical registers (x0 buffer and x1 WASM stack pointer)
+   * 2. Initializes the WASM stack pointer register (REG_POINTER_WASM_STACK) to 0
+   * 3. Loads all parameters into their appropriate registers according to their types
+   * 
+   * The function generates all necessary instructions and appends them to the
+   * pre_instructions_for_param_loading string, which will be executed before the
+   * function body.
+   */
+  void generatePreWasmInstructions() {
     cout << "--- Loading params to their respective registers ---" << endl;
     if (param_data.size() == 0) {
       cout << "No params need to be load" << endl;
@@ -163,7 +170,6 @@ public:
   void fakeInsertBranch(string label, string BranchStr);
   void insertLabel(string label);
   void fixUpfakeBranch();
-  template <typename Func> auto getFunctionPointer(string full_instructions) -> Func;
   int64_t executeWasmInstr();
   void print_data(TypeCategory category);
   void add_data(TypeCategory category, const std::string &type) {

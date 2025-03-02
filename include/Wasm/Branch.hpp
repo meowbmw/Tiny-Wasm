@@ -11,11 +11,11 @@ void WasmFunction::insertLabel(string label) {
   cout << format("{}: ", label) << endl;
   label_map.insert({label, wasm_instructions.size()});
 }
+/**
+ * After processing codevec finished, call this function to fix fake branch instructions
+ * it will replace fake instruction with real ones
+ */
 void WasmFunction::fixUpfakeBranch() {
-  /**
-   * After processing codevec finished, call this function to fix fake branch instructions
-   * it will replace fake instruction with real ones
-   */
   for (const auto &x : fake_insert_map) {
     auto [origin_location, BranchStr] = x.second;
     cout << "++++++++++++++++" << endl;

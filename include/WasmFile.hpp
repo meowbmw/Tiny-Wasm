@@ -168,7 +168,7 @@ public:
   }
   void funcSingleProcess(int i) {
     cout << "------ Processing function " << i << ": " << funcIndexNameMapper[i] << " ------" << endl;
-    wasmFunctionVec[i].prepareParams();
+    wasmFunctionVec[i].generatePreWasmInstructions();
     wasmFunctionVec[i].processCodeVec();
     // cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
     // cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
@@ -206,5 +206,5 @@ public:
   map<string, int> funcNameIndexMapper; // function name to index
   map<int, string> funcIndexNameMapper; // function index to name
 
-  map<int, int64_t (*)(void *, void *)> symbol_table;
+  map<int, int64_t (*)()> symbol_table;
 };
