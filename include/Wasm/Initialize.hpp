@@ -10,6 +10,7 @@ void WasmFunction::initParam() {
   int offset = param_stack_end_location;
   int fp_reg_used = 0;
   int general_reg_used = 0;
+  size_t before_size = wasm_instructions.size();
   for (int i = 0; i < param_data.size(); ++i) {
     std::visit(
         [&offset, &general_reg_used, &fp_reg_used, &instr, &i, this](auto &&value) {
@@ -41,11 +42,13 @@ void WasmFunction::initParam() {
         param_data[i]);
     constructFullinstr(instr);
   }
+  init_local_instr = wasm_instructions.substr(before_size);
 }
 void WasmFunction::initLocal() {
   cout << commonIndentString + "+Store locals initialized with 0 to stack" << endl;
   string instr;
   int offset = local_stack_end_location;
+  size_t before_size = wasm_instructions.size();
   for (int i = 0; i < local_data.size(); ++i) {
     std::visit(
         [&offset, &instr, &i, this](auto &&value) {
@@ -75,4 +78,5 @@ void WasmFunction::initLocal() {
         local_data[i]);
     constructFullinstr(instr);
   }
+  init_param_instr = wasm_instructions.substr(before_size);
 }

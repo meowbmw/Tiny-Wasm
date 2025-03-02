@@ -1,8 +1,8 @@
 #pragma once
 #include "Base.hpp"
 
-string encodeReturn(uint8_t rn = 30, bool smallEndian = true) {
-  auto opcode = Arm64Opcode(smallEndian);
+string encodeReturn(uint8_t rn = 30, bool smallEndian = true, bool printFlag = true) {
+  auto opcode = Arm64Opcode(smallEndian, printFlag);
   opcode.setField(0b1101011001011111000000, 10);
   opcode.setRn(rn);
   return opcode.getInstruction();

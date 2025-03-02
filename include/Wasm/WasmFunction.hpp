@@ -266,6 +266,10 @@ public:
   string wasm_instructions;
   string pre_instructions_for_param_loading;
   string jited_code;
+  string prep_sp_instr;
+  string restore_sp_instr;
+  string init_local_instr;
+  string init_param_instr;
 
   vector<string> code_vec;
   vector<wasm_type> local_data;

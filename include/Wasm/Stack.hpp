@@ -34,6 +34,7 @@ void WasmFunction::getStackPreallocateSize(const int offset) {
 void WasmFunction::prepareSp() {
   cout << commonIndentString + "-Sub sp register" << endl;
   string instr = encodeAddSubImm(X_REG, true, 31, 31, stack_size); // sub sp, sp, stack_size
+  prep_sp_instr = instr;
   constructFullinstr(instr);
 }
 void WasmFunction::printInitStack() {
@@ -66,6 +67,7 @@ void WasmFunction::restoreSP() {
   }
   cout << "Restore sp register" << endl;
   const string restore_sp_instr = encodeAddSubImm(X_REG, false, 31, 31, stack_size); // add sp, sp, stack_size
+  this->restore_sp_instr = restore_sp_instr;
   constructFullinstr(prepare_ans_instr + restore_sp_instr);
 }
 string WasmFunction::push(RegType regType, int save_reg) {

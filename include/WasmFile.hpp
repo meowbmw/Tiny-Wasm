@@ -166,7 +166,9 @@ public:
   }
   void writeCodeToMemory(int i) {
     // now that we have the jit code, we can fill in the blanks
-    const string instructions = wasmFunctionVec[i].jited_code + encodeReturn();
+    // TODO: refactor this into a function and add error handling
+    const string instructions = wasmFunctionVec[i].prep_sp_instr + wasmFunctionVec[i].init_param_instr + wasmFunctionVec[i].init_local_instr +
+                                wasmFunctionVec[i].jited_code + wasmFunctionVec[i].restore_sp_instr + encodeReturn(30, true, false);
     char *functionAddr = reinterpret_cast<char *>(symbol_table[i]);
     const size_t arraySize = instructions.length() / 2;
     for (size_t j = 0; j < arraySize; j++) {
