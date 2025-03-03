@@ -218,20 +218,12 @@ void WasmFunction::emitCall(int function_index) {
       break;
     }
   }
-  
+
   cout << format("{}Calling function index: {}", commonIndentString, function_index) << endl;
   wasm_instructions +=
       WrapperEncodeMovInt64(called_function_register, reinterpret_cast<uint64_t>(symbol_table[function_index])); // mov call_reg, function_address
 
-  wasm_instructions += encodeMovRegister(
-      X_REG, 14, 30); // x14 <- x30, this is just backing up, x14 can be any other register that isn't used, same thing applies to x15 <- sp
-  wasm_instructions += encodeMovSP(X_REG, 15, 31); // x15 <- sp
-
   wasm_instructions += encodeBranchRegister(called_function_register, true); // blr call_reg
-
-  // restore
-  wasm_instructions += encodeMovRegister(X_REG, 30, 14); // x30 <- x14
-  wasm_instructions += encodeMovSP(X_REG, 31, 15);       // sp <- x31
 }
 void WasmFunction::emitLoop(int i) {
   vector<wasm_type> signature = getSignature(code_vec[i + 1]); // should be all zeros with different types
@@ -249,7 +241,7 @@ void WasmFunction::emitBr_if(int i) {
   int depth = static_cast<int32_t>(stoul(code_vec[i + 1], nullptr, 16));
   cout << format("Br_if {}", depth) << endl;
   auto [label, signature] = control_flow_stack[control_flow_stack.size() - depth - 1];
-  wasm_instructions += pop(W_REG, false);
+  wasm_instructions += pop(W_REG);
   wasm_instructions += encodeCompareImm(W_REG, 11, 1);
   fakeInsertBranch(label, "beq"); // if true, branches according to label, otherwise falls through
 };
@@ -263,7 +255,7 @@ void WasmFunction::emitIfOp(int i) {
   string label = "Else/End #" + to_string(if_label++);
   control_flow_stack.push_back(controlFlowElement(label, signature));
   // condition is defined to be i32 type, so going with W_REG here
-  wasm_instructions += pop(W_REG, true);
+  wasm_instructions += pop(W_REG);
   wasm_instructions += encodeCompareImm(W_REG, 11, 0);
   fakeInsertBranch(label, "beq"); // if =0, jump to else or end; else continue
   cout << "If true:" << endl;

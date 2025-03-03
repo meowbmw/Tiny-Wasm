@@ -28,6 +28,7 @@ void WasmFunction::getStackPreallocateSize(const int offset) {
   } else {
     stack_size = local_stack_end_location;
   }
+  stack_size += 16; // allocate additional space for backup x30
   cout << "Stack allocate size estimated to be: " << stack_size << endl;
   cout.rdbuf(old);
 }
@@ -43,9 +44,8 @@ void WasmFunction::printInitStack() {
     cout << format("[sp, #0x{:x}] = {}[{}]", p.first, type_category_to_string(p.second.first), p.second.second) << endl;
   }
 }
-void WasmFunction::restoreSP() {
-  // getting result and restoring sp register
-  cout << "Moving stack top to register as result" << endl;
+void WasmFunction::getResult() {
+  // Moving stack top to register as result
   string prepare_ans_instr;
   for (int i = 0; i < result_data.size(); ++i) {
     // todo: we should be iterating here; i < result.size()
@@ -65,10 +65,13 @@ void WasmFunction::restoreSP() {
         },
         result_data[i]);
   }
+  constructFullinstr(prepare_ans_instr);
+}
+void WasmFunction::restoreSP() {
   cout << "Restore sp register" << endl;
   const string restore_sp_instr = encodeAddSubImm(X_REG, false, 31, 31, stack_size); // add sp, sp, stack_size
   this->restore_sp_instr = restore_sp_instr;
-  constructFullinstr(prepare_ans_instr + restore_sp_instr);
+  constructFullinstr(restore_sp_instr);
 }
 string WasmFunction::push(RegType regType, int save_reg) {
   /**

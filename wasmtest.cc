@@ -23,6 +23,8 @@ void test_chapter(string chapter_number, string test_json) {
         wasmFile_map.insert({cur_wasm_file, cur_wasmFile});
         cout.rdbuf(parser_cout.rdbuf()); // Redirect parser output to file; it's too much...
         wasmFile_map[cur_wasm_file].parse();
+        cout.rdbuf(0);
+        wasmFile_map[cur_wasm_file].funcBatchProcess(); // do whole init now
         cout.rdbuf(normal_cout.rdbuf()); // Restore cout
       }
     } else if (data["commands"][i].contains("action")) {
@@ -51,6 +53,7 @@ void test_chapter(string chapter_number, string test_json) {
       }
     }
     cout << "param_data: " << param_data << endl;
+    curParser.wasmFunctionVec[function_index].clear(); // TODO: this could be optimized, no need to clear and initialize again; but currently it will
     cout.rdbuf(parser_cout.rdbuf()); // Redirect parser output to file; it's too much...
     curParser.funcSingleProcess(function_index);
     cout.rdbuf(normal_cout.rdbuf()); // Restore cout
@@ -108,6 +111,10 @@ TEST(WASM_TEST, CH06) {
 
 TEST(WASM_TEST, CH07) {
   test_chapter("07", "loop.json");
+}
+
+TEST(WASM_TEST, CH08) {
+  test_chapter("08", "call.json");
 }
 
 int main(int argc, char **argv) {

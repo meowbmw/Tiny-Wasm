@@ -15,12 +15,12 @@ public:
     // start processing wasm_instructions here
     fakeInsertBranch("entry", "b"); // b main
 
-    injectExceptionHandling();
+    // injectExceptionHandling();
 
     insertLabel("entry");
     main_entry_initialize(offset);
 
-    enable_setjmp();
+    // enable_setjmp();
     jiting_wasm_code(offset);
 
     cout << "Store return code:" << endl;
@@ -29,6 +29,7 @@ public:
     wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, REG_BUFFER, 0); // [x[REG_BUFFER]]=x11=0
 
     insertLabel("Finalize");
+    getResult();
     restoreSP();
     wasm_instructions += encodeReturn();
     streambuf *old = cout.rdbuf();
@@ -102,15 +103,16 @@ public:
   void getStackPreallocateSize(const int offset);
   void prepareSp();
   void printInitStack();
+  void getResult();
   void restoreSP();
   /**
    * @brief Prepares function parameters for execution in the WASM runtime
-   * 
+   *
    * This function handles the setup necessary before executing a WASM function:
    * 1. Backs up critical registers (x0 buffer and x1 WASM stack pointer)
    * 2. Initializes the WASM stack pointer register (REG_POINTER_WASM_STACK) to 0
    * 3. Loads all parameters into their appropriate registers according to their types
-   * 
+   *
    * The function generates all necessary instructions and appends them to the
    * pre_instructions_for_param_loading string, which will be executed before the
    * function body.
@@ -261,11 +263,12 @@ public:
   int type;
   u_int64_t local_var_declare_count = 0;
   const uint8_t called_function_register = 9;
+  int jit_begin = 0;
+  int jit_end = 0;
 
   string functionName;
   string wasm_instructions;
   string pre_instructions_for_param_loading;
-  string jited_code;
   string prep_sp_instr;
   string restore_sp_instr;
   string init_local_instr;
