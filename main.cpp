@@ -33,6 +33,8 @@ void test_chapter(const string &chapter_number) {
     f = ifstream(base_path + "loop.json");
   } else if (chapter_number == "08") {
     f = ifstream(base_path + "call.json");
+  } else if (chapter_number == "09") {
+    f = ifstream(base_path + "call_indirect.json");
   }
   json data = json::parse(f);
   multimap<string, json> command_map;
