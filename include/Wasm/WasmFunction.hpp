@@ -5,6 +5,18 @@ const uint8_t REG_BUFFER = 19;
 const uint8_t REG_WASM_STACK = 20;
 const uint8_t REG_POINTER_WASM_STACK = 21;
 
+struct TableInfo {
+  string elem_type;  // element type, currently can only be "70"（funcref）
+  uint64_t min_size; // minimal table size
+  bool has_max;      // flag for if has max size
+  uint64_t max_size; // max table size (if has)max
+};
+
+struct ElementSegment {
+  uint64_t table_index; // expected to be 0
+  int64_t offset;       // offset in table
+  vector<uint64_t> function_indices;
+};
 class WasmFunction {
 public:
   void processCodeVec() {
@@ -236,6 +248,7 @@ public:
   void emitArithOp(char typeInfo, char opType, bool isSigned = true);
   void emitCompareOp(RegType regtype, string condStr);
   void emitCall(int function_index);
+  void emitCallIndirect();
   void emitBlock(int i);
   void emitLoop(int i);
   void emitBr(int i);

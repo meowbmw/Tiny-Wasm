@@ -268,6 +268,54 @@ pair<uint64_t, size_t> decode_uleb128(const string &s, size_t offset) {
 
   return {result, pos - offset};
 }
+// 从十六进制字符串中解码有符号 LEB128 整数
+pair<int64_t, size_t> decode_sleb128(const string &s, size_t offset) {
+  // 存储最终结果的变量
+  int64_t result = 0;
+
+  // 当前处理的位移量
+  size_t shift = 0;
+
+  // 从字符串的哪个位置开始读
+  size_t pos = offset;
+
+  // 当前读取的字节
+  uint8_t byte;
+
+  // 是否继续读取的标志
+  bool more;
+
+  do {
+    // 确保有足够的字节可读
+    if (pos + 2 > s.length()) {
+      cout << "错误：解析 SLEB128 时超出字符串范围" << endl;
+      return {0, 0}; // 返回错误
+    }
+
+    // 从十六进制字符串读取一个字节
+    byte = stoul(s.substr(pos, 2), nullptr, 16);
+    pos += 2;
+
+    // 计算数值（取低7位并左移）
+    result |= ((byte & 0x7F) << shift);
+
+    // 位移量每次增加7位
+    shift += 7;
+
+    // 检查最高位，决定是否继续读取
+    more = (byte & 0x80) != 0;
+
+  } while (more); // 如果最高位是1，则继续读取下一个字节
+
+  // 符号扩展：如果最后一个字节的第7位为1（表示负数），
+  // 则将结果的高位全部填充为1
+  if ((byte & 0x40) && shift < 64) {
+    result |= (~0ULL << shift);
+  }
+
+  // 返回解析的结果和读取的字节数
+  return {result, pos - offset};
+}
 // 从 vector<string> 中解码 ULEB128
 std::pair<uint64_t, size_t> decode_uleb128_from_vec(const std::vector<std::string> &vec, size_t start_index) {
   uint64_t result = 0;
@@ -294,50 +342,50 @@ std::pair<uint64_t, size_t> decode_uleb128_from_vec(const std::vector<std::strin
   return {result, bytesRead};
 }
 // 从 vector<string> 中解码有符号 LEB128 整数
-std::pair<int64_t, size_t> decode_sleb128_from_vec(const std::vector<std::string>& vec, size_t start_index) {
+std::pair<int64_t, size_t> decode_sleb128_from_vec(const std::vector<std::string> &vec, size_t start_index) {
   // 结果值，使用 int64_t 确保能容纳 32 位和 64 位整数
   int64_t result = 0;
-  
+
   // 当前处理的位移量
   size_t shift = 0;
-  
+
   // 已读取的字节数
   size_t bytesRead = 0;
-  
+
   // 标记最后一个字节的高位是否为 1（用于后续符号扩展）
   bool more = true;
-  
+
   // 当前读取的字节值
   uint8_t byte;
 
   do {
-      // 1. 确保不越界
-      if (start_index + bytesRead >= vec.size()) {
-          throw std::runtime_error("解码 SLEB128 时发生错误：数据不完整");
-      }
-      
-      // 2. 将十六进制字符串转换为数值
-      byte = static_cast<uint8_t>(std::stoul(vec[start_index + bytesRead], nullptr, 16));
-      
-      // 3. 提取当前字节的有效位（低7位）并添加到结果中
-      result |= ((byte & 0x7f) << shift);
-      
-      // 4. 更新位移和已读取字节数
-      shift += 7;
-      bytesRead++;
-      
-      // 5. 检查是否需要继续读取下一个字节
-      more = (byte & 0x80) != 0;
-      
+    // 1. 确保不越界
+    if (start_index + bytesRead >= vec.size()) {
+      throw std::runtime_error("解码 SLEB128 时发生错误：数据不完整");
+    }
+
+    // 2. 将十六进制字符串转换为数值
+    byte = static_cast<uint8_t>(std::stoul(vec[start_index + bytesRead], nullptr, 16));
+
+    // 3. 提取当前字节的有效位（低7位）并添加到结果中
+    result |= ((byte & 0x7f) << shift);
+
+    // 4. 更新位移和已读取字节数
+    shift += 7;
+    bytesRead++;
+
+    // 5. 检查是否需要继续读取下一个字节
+    more = (byte & 0x80) != 0;
+
   } while (more); // 如果最高位是 1，则继续读取
-  
+
   // 6. 进行符号扩展（这是有符号 LEB128 解码的关键部分）
   // 如果最后一个字节的第 7 位（符号位）为 1，且我们还没有读到最大位数
   if ((byte & 0x40) && shift < 64) {
-      // 将高位全部填充为 1（符号扩展）
-      result |= (~0ULL << shift);
+    // 将高位全部填充为 1（符号扩展）
+    result |= (~0ULL << shift);
   }
-  
+
   return {result, bytesRead};
 }
 

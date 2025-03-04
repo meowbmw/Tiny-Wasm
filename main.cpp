@@ -118,9 +118,9 @@ void test_chapter(const string &chapter_number) {
   }
 }
 int main() {
-  vector<string> test_chapters = {"02", "03", "05", "06", "07", "08"}; // disable CH04 test for now, because we are not enabling trap mechanism
+  // vector<string> test_chapters = {"02", "03", "05", "06", "07", "08"}; // disable CH04 test for now, because we are not enabling trap mechanism
 
-  // vector<string> test_chapters = {"09"};
+  vector<string> test_chapters = {"09"};
   cout << "A simple testing program to check our JIT works as intended." << endl;
   cout << "Chapters to test: " << test_chapters << endl;
   for (auto &chapter_number : test_chapters) {

@@ -8,11 +8,14 @@ const bool DEBUG_EXPORT_SECTION = false;
 const bool DEBUG_FUNCTION_SECTION = false;
 const bool DEBUG_TYPE_SECTION = false;
 const bool DEBUG_CODE_SECTION = false;
+const bool DEBUG_TABLE_SECTION = false;
+const bool DEBUG_ELEMENT_SECTION = false;
 
 // const bool DEBUG_EXPORT_SECTION = true;
 // const bool DEBUG_FUNCTION_SECTION = true;
 // const bool DEBUG_TYPE_SECTION = true;
 // const bool DEBUG_CODE_SECTION = true;
+// const bool DEBUG_TABLE_SECTION = true;
 const string WASM_TO_READ = "test/local.2.wasm";
 
 class WasmFile {
@@ -30,6 +33,10 @@ public:
         parse_type();
       } else if (type == "03") {
         parse_function();
+      } else if (type == "04") {
+        parse_table();
+      } else if (type == "09") {
+        parse_element();
       } else if (type == "07") {
         parse_export();
       } else if (type == "0a") {
@@ -79,6 +86,104 @@ public:
       }
       base_offset = base_offset + bytesRead_result + 2 * result_count;
       wasmFunctionTypeVec.push_back(curType);
+    }
+  }
+  void parse_table() {
+    // table section
+    auto [table_count, bytes_read] = decode_uleb128(s, 0);
+    uint64_t base_offset = 2;
+    cout << "Decoding table section: " << s.substr(0, length * 2) << endl;
+    cout << "Total table count: " << table_count << endl;
+    for (int i = 0; i < table_count; ++i) {
+      const string elem_type = s.substr(base_offset, 2);
+      base_offset += 2;
+
+      if (DEBUG_TABLE_SECTION) {
+        cout << "--- Info for table " << i << " ---" << endl;
+        cout << "Element type: " << elem_type << " (should be 70 for funcref)" << endl;
+      }
+      const uint8_t limit_type = stoul(s.substr(base_offset, 2), nullptr, 16);
+      base_offset += 2;
+      auto [min_size, min_bytes_read] = decode_uleb128(s, base_offset);
+      base_offset += min_bytes_read;
+      uint64_t max_size = 0;
+      if (limit_type == 0x01) {
+        auto [parsed_max_size, max_bytes_read] = decode_uleb128(s, base_offset);
+        max_size = parsed_max_size;
+        base_offset += max_bytes_read;
+      }
+
+      if (DEBUG_TABLE_SECTION) {
+        cout << "Table limits - Min size: " << min_size;
+        if (limit_type == 0x01) {
+          cout << ", Max size: " << max_size;
+        }
+        cout << endl;
+      }
+
+      TableInfo table_info;
+      table_info.elem_type = elem_type;
+      table_info.min_size = min_size;
+      table_info.has_max = (limit_type == 0x01);
+      table_info.max_size = max_size;
+
+      tableInfoVec.push_back(table_info);
+    }
+  }
+  void parse_element() {
+    // element section
+    // element section is used to set table contents
+    auto [elem_count, bytes_read] = decode_uleb128(s, 0);
+    uint64_t base_offset = bytes_read;
+
+    cout << "Decoding element section: " << s.substr(0, length * 2) << endl;
+    cout << "Total element count: " << elem_count << endl;
+    for (int i = 0; i < elem_count; ++i) {
+      auto [table_index, table_index_bytes_read] = decode_uleb128(s, base_offset);
+      base_offset += table_index_bytes_read;
+
+      // check offset type (should be 0x41, which is i32.const)
+      string expr_opcode = s.substr(base_offset, 2);
+      base_offset += 2;
+
+      if (expr_opcode != "41") {
+        cout << "Warning: Expected i32.const (0x41) for element offset expression, got: " << expr_opcode << endl;
+      }
+
+      auto [offset, offset_bytes_read] = decode_sleb128(s, base_offset);
+      base_offset += offset_bytes_read;
+
+      string end_opcode = s.substr(base_offset, 2);
+      base_offset += 2;
+
+      if (end_opcode != "0b") {
+        cout << "Warning: Expected end opcode (0x0B) for element offset expression, got: " << end_opcode << endl;
+      }
+
+      auto [func_indices_count, func_indices_count_bytes_read] = decode_uleb128(s, base_offset);
+      base_offset += func_indices_count_bytes_read;
+
+      ElementSegment elem_segment;
+      elem_segment.table_index = table_index;
+      elem_segment.offset = offset;
+
+      if (DEBUG_ELEMENT_SECTION) {
+        cout << "--- Element segment " << i << " ---" << endl;
+        cout << "Table index: " << table_index << endl;
+        cout << "Offset: " << offset << endl;
+        cout << "Function indices count: " << func_indices_count << endl;
+        cout << "Function indices: ";
+      }
+
+      for (int j = 0; j < func_indices_count; ++j) {
+        auto [func_idx, func_idx_bytes_read] = decode_uleb128(s, base_offset);
+        base_offset += func_idx_bytes_read;
+
+        elem_segment.function_indices.push_back(func_idx);
+        cout << func_idx << " ";
+      }
+      cout << endl;
+      elementSegments.push_back(elem_segment);
     }
   }
   void parse_function() {
@@ -169,7 +274,8 @@ public:
     // TODO: refactor this into a function and add error handling
     const string instructions =
         wasmFunctionVec[i].prep_sp_instr + wasmFunctionVec[i].init_param_instr + wasmFunctionVec[i].init_local_instr +
-        wasmFunctionVec[i].wasm_instructions.substr(wasmFunctionVec[i].jit_begin, wasmFunctionVec[i].jit_end - wasmFunctionVec[i].jit_begin) + wasmFunctionVec[i].restore_sp_instr + encodeReturn(30, true, false);
+        wasmFunctionVec[i].wasm_instructions.substr(wasmFunctionVec[i].jit_begin, wasmFunctionVec[i].jit_end - wasmFunctionVec[i].jit_begin) +
+        wasmFunctionVec[i].restore_sp_instr + encodeReturn(30, true, false);
     char *functionAddr = reinterpret_cast<char *>(symbol_table[i]);
     const size_t arraySize = instructions.length() / 2;
     for (size_t j = 0; j < arraySize; j++) {
@@ -230,6 +336,8 @@ public:
   string WASM_PATH;
   int64_t result;
   unsigned int length = 0;
+  vector<TableInfo> tableInfoVec;               // store Table info, currently there should be only one table
+  vector<ElementSegment> elementSegments;       // Table initializers are sometimes called "segments".
   vector<WasmFunction> wasmFunctionVec;         // used to store function code
   vector<WasmFunctionType> wasmFunctionTypeVec; // used to store type definition
   vector<int> wasmFunctionToTypeMapper;         // map function id to wasmType
