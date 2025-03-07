@@ -202,10 +202,10 @@ void WasmFunction::emitBlock(int i) {
 void WasmFunction::emitCall(int function_index) {
   cout << format("Call {}", function_index) << endl;
   cout << commonIndentString + "Loading parameters to register before calling" << endl;
-  const auto v = getWasmFunctionType(function_index).param_data;
+  const WasmFunctionType v = getWasmFunctionType(function_index);
 
-  for (int i = v.size() - 1; i >= 0; --i) {
-    wasm_type t = v[i]; // popping reversely??
+  for (int i = v.param_data.size() - 1; i >= 0; --i) {
+    wasm_type t = v.param_data[i]; // popping reversely
     switch (getWasmType(t)) {
     case X_REG:
       wasm_instructions += pop(X_REG, false, i);
@@ -224,6 +224,103 @@ void WasmFunction::emitCall(int function_index) {
       WrapperEncodeMovInt64(called_function_register, reinterpret_cast<uint64_t>(symbol_table[function_index])); // mov call_reg, function_address
 
   wasm_instructions += encodeBranchRegister(called_function_register, true); // blr call_reg
+}
+// type_index: used to get function signature (type)
+// table_index: which table to use (should always be 0 for wasm 1.0, i.e. only 1 table)
+void WasmFunction::emitCallIndirect(size_t type_index, size_t table_index) {
+  cout << format("Call_indirect with type: {}, table: {}", type_index, table_index) << endl;
+
+  // step 1: check Trap: Indirect Callee Absent, if the indexed table element is the special "null" value.
+  // Check function index within range??
+  cout << format("{}Check Trap: Indirect Callee Absent", commonIndentString) << endl;
+  wasm_instructions += pop(W_REG, false, 11); // get indexed table element from stack, save it in w11, $callee: i32
+  cout << format("{}Backup x11 because we will overwrite it in trap verification", commonIndentString) << endl;
+  wasm_instructions += encodeMovRegister(X_REG, 16, 11);
+  // check >=0
+  wasm_instructions += encodeCompareImm(X_REG, 11, 0);
+  cout << format("{}if type_index < 0, goes to longjmp", commonIndentString) << endl;
+  fakeInsertBranch("preparelongjmp", "blt"); // if type_index < 0, goes to longjmp
+
+  if (tableInfoVec[table_index].has_max) {
+    // check < max_size
+    wasm_instructions += encodeCompareImm(X_REG, 11, tableInfoVec[table_index].max_size);
+    cout << format("{}if type_index >= max_size, goes to longjmp", commonIndentString) << endl;
+    fakeInsertBranch("preparelongjmp", "bge"); // if type_index >= max_size, goes to longjmp
+  }
+
+  // step 2: check Trap: Indirect Call Type Mismatch, if the signature of the function with index $callee differs from the signature in the Type
+  // Section with index $signature.
+  // get $callee signature first
+  /**
+   * 类似于
+      call_indirect (type 0) (i32.const 3)
+      我去比较class(0) 和class(type(function 3))是否一致
+      所以先获取实际类型，然后转换成通用类型（即结构一致即归为一类），然后再去比较通用类型
+   */
+  cout << format("{}Check Trap: Indirect Call Type Mismatch", commonIndentString) << endl;
+  cout << format("{}Getting function index from table index", commonIndentString) << endl;
+  wasm_instructions += WrapperEncodeMovInt64(10, reinterpret_cast<int64_t>(table_function_indices.data())); // x10 = table_function_indices
+  wasm_instructions += encodeMovz(13, sizeof(int), X_REG);                                                  // x13 = sizeof(int) = 4
+  wasm_instructions += encodeMul(X_REG, 13, 11, 13);                                                        // x13 = x11 * x13
+  wasm_instructions += encodeLoadStoreReg(W_REG, LDR, 11, 10, 13);                                          // w11 = [x10+x13]
+
+  // todo: check w11 is not -1, currently can't compare because CompareImm doesn't support negative imm
+
+  cout << format("{}Get real type", commonIndentString) << endl;
+  wasm_instructions += WrapperEncodeMovInt64(10, reinterpret_cast<int64_t>(wasmFunctionToTypeMapper.data())); // x10=type array
+  wasm_instructions += encodeMovz(13, sizeof(int), X_REG);                                                    // x13=4
+  wasm_instructions += encodeMul(X_REG, 13, 11, 13);                                                          // x13=i*4
+  wasm_instructions += encodeLoadStoreReg(W_REG, LDR, 12, 10, 13);                                            // w12=[x10,i*4]=type array[i]
+
+  cout << format("{}Get abstract type", commonIndentString) << endl;
+  wasm_instructions += WrapperEncodeMovInt64(10, reinterpret_cast<int64_t>(typeEquivalenceMap.data())); // x10=typeEquivalenceMap
+  wasm_instructions += encodeMovz(13, sizeof(size_t), X_REG);                                           // x13=8
+  wasm_instructions += encodeMul(X_REG, 13, 12, 13);                                                    // x13=w12*8
+  wasm_instructions += encodeLoadStoreReg(W_REG, LDR, 12, 10, 13); // w12=[x10,x13]=typeEquivalenceMap[actual_type]
+
+  cout << format("{}Get expected abstract type", commonIndentString) << endl;
+  wasm_instructions += WrapperEncodeMovInt64(10, reinterpret_cast<int64_t>(typeEquivalenceMap.data())); // x10=typeEquivalenceMap
+  wasm_instructions += encodeMovz(13, sizeof(size_t), X_REG);                                           // x13=8
+  wasm_instructions += encodeMovz(14, type_index, W_REG);                                               // w14=type_index
+  wasm_instructions += encodeMul(X_REG, 13, 14, 13);                                                    // x13=w14*8
+  wasm_instructions += encodeLoadStoreReg(W_REG, LDR, 14, 10, 13); // w14=[x10,x13]=typeEquivalenceMap[expected_type]
+
+  cout << format("{}Compare types", commonIndentString) << endl;
+  wasm_instructions += encodeCompareShift(W_REG, 12, 14);
+
+  cout << format("{}if type doesn't match, goes to longjmp", commonIndentString) << endl;
+  fakeInsertBranch("preparelongjmp", "bne"); // if type doesn't match, goes to longjmp
+
+  // step 3: Load parameters
+  cout << commonIndentString + "Loading parameters to register before calling" << endl;
+  const WasmFunctionType v = wasmFunctionTypeVec[type_index];
+  for (int i = v.param_data.size() - 1; i >= 0; --i) {
+    wasm_type t = v.param_data[i]; // popping reversely
+    switch (getWasmType(t)) {
+    case X_REG:
+      wasm_instructions += pop(X_REG, false, i);
+      break;
+    case W_REG:
+      wasm_instructions += pop(W_REG, false, i);
+      break;
+    default:
+      throw "Float type unsupported yet";
+      break;
+    }
+  }
+
+  // step 4 & 5: load function address and call
+  cout << format("{}Calling indirectly now", commonIndentString) << endl;
+  // clear x12
+  wasm_instructions += WrapperEncodeMovInt64(12, 0);
+  // get function address first
+  wasm_instructions += WrapperEncodeMovInt64(12, reinterpret_cast<int64_t>(in_assembly_call_table));
+  wasm_instructions += encodeMovz(13, 8, X_REG); // x13 = 8
+  cout << format("{}Restore x11", commonIndentString) << endl;
+  wasm_instructions += encodeMovRegister(X_REG, 11, 16);
+  wasm_instructions += encodeMul(X_REG, 11, 11, 13);                                     // x11 = x11 * x13 = x11 * 8
+  wasm_instructions += encodeLoadStoreReg(X_REG, LDR, called_function_register, 12, 11); // called_function_register = table[i]
+  wasm_instructions += encodeBranchRegister(called_function_register, true);             // blr call_reg
 }
 void WasmFunction::emitLoop(int i) {
   vector<wasm_type> signature = getSignature(code_vec[i + 1]); // should be all zeros with different types

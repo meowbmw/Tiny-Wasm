@@ -8,8 +8,8 @@ const bool DEBUG_EXPORT_SECTION = false;
 const bool DEBUG_FUNCTION_SECTION = false;
 const bool DEBUG_TYPE_SECTION = false;
 const bool DEBUG_CODE_SECTION = false;
-const bool DEBUG_TABLE_SECTION = false;
-const bool DEBUG_ELEMENT_SECTION = false;
+const bool DEBUG_TABLE_SECTION = true;
+const bool DEBUG_ELEMENT_SECTION = true;
 
 // const bool DEBUG_EXPORT_SECTION = true;
 // const bool DEBUG_FUNCTION_SECTION = true;
@@ -185,6 +185,7 @@ public:
       cout << endl;
       elementSegments.push_back(elem_segment);
     }
+    buildFunctionIndexTable(); // we can now use element section info to build the table to translate table index to function index
   }
   void parse_function() {
     // function section
@@ -271,7 +272,7 @@ public:
   }
   void writeCodeToMemory(int i) {
     // now that we have the jit code, we can fill in the blanks
-    // TODO: refactor this into a function and add error handling
+    // TODO: refactor this into a function
     const string instructions =
         wasmFunctionVec[i].prep_sp_instr + wasmFunctionVec[i].init_param_instr + wasmFunctionVec[i].init_local_instr +
         wasmFunctionVec[i].wasm_instructions.substr(wasmFunctionVec[i].jit_begin, wasmFunctionVec[i].jit_end - wasmFunctionVec[i].jit_begin) +
@@ -283,6 +284,23 @@ public:
       functionAddr[j] = static_cast<unsigned char>(stoul(byteStr, nullptr, 16));
     }
     __builtin___clear_cache(functionAddr, functionAddr + arraySize);
+  }
+  // write address based on element section (with offset!) from symbol table to in_assembly_call_table
+  void writeTable() {
+    in_assembly_call_table = calloc(2048, sizeof(int));
+    for (int i = 0; i < elementSegments.size(); ++i) {
+      auto curElemSegment = elementSegments[i];
+      if (curElemSegment.table_index != 0) {
+        throw "multiple function table not supported yet";
+      }
+      for (int j = 0; j < curElemSegment.function_indices.size(); ++j) {
+        void *funcAddr = symbol_table[curElemSegment.function_indices[j]];
+        memcpy(reinterpret_cast<char *>(in_assembly_call_table) + (curElemSegment.offset + j) * sizeof(void *), &funcAddr, sizeof(void *));
+      }
+    }
+    for (int i = 0; i < wasmFunctionVec.size(); ++i) {
+      wasmFunctionVec[i].in_assembly_call_table = in_assembly_call_table;
+    }
   }
   void initFunctionbyType(int i) {
     // assign name to wasmFunction
@@ -298,12 +316,62 @@ public:
     wasmFunctionVec[i].wasmFunctionTypeVec = wasmFunctionTypeVec;
     wasmFunctionVec[i].wasmFunctionToTypeMapper = wasmFunctionToTypeMapper;
   }
+  // merge type with same structure
+  void computeTypeEquivalence() {
+    typeEquivalenceMap.resize(wasmFunctionTypeVec.size());
+    for (size_t i = 0; i < wasmFunctionTypeVec.size(); ++i) {
+      typeEquivalenceMap[i] = i;
+    }
+    map<string, size_t> signatureToCanonicalType;
+    for (size_t i = 0; i < wasmFunctionTypeVec.size(); ++i) {
+      string signature = generateTypeSignature(wasmFunctionTypeVec[i]);
+      if (signatureToCanonicalType.find(signature) != signatureToCanonicalType.end()) {
+        typeEquivalenceMap[i] = signatureToCanonicalType[signature];
+      } else {
+        signatureToCanonicalType[signature] = i;
+      }
+    }
+  }
+  // generate a signature to help identity types with different id but share same structure, we will merge them into same "base" type
+  string generateTypeSignature(const WasmFunctionType &type) {
+    string signature = "Params:";
+    for (const auto &param : type.param_data) {
+      signature += reg_char_map.at(getWasmType(param)) + ";";
+    }
+    signature += "Results:";
+    for (const auto &result : type.result_data) {
+      signature += reg_char_map.at(getWasmType(result)) + ";";
+    }
+    return signature;
+  }
+
+  void buildFunctionIndexTable() {
+    size_t max_table_size = 0;
+    // get max size first
+    for (const auto &segment : elementSegments) {
+      size_t segment_end = segment.offset + segment.function_indices.size();
+      max_table_size = max(max_table_size, segment_end);
+    }
+    table_function_indices.resize(max_table_size, -1); // resize to max size, ensure there are enough space
+    for (const auto &segment : elementSegments) {
+      for (size_t i = 0; i < segment.function_indices.size(); ++i) {
+        size_t table_idx = segment.offset + i;
+        int func_idx = segment.function_indices[i];
+        table_function_indices[table_idx] = func_idx;
+      }
+    }
+  }
+
   void funcSingleProcess(int i) {
     cout << "------ Processing function " << i << ": " << funcIndexNameMapper[i] << " ------" << endl;
     wasmFunctionVec[i].symbol_table = symbol_table;
+    wasmFunctionVec[i].tableInfoVec = tableInfoVec;
+    wasmFunctionVec[i].typeEquivalenceMap = typeEquivalenceMap;
     wasmFunctionVec[i].generatePreWasmInstructions();
     wasmFunctionVec[i].processCodeVec();
+    writeTable();
     writeCodeToMemory(i);
+    wasmFunctionVec[i].table_function_indices = table_function_indices;
     // cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
     // cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
     //      << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
@@ -317,6 +385,7 @@ public:
       initFunctionbyType(i);
       preAllocateMemory(i);
     }
+    computeTypeEquivalence();
     for (int i = 0; i < wasmFunctionToTypeMapper.size(); ++i) {
       funcSingleProcess(i);
       if (execute) {
@@ -341,9 +410,12 @@ public:
   vector<WasmFunction> wasmFunctionVec;         // used to store function code
   vector<WasmFunctionType> wasmFunctionTypeVec; // used to store type definition
   vector<int> wasmFunctionToTypeMapper;         // map function id to wasmType
+  vector<int> table_function_indices;           // convert table index to function index
 
   map<string, int> funcNameIndexMapper; // function name to index
   map<int, string> funcIndexNameMapper; // function index to name
 
   map<int, void *> symbol_table;
+  void *in_assembly_call_table;      // used to store call_indirect address
+  vector<size_t> typeEquivalenceMap; // classify type with same structure into same id, this is used for signature verify currently
 };

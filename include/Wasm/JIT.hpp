@@ -6,7 +6,6 @@ void WasmFunction::jiting_wasm_code(int i) {
   // This instruction is necessary for "end" to pop off control stack
   control_flow_stack.push_back(controlFlowElement(
       "Function end", result_data)); // TODO: this might need to be called on every function enter, currently it is only executed once.
-  jit_begin = wasm_instructions.size();
   // backup x30, i.e. [sp, stacksize-8] = x30
   wasm_instructions += encodeLoadStoreImm(X_REG, STR, 30, 31, stack_size - 8);
   while (i < code_vec.size()) {
@@ -51,6 +50,12 @@ void WasmFunction::jiting_wasm_code(int i) {
       auto [function_index, bytesRead] = decode_uleb128_from_vec(code_vec, i + 1);
       emitCall(function_index);
       i += bytesRead + 1;
+    } else if (code_vec[i] == "11") { // call_indirect
+      auto [type_index, bytesRead_1] = decode_uleb128_from_vec(code_vec, i + 1);
+      i += bytesRead_1 + 1;
+      auto [table_index, bytesRead_2] = decode_uleb128_from_vec(code_vec, i);
+      i += bytesRead_2;
+      emitCallIndirect(type_index, table_index);
     }
     // local
     else if (code_vec[i] == "20") { // local.get
@@ -197,5 +202,4 @@ void WasmFunction::jiting_wasm_code(int i) {
   }
   // restore x30, i.e. x30 = [sp, stacksize-8]
   wasm_instructions += encodeLoadStoreImm(X_REG, LDR, 30, 31, stack_size - 8);
-  jit_end = wasm_instructions.size();
 }

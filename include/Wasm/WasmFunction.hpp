@@ -9,11 +9,11 @@ struct TableInfo {
   string elem_type;  // element type, currently can only be "70"（funcref）
   uint64_t min_size; // minimal table size
   bool has_max;      // flag for if has max size
-  uint64_t max_size; // max table size (if has)max
+  uint64_t max_size; // max table size (if has) max
 };
 
 struct ElementSegment {
-  uint64_t table_index; // expected to be 0
+  uint64_t table_index; // expected to be 0 (only 1 table)
   int64_t offset;       // offset in table
   vector<uint64_t> function_indices;
 };
@@ -24,16 +24,22 @@ public:
     local_var_initialize(offset); // doesn't modify wasm_instructions
     printOriginWasmOpcode(offset);
 
+    getStackPreallocateSize(offset);
+    prepareSp();
+    jit_begin = wasm_instructions.size();
+
     // start processing wasm_instructions here
     fakeInsertBranch("entry", "b"); // b main
 
-    // injectExceptionHandling();
+    injectExceptionHandling();
 
     insertLabel("entry");
     main_entry_initialize(offset);
 
-    // enable_setjmp();
+    enable_setjmp();
     jiting_wasm_code(offset);
+
+    jit_end = wasm_instructions.size();
 
     cout << "Store return code:" << endl;
     // store return code 0 to x[0]
@@ -71,6 +77,7 @@ public:
     wasm_instructions += encodeMovSP(X_REG, 31, 15);       // sp <- x31
 
     // store return code 1 to [x13]
+    // todo: generate different return code based on exception type!
     wasm_instructions += encodeMovz(11, 0x1, X_REG, 0);                     // x11=1, this register can be any that is not used and caller-saved
     wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, REG_BUFFER, 0); // [x[REG_BUFFER]]=x11=1
     fakeInsertBranch("Finalize", "b");
@@ -90,8 +97,6 @@ public:
     // print_data(TypeCategory::LOCAL);
   }
   void main_entry_initialize(int &offset) {
-    getStackPreallocateSize(offset);
-    prepareSp();
     initParam(); // initParam is storing to memory, generatePreWasmInstructions is storing to registers
     initLocal();
     // printInitStack();
@@ -248,7 +253,7 @@ public:
   void emitArithOp(char typeInfo, char opType, bool isSigned = true);
   void emitCompareOp(RegType regtype, string condStr);
   void emitCall(int function_index);
-  void emitCallIndirect();
+  void emitCallIndirect(size_t type_index, size_t table_index);
   void emitBlock(int i);
   void emitLoop(int i);
   void emitBr(int i);
@@ -294,11 +299,17 @@ public:
   vector<WasmFunctionType> wasmFunctionTypeVec;
   vector<int> wasmFunctionToTypeMapper;
   vector<controlFlowElement> control_flow_stack;
+  vector<TableInfo> tableInfoVec;               // store Table info, currently there should be only one table
+  vector<int> table_function_indices;
+
 
   map<pair<TypeCategory, int>, int> vecToStack;        // {TypeCategory::PARAM, 0} : 0x4
   map<pair<TypeCategory, int>, RegType> regTypeGetter; // {TypeCategory::PARAM, 0}: LDR32
   map<int, pair<TypeCategory, int>> stackToVec;        // 0x4 : {TypeCategory::PARAM: 0}
   map<int, void *> symbol_table;
+  void *in_assembly_call_table;
+  vector<size_t> typeEquivalenceMap; // classify type with same structure into same id, this is used for signature verify currently
+
 
   unordered_multimap<string, pair<int64_t, string>> fake_insert_map;
   unordered_map<string, int64_t> label_map;
