@@ -1,0 +1,13 @@
+{"source_filename": "global.wast",
+ "commands": [
+  {"type": "module", "line": 1, "filename": "global.0.wasm"}, 
+  {"type": "assert_return", "line": 40, "action": {"type": "invoke", "field": "get-a", "args": []}, "expected": [{"type": "i32", "value": "4294967294"}]}, 
+  {"type": "assert_return", "line": 41, "action": {"type": "invoke", "field": "get-b", "args": []}, "expected": [{"type": "i64", "value": "18446744073709551611"}]}, 
+  {"type": "assert_return", "line": 42, "action": {"type": "invoke", "field": "get-x", "args": []}, "expected": [{"type": "i32", "value": "4294967284"}]}, 
+  {"type": "assert_return", "line": 43, "action": {"type": "invoke", "field": "get-y", "args": []}, "expected": [{"type": "i64", "value": "18446744073709551601"}]}, 
+  {"type": "assert_return", "line": 45, "action": {"type": "invoke", "field": "set-x", "args": [{"type": "i32", "value": "6"}]}, "expected": []}, 
+  {"type": "assert_return", "line": 46, "action": {"type": "invoke", "field": "set-y", "args": [{"type": "i64", "value": "7"}]}, "expected": []}, 
+  {"type": "assert_return", "line": 48, "action": {"type": "invoke", "field": "as-if-then", "args": []}, "expected": [{"type": "i32", "value": "6"}]}, 
+  {"type": "assert_return", "line": 49, "action": {"type": "invoke", "field": "as-if-else", "args": []}, "expected": [{"type": "i32", "value": "6"}]}, 
+  {"type": "assert_return", "line": 51, "action": {"type": "invoke", "field": "as-br_if-first", "args": []}, "expected": [{"type": "i32", "value": "6"}]}, 
+  {"type": "assert_return", "line": 52, "action": {"type": "invoke", "field": "as-br_if-last", "args": []}, "expected": [{"type": "i32", "value": "2"}]}]}
