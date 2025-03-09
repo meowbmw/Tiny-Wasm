@@ -4,6 +4,8 @@
 const uint8_t REG_BUFFER = 19;
 const uint8_t REG_WASM_STACK = 20;
 const uint8_t REG_POINTER_WASM_STACK = 21;
+const uint8_t REG_POINTER_GLOBAL_MEMORY = 22;
+const uint8_t REG_POINTER_GLOBAL_VARIABLE_SIZE = 23;
 
 struct TableInfo {
   string elem_type;  // element type, currently can only be "70"（funcref）
@@ -143,6 +145,10 @@ public:
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_BUFFER, 0);
     cout << "Backing up x1 wasm_stack pointer to x" << +REG_WASM_STACK << endl;
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_WASM_STACK, 1);
+    cout << "Backing up x2 globalMemory to x" << +REG_POINTER_GLOBAL_MEMORY << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_POINTER_GLOBAL_MEMORY, 2);
+    cout << "Backing up x3 globalSizeArray to x" << +REG_POINTER_GLOBAL_VARIABLE_SIZE << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_POINTER_GLOBAL_VARIABLE_SIZE, 3);
 
     // initialize both stack pointer with 0
     cout << "Initialze REG_POINTER_WASM_STACK: x" << +REG_POINTER_WASM_STACK << " with 0" << endl;
@@ -265,6 +271,8 @@ public:
   void emitDrop();
   void emitCtz(RegType regtype);
   void emitEqz(RegType regtype);
+  void emitGlobalGet();
+  void emitGlobalSet();
   string push(RegType regType, int reg = 11);
   string pop(RegType regType, bool tee = false, int reg = 11);
   void constructFullinstr(string sub_instr);
@@ -299,9 +307,8 @@ public:
   vector<WasmFunctionType> wasmFunctionTypeVec;
   vector<int> wasmFunctionToTypeMapper;
   vector<controlFlowElement> control_flow_stack;
-  vector<TableInfo> tableInfoVec;               // store Table info, currently there should be only one table
+  vector<TableInfo> tableInfoVec; // store Table info, currently there should be only one table
   vector<int> table_function_indices;
-
 
   map<pair<TypeCategory, int>, int> vecToStack;        // {TypeCategory::PARAM, 0} : 0x4
   map<pair<TypeCategory, int>, RegType> regTypeGetter; // {TypeCategory::PARAM, 0}: LDR32
@@ -310,6 +317,8 @@ public:
   void *in_assembly_call_table;
   vector<size_t> typeEquivalenceMap; // classify type with same structure into same id, this is used for signature verify currently
 
+  char *globalMemory;    // used to store global variables, globalMemory[i] = *(globalMemory + i*8)
+  char *globalSizeArray; // used to store size of global variables, globalSizeArray[i] = *(globalSizeArray + i)
 
   unordered_multimap<string, pair<int64_t, string>> fake_insert_map;
   unordered_map<string, int64_t> label_map;

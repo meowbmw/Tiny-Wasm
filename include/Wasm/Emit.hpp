@@ -52,6 +52,16 @@ void WasmFunction::emitSet(const uint64_t var_to_set, TypeCategory vecType, bool
   string reg_to_mem_instr = encodeLoadStoreImm(regtype, STR, 11, 31, stack_offset);
   constructFullinstr(load_to_reg_instr + reg_to_mem_instr);
 }
+void WasmFunction::emitGlobalGet() {
+  // wasm_instructions += encodeLoadStoreImm(); // load global variable to r11
+  // wasm_instructions += push();                               // push r11 to wasm stack
+}
+
+void WasmFunction::emitGlobalSet() {
+  // wasm_instructions += pop();                                // pop from wasm stack to r11
+  // wasm_instructions += encodeLoadStoreImm(); // store r11 to global variable
+}
+
 void WasmFunction::emitConst(wasm_type elem) {
   /***
    * push value $elem onto wasm Stack

@@ -8,15 +8,9 @@ const bool DEBUG_EXPORT_SECTION = false;
 const bool DEBUG_FUNCTION_SECTION = false;
 const bool DEBUG_TYPE_SECTION = false;
 const bool DEBUG_CODE_SECTION = false;
-const bool DEBUG_TABLE_SECTION = true;
-const bool DEBUG_ELEMENT_SECTION = true;
-
-// const bool DEBUG_EXPORT_SECTION = true;
-// const bool DEBUG_FUNCTION_SECTION = true;
-// const bool DEBUG_TYPE_SECTION = true;
-// const bool DEBUG_CODE_SECTION = true;
-// const bool DEBUG_TABLE_SECTION = true;
-const string WASM_TO_READ = "test/local.2.wasm";
+const bool DEBUG_TABLE_SECTION = false;
+const bool DEBUG_ELEMENT_SECTION = false;
+const bool DEBUG_GLOBAL_SECTION = true;
 
 class WasmFile {
 public:
@@ -35,10 +29,12 @@ public:
         parse_function();
       } else if (type == "04") {
         parse_table();
-      } else if (type == "09") {
-        parse_element();
+      } else if (type == "06") {
+        parse_global();
       } else if (type == "07") {
         parse_export();
+      } else if (type == "09") {
+        parse_element();
       } else if (type == "0a") {
         parse_code();
       }
@@ -186,6 +182,89 @@ public:
       elementSegments.push_back(elem_segment);
     }
     buildFunctionIndexTable(); // we can now use element section info to build the table to translate table index to function index
+  }
+  void global_var_initializer(uint64_t global_init_type, int64_t global_init_value, char *memPointer, char *sizePointer) {
+    /**
+     * Possible ways to share variables across functions:
+     * Use C++ to allocate a space and pass it in, like wasm_stack
+     * But we need a way to determine variable type for global variables
+     *
+     * Also, maybe the initialization can be done with C++? maybe no need to use assembly?
+     */
+    if (global_init_type == 0x41) { // i32.const
+      int32_t value = static_cast<int32_t>(global_init_value);
+      memcpy(memPointer, &value, sizeof(int32_t));
+      memcpy(sizePointer, new char(4), sizeof(char)); // 4 bytes for i32
+    } else if (global_init_type == 0x42) {            // i64.const
+      int64_t value = static_cast<int64_t>(global_init_value);
+      memcpy(memPointer, &value, sizeof(int64_t));
+      memcpy(sizePointer, new char(8), sizeof(char)); // 8 bytes for i64
+    } else if (global_init_type == 0x43) {            // f32.const
+      throw "f32.const not implemented yet";
+    } else if (global_init_type == 0x44) { // f64.const
+      throw "f64.const not implemented yet";
+    } else if (global_init_type == 0x23) { // global.get
+      // WARN: NOT COVERED BY TEST CASES YET!!
+      auto size_info = *(globalSizeArray + global_init_value);
+      memcpy(memPointer, globalMemory + global_init_value * 8, size_info);
+      memcpy(sizePointer, new char(size_info), sizeof(char));
+    } else {
+      cout << "Unknown global initialization type: " << global_init_type << endl;
+    }
+  }
+  void parse_global() {
+    // global section
+    // Reference: https://github.com/sunfishcode/wasm-reference-manual/blob/master/WebAssembly.md#global-section
+    // The Global Section consists of an array of global declarations.
+    auto [global_count, bytes_read] = decode_uleb128(s, 0);
+    uint64_t base_offset = bytes_read;
+    cout << "Decoding global section: " << s.substr(0, length * 2) << endl;
+    cout << "Total global count: " << global_count << endl;
+
+    // allocate memory for global variables
+    globalMemory = static_cast<char *>(calloc(global_count, sizeof(8))); // use 8 byte for i32, i64 regardless of its type
+    globalSizeArray = static_cast<char *>(
+        calloc(global_count, sizeof(char))); // use 1 byte to store size, i.e. 4,8, to determine register read/write type, i.e. X_REG, W_REG
+
+    for (int i = 0; i < global_count; ++i) {
+      /**
+       * A global declaration consists of:
+        desc | global description | a description of the global variable
+        init | instantiation-time initializer | the initial value of the global variable
+       */
+      // desc part
+      // Global Description
+      // type | value type | the type of the global variable
+      // mutability | varuint1 | 0 if immutable, 1 if mutable
+      auto [global_type, bytes_read_type] = decode_uleb128(s, base_offset); // probably no need to use leb128 decode here
+      base_offset += bytes_read_type;
+      auto [global_mutability, bytes_read_mutability] = decode_uleb128(s, base_offset);
+      base_offset += bytes_read_mutability;
+      if (DEBUG_GLOBAL_SECTION) {
+        cout << "--- Info for global " << i << " ---" << endl;
+        cout << "Type is: " << type_encodings.at(global_type) << endl;
+        cout << "Mutability is: " << global_mutability << endl;
+      }
+      // init part
+      // An instantiation-time initializer is a single instruction, which is one of the following:
+      // const (of any type).
+      // global.get
+
+      auto [global_init_type, bytes_read_init_type] = decode_uleb128(s, base_offset);
+      base_offset += bytes_read_init_type;
+
+      if (DEBUG_GLOBAL_SECTION) {
+        cout << "Init expr type is: " << global_init_type << endl;
+      }
+      auto [global_init_value, bytes_read_init_value] = decode_sleb128(s, base_offset);
+      base_offset += bytes_read_init_value;
+      if (DEBUG_GLOBAL_SECTION) {
+        cout << "Init expr value is: " << global_init_value << endl;
+      }
+      global_var_initializer(global_init_type, global_init_value, globalMemory + i * 8, globalSizeArray + i);
+      auto [global_init_expr_end_end, bytes_read_init_expr_end_end] = decode_uleb128(s, base_offset);
+      base_offset += bytes_read_init_expr_end_end;
+    }
   }
   void parse_function() {
     // function section
@@ -367,6 +446,8 @@ public:
     wasmFunctionVec[i].symbol_table = symbol_table;
     wasmFunctionVec[i].tableInfoVec = tableInfoVec;
     wasmFunctionVec[i].typeEquivalenceMap = typeEquivalenceMap;
+    wasmFunctionVec[i].globalMemory = globalMemory;
+    wasmFunctionVec[i].globalSizeArray = globalSizeArray;
     wasmFunctionVec[i].generatePreWasmInstructions();
     wasmFunctionVec[i].processCodeVec();
     writeTable();
@@ -418,4 +499,7 @@ public:
   map<int, void *> symbol_table;
   void *in_assembly_call_table;      // used to store call_indirect address
   vector<size_t> typeEquivalenceMap; // classify type with same structure into same id, this is used for signature verify currently
+
+  char *globalMemory;    // used to store global variables, globalMemory[i] = *(globalMemory + i*8)
+  char *globalSizeArray; // used to store size of global variables, globalSizeArray[i] = *(globalSizeArray + i)
 };

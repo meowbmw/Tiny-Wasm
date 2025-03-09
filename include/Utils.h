@@ -45,6 +45,8 @@ template <typename Func, typename... Args> string silentCall(Func func, Args... 
 }
 
 const string commonIndentString = "       ";
+const unordered_map<uint64_t, string> type_encodings = {{0x7f, "i32"},     {0x7e, "i64"},  {0x7d, "f32"}, {0x7c, "f64"},
+                                                        {0x70, "funcref"}, {0x60, "func"}, {0x40, "void"}};
 
 enum class TypeCategory { PARAM, RESULT, LOCAL };
 string type_category_to_string(TypeCategory category) {
