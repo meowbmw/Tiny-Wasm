@@ -52,14 +52,17 @@ void WasmFunction::emitSet(const uint64_t var_to_set, TypeCategory vecType, bool
   string reg_to_mem_instr = encodeLoadStoreImm(regtype, STR, 11, 31, stack_offset);
   constructFullinstr(load_to_reg_instr + reg_to_mem_instr);
 }
-void WasmFunction::emitGlobalGet() {
-  // wasm_instructions += encodeLoadStoreImm(); // load global variable to r11
-  // wasm_instructions += push();                               // push r11 to wasm stack
+void WasmFunction::emitGlobalGet(uint64_t var_index) {
+  cout << "Global.get " << var_index << endl;
+  RegType regType = globalTypeGetter[var_index];
+  wasm_instructions += encodeLoadStoreImm(regType, LDR, 11, REG_POINTER_GLOBAL_MEMORY, 8 * var_index); // load global variable to r11
+  wasm_instructions += push(regType);                                                          // push r11 to wasm stack
 }
-
-void WasmFunction::emitGlobalSet() {
-  // wasm_instructions += pop();                                // pop from wasm stack to r11
-  // wasm_instructions += encodeLoadStoreImm(); // store r11 to global variable
+void WasmFunction::emitGlobalSet(uint64_t var_index) {
+  cout << "Global.set " << var_index << endl;
+  RegType regType = globalTypeGetter[var_index];
+  wasm_instructions += pop(regType);                                                           // pop from wasm stack to r11
+  wasm_instructions += encodeLoadStoreImm(regType, STR, 11, REG_POINTER_GLOBAL_MEMORY, 8 * var_index); // store r11 to global variable
 }
 
 void WasmFunction::emitConst(wasm_type elem) {
@@ -349,8 +352,8 @@ void WasmFunction::emitBr_if(int i) {
   cout << format("Br_if {}", depth) << endl;
   auto [label, signature] = control_flow_stack[control_flow_stack.size() - depth - 1];
   wasm_instructions += pop(W_REG);
-  wasm_instructions += encodeCompareImm(W_REG, 11, 1);
-  fakeInsertBranch(label, "beq"); // if true, branches according to label, otherwise falls through
+  wasm_instructions += encodeCompareImm(W_REG, 11, 0);
+  fakeInsertBranch(label, "bne"); // if true, branches according to label, otherwise falls through
 };
 
 void WasmFunction::emitIfOp(int i) {

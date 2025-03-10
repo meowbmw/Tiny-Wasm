@@ -183,7 +183,7 @@ public:
     }
     buildFunctionIndexTable(); // we can now use element section info to build the table to translate table index to function index
   }
-  void global_var_initializer(uint64_t global_init_type, int64_t global_init_value, char *memPointer, char *sizePointer) {
+  void global_var_initializer(uint64_t global_init_type, int64_t global_init_value, int i) {
     /**
      * Possible ways to share variables across functions:
      * Use C++ to allocate a space and pass it in, like wasm_stack
@@ -191,23 +191,34 @@ public:
      *
      * Also, maybe the initialization can be done with C++? maybe no need to use assembly?
      */
+    char *memPointer = globalMemory.get() + i * 8;
     if (global_init_type == 0x41) { // i32.const
       int32_t value = static_cast<int32_t>(global_init_value);
       memcpy(memPointer, &value, sizeof(int32_t));
-      memcpy(sizePointer, new char(4), sizeof(char)); // 4 bytes for i32
-    } else if (global_init_type == 0x42) {            // i64.const
+      globalTypeGetter[i] = W_REG;
+      if (DEBUG_GLOBAL_SECTION) {
+        cout << "Initialized with i32.const: " << value << endl;
+      }
+    } else if (global_init_type == 0x42) { // i64.const
       int64_t value = static_cast<int64_t>(global_init_value);
       memcpy(memPointer, &value, sizeof(int64_t));
-      memcpy(sizePointer, new char(8), sizeof(char)); // 8 bytes for i64
-    } else if (global_init_type == 0x43) {            // f32.const
+      globalTypeGetter[i] = X_REG;
+      if (DEBUG_GLOBAL_SECTION) {
+        cout << "Initialized with i64.const: " << value << endl;
+      }
+    } else if (global_init_type == 0x43) { // f32.const
       throw "f32.const not implemented yet";
     } else if (global_init_type == 0x44) { // f64.const
       throw "f64.const not implemented yet";
     } else if (global_init_type == 0x23) { // global.get
       // WARN: NOT COVERED BY TEST CASES YET!!
-      auto size_info = *(globalSizeArray + global_init_value);
-      memcpy(memPointer, globalMemory + global_init_value * 8, size_info);
-      memcpy(sizePointer, new char(size_info), sizeof(char));
+      auto regType = globalTypeGetter[i];
+      size_t size_info = (regType == X_REG) ? 8 : 4;
+      memcpy(memPointer, globalMemory.get() + global_init_value * 8, size_info);
+      globalTypeGetter[i] = regType;
+      if (DEBUG_GLOBAL_SECTION) {
+        cout << "Initialized with global.get " << global_init_value << endl;
+      }
     } else {
       cout << "Unknown global initialization type: " << global_init_type << endl;
     }
@@ -222,9 +233,7 @@ public:
     cout << "Total global count: " << global_count << endl;
 
     // allocate memory for global variables
-    globalMemory = static_cast<char *>(calloc(global_count, sizeof(8))); // use 8 byte for i32, i64 regardless of its type
-    globalSizeArray = static_cast<char *>(
-        calloc(global_count, sizeof(char))); // use 1 byte to store size, i.e. 4,8, to determine register read/write type, i.e. X_REG, W_REG
+    globalMemory.reset(new char[global_count * 8]()); // use 8 byte for i32, i64 regardless of its type
 
     for (int i = 0; i < global_count; ++i) {
       /**
@@ -253,15 +262,10 @@ public:
       auto [global_init_type, bytes_read_init_type] = decode_uleb128(s, base_offset);
       base_offset += bytes_read_init_type;
 
-      if (DEBUG_GLOBAL_SECTION) {
-        cout << "Init expr type is: " << global_init_type << endl;
-      }
       auto [global_init_value, bytes_read_init_value] = decode_sleb128(s, base_offset);
       base_offset += bytes_read_init_value;
-      if (DEBUG_GLOBAL_SECTION) {
-        cout << "Init expr value is: " << global_init_value << endl;
-      }
-      global_var_initializer(global_init_type, global_init_value, globalMemory + i * 8, globalSizeArray + i);
+
+      global_var_initializer(global_init_type, global_init_value, i);
       auto [global_init_expr_end_end, bytes_read_init_expr_end_end] = decode_uleb128(s, base_offset);
       base_offset += bytes_read_init_expr_end_end;
     }
@@ -446,8 +450,8 @@ public:
     wasmFunctionVec[i].symbol_table = symbol_table;
     wasmFunctionVec[i].tableInfoVec = tableInfoVec;
     wasmFunctionVec[i].typeEquivalenceMap = typeEquivalenceMap;
-    wasmFunctionVec[i].globalMemory = globalMemory;
-    wasmFunctionVec[i].globalSizeArray = globalSizeArray;
+    wasmFunctionVec[i].globalMemory = globalMemory.get();
+    wasmFunctionVec[i].globalTypeGetter = globalTypeGetter;
     wasmFunctionVec[i].generatePreWasmInstructions();
     wasmFunctionVec[i].processCodeVec();
     writeTable();
@@ -500,6 +504,6 @@ public:
   void *in_assembly_call_table;      // used to store call_indirect address
   vector<size_t> typeEquivalenceMap; // classify type with same structure into same id, this is used for signature verify currently
 
-  char *globalMemory;    // used to store global variables, globalMemory[i] = *(globalMemory + i*8)
-  char *globalSizeArray; // used to store size of global variables, globalSizeArray[i] = *(globalSizeArray + i)
+  unique_ptr<char[]> globalMemory;              // used to store global variables, globalMemory[i] = *(globalMemory + i*8)
+  unordered_map<int, RegType> globalTypeGetter; // this does what it says
 };

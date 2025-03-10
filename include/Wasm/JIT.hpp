@@ -59,26 +59,37 @@ void WasmFunction::jiting_wasm_code(int i) {
     }
     // local
     else if (code_vec[i] == "20") { // local.get
-      commonLocalOp(i, "get");
-      i += 2;
+      auto [var_index, bytes_read] = decode_uleb128_from_vec(code_vec, i + 1);
+      commonLocalOp(var_index, "get");
+      i += bytes_read + 1;
     } else if (code_vec[i] == "21") { // local.set
-      commonLocalOp(i, "set");
-      i += 2;
+      auto [var_index, bytes_read] = decode_uleb128_from_vec(code_vec, i + 1);
+      commonLocalOp(var_index, "set");
+      i += bytes_read + 1;
     } else if (code_vec[i] == "22") { // local.tee
-      commonLocalOp(i, "tee");
-      i += 2;
+      auto [var_index, bytes_read] = decode_uleb128_from_vec(code_vec, i + 1);
+      commonLocalOp(var_index, "tee");
+      i += bytes_read + 1;
+    }
+    // global
+    else if (code_vec[i] == "23") { // global.get
+      auto [var_index, bytes_read] = decode_uleb128_from_vec(code_vec, i + 1);
+      emitGlobalGet(var_index);
+      i += bytes_read + 1;
+    } else if (code_vec[i] == "24") { // global.set
+      auto [var_index, bytes_read] = decode_uleb128_from_vec(code_vec, i + 1);
+      emitGlobalSet(var_index);
+      i += bytes_read + 1;
     }
     // const
     else if (code_vec[i] == "41") { // i32.const
       auto [value, bytesRead] = decode_sleb128_from_vec(code_vec, i + 1);
       wasm_type elem = static_cast<int32_t>(value);
-      // todo: read 1 byte is wrong here, should read by leb128 until end
       emitConst(elem);
       i += bytesRead + 1;
     } else if (code_vec[i] == "42") { // i64.const
       auto [value, bytesRead] = decode_sleb128_from_vec(code_vec, i + 1);
       wasm_type elem = static_cast<int64_t>(value);
-      // todo: read 1 byte is wrong here, should read by leb128 until end
       emitConst(elem);
       i += bytesRead + 1;
     } else if (code_vec[i] == "43") { // f32.const

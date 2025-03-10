@@ -20,12 +20,12 @@ void test_chapter(string chapter_number, string test_json) {
       cur_wasm_file = data["commands"][i]["filename"];
       if (wasmFile_map.contains(cur_wasm_file) == false) {
         WasmFile cur_wasmFile = WasmFile(base_path + cur_wasm_file);
-        wasmFile_map.insert({cur_wasm_file, cur_wasmFile});
+        wasmFile_map.insert({cur_wasm_file, std::move(cur_wasmFile)});
         cout.rdbuf(parser_cout.rdbuf()); // Redirect parser output to file; it's too much...
         wasmFile_map[cur_wasm_file].parse();
         cout.rdbuf(0);
         wasmFile_map[cur_wasm_file].funcBatchProcess(); // do whole init now
-        cout.rdbuf(normal_cout.rdbuf()); // Restore cout
+        cout.rdbuf(normal_cout.rdbuf());                // Restore cout
       }
     } else if (data["commands"][i].contains("action")) {
       command_map.insert({cur_wasm_file, data["commands"][i]});
@@ -54,7 +54,7 @@ void test_chapter(string chapter_number, string test_json) {
     }
     cout << "param_data: " << param_data << endl;
     curParser.wasmFunctionVec[function_index].clear(); // TODO: this could be optimized, no need to clear and initialize again; but currently it will
-    cout.rdbuf(parser_cout.rdbuf()); // Redirect parser output to file; it's too much...
+    cout.rdbuf(parser_cout.rdbuf());                   // Redirect parser output to file; it's too much...
     curParser.funcSingleProcess(function_index);
     cout.rdbuf(normal_cout.rdbuf()); // Restore cout
     cout << v.first << " " << v.second << endl;
