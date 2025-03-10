@@ -1,0 +1,4 @@
+{"source_filename": "stack_overflow.wast",
+ "commands": [
+  {"type": "module", "line": 1, "filename": "stack_overflow.0.wasm"}, 
+  {"type": "assert_exhaustion", "line": 20, "action": {"type": "invoke", "field": "exhaust", "args": []}, "text": "call stack exhausted", "expected": []}]}

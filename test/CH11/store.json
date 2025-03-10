@@ -1,0 +1,13 @@
+{"source_filename": "store.wast",
+ "commands": [
+  {"type": "module", "line": 1, "filename": "store.0.wasm"}, 
+  {"type": "assert_return", "line": 42, "action": {"type": "invoke", "field": "as-block-value", "args": []}, "expected": []}, 
+  {"type": "assert_return", "line": 43, "action": {"type": "invoke", "field": "as-loop-value", "args": []}, "expected": []}, 
+  {"type": "assert_return", "line": 45, "action": {"type": "invoke", "field": "as-br-value", "args": []}, "expected": []}, 
+  {"type": "assert_return", "line": 46, "action": {"type": "invoke", "field": "as-br_if-value", "args": []}, "expected": []}, 
+  {"type": "assert_return", "line": 47, "action": {"type": "invoke", "field": "as-br_if-value-cond", "args": []}, "expected": []}, 
+  {"type": "assert_return", "line": 49, "action": {"type": "invoke", "field": "as-return-value", "args": []}, "expected": []}, 
+  {"type": "assert_return", "line": 51, "action": {"type": "invoke", "field": "as-if-then", "args": []}, "expected": []}, 
+  {"type": "assert_return", "line": 52, "action": {"type": "invoke", "field": "as-if-else", "args": []}, "expected": []}, 
+  {"type": "assert_trap", "line": 53, "action": {"type": "invoke", "field": "address-as-param", "args": [{"type": "i32", "value": "16777215"}, {"type": "i32", "value": "0"}]}, "text": "out of bounds memory access", "expected": []}, 
+  {"type": "assert_trap", "line": 54, "action": {"type": "invoke", "field": "address-as-param", "args": [{"type": "i32", "value": "65534"}, {"type": "i32", "value": "0"}]}, "text": "out of bounds memory access", "expected": []}]}
