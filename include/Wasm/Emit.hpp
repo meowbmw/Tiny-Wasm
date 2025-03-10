@@ -327,7 +327,7 @@ void WasmFunction::emitCallIndirect(size_t type_index, size_t table_index) {
   // clear x12
   wasm_instructions += WrapperEncodeMovInt64(12, 0);
   // get function address first
-  wasm_instructions += WrapperEncodeMovInt64(12, reinterpret_cast<int64_t>(in_assembly_call_table));
+  wasm_instructions += WrapperEncodeMovInt64(12, reinterpret_cast<uint64_t>(in_assembly_call_table));
   wasm_instructions += encodeMovz(13, 8, X_REG); // x13 = 8
   cout << format("{}Restore x11", commonIndentString) << endl;
   wasm_instructions += encodeMovRegister(X_REG, 11, 16);
