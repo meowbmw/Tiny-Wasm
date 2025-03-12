@@ -4,7 +4,7 @@
 #include "Wasm/WasmFunctionType.hpp"
 using namespace std;
 
-const bool DEBUG_EXPORT_SECTION = false;
+const bool DEBUG_EXPORT_SECTION = true;
 const bool DEBUG_FUNCTION_SECTION = false;
 const bool DEBUG_TYPE_SECTION = false;
 const bool DEBUG_CODE_SECTION = false;
@@ -396,24 +396,47 @@ public:
   }
   void parse_export() {
     // export section
-    const u_int64_t export_count = stoul(s.substr(0, 2), nullptr, 16);
-    uint64_t base_offset = 0;
+    auto [export_count, bytes_read_count] = decode_uleb128(s, 0);
+    uint64_t base_offset = bytes_read_count;
+
     cout << "Decoding export section: " << s.substr(0, length * 2) << endl;
     cout << "Total export count: " << export_count << endl;
     for (int i = 0; i < export_count; ++i) {
-      const u_int64_t export_size = stoul(s.substr(base_offset + 2, 2), nullptr, 16);
-      const string export_name = hexToAscii(s.substr(base_offset + 4, export_size * 2));
-      const u_int64_t export_type = stoul(s.substr(base_offset + 2 * export_size + 4, 2), nullptr, 16);
-      const u_int64_t export_index = stoul(s.substr(base_offset + 2 * export_size + 6, 2), nullptr, 16);
-      funcNameIndexMapper[export_name] = export_index;
-      funcIndexNameMapper[export_index] = export_name;
+      auto [export_size, bytes_read_size] = decode_uleb128(s, base_offset);
+      base_offset += bytes_read_size;
+      const string export_name = hexToAscii(s.substr(base_offset, export_size * 2));
+      base_offset += export_size * 2;
+      auto [export_type, bytes_read_type] = decode_uleb128(s, base_offset);
+      base_offset += bytes_read_type;
+      auto [export_index, bytes_read_index] = decode_uleb128(s, base_offset);
+      base_offset += bytes_read_index;
+
+      if (export_type == 0) { // function type
+        funcNameIndexMapper[export_name] = export_index;
+        funcIndexNameMapper[export_index] = export_name;
+      }
+
       if (DEBUG_EXPORT_SECTION) {
         cout << "--- Info for export " << i << " ---" << endl;
-        cout << "Type: " << export_type << endl;
+        switch (export_type) {
+        case 0:
+          cout << "Type: Function" << endl;
+          break;
+        case 1:
+          cout << "Type: Table" << endl;
+          break;
+        case 2:
+          cout << "Type: Memory" << endl;
+          break;
+        case 3:
+          cout << "Type: Global" << endl;
+          break;
+        default:
+          break;
+        }
         cout << "Index: " << export_index << endl;
         cout << "Name: " << export_name << endl;
       }
-      base_offset = base_offset + 2 * export_size + 6;
     }
   }
   void parse_code() {
