@@ -10,7 +10,10 @@ const bool DEBUG_TYPE_SECTION = false;
 const bool DEBUG_CODE_SECTION = false;
 const bool DEBUG_TABLE_SECTION = false;
 const bool DEBUG_ELEMENT_SECTION = false;
-const bool DEBUG_GLOBAL_SECTION = true;
+const bool DEBUG_GLOBAL_SECTION = false;
+const bool DEBUG_MEMORY_SECTION = true;
+const bool DEBUG_DATA_SECTION = true;
+const bool DEBUG_DATA_COUNT_SECTION = true;
 
 class WasmFile {
 public:
@@ -29,6 +32,8 @@ public:
         parse_function();
       } else if (type == "04") {
         parse_table();
+      } else if (type == "05") {
+        parse_memory();
       } else if (type == "06") {
         parse_global();
       } else if (type == "07") {
@@ -37,6 +42,10 @@ public:
         parse_element();
       } else if (type == "0a") {
         parse_code();
+      } else if (type == "0b") {
+        parse_data();
+      } else if (type == "0c") {
+        parse_data_count();
       }
       s = s.substr(length * 2); // move forward, remeber we need to times 2 because we are processing 2 char at a time; 2 char = 2 * 4 bits = 1 byte
       // cout << type << " " << length << endl;
@@ -222,6 +231,105 @@ public:
     } else {
       cout << "Unknown global initialization type: " << global_init_type << endl;
     }
+  }
+  void parse_memory() {
+    auto [memory_count, bytes_read] = decode_uleb128(s, 0);
+    int64_t base_offset = bytes_read;
+    cout << "Decoding memory section: " << s.substr(0, length * 2) << endl;
+    cout << "Total memory count: " << memory_count << endl;
+    for (int i = 0; i < memory_count; ++i) {
+      if (DEBUG_MEMORY_SECTION) {
+        cout << "--- Info for memory " << i << " ---" << endl;
+      }
+      const uint8_t limit_type = stoul(s.substr(base_offset, 2), nullptr, 16);
+      base_offset += 2;
+      auto [min_size, min_bytes_read] = decode_uleb128(s, base_offset);
+      base_offset += min_bytes_read;
+      uint64_t max_size = 0;
+      if (limit_type == 0x01) {
+        auto [parsed_max_size, max_bytes_read] = decode_uleb128(s, base_offset);
+        max_size = parsed_max_size;
+        base_offset += max_bytes_read;
+      }
+      if (DEBUG_MEMORY_SECTION) {
+        cout << "Memory limits - Min size: " << min_size;
+        if (limit_type == 0x01) {
+          cout << ", Max size: " << max_size;
+        }
+        cout << endl;
+      }
+    }
+  }
+  void parse_data() {
+    auto [data_count, bytes_read] = decode_uleb128(s, 0);
+    uint64_t base_offset = bytes_read;
+    cout << "Decoding data section: " << s.substr(0, length * 2) << endl;
+    cout << "Total data count: " << data_count << endl;
+    for (int i = 0; i < data_count; ++i) {
+      if (DEBUG_DATA_SECTION) {
+        cout << "--- Info for data " << i << " ---" << endl;
+      }
+      // flags:
+      // 00 active segment, write data when initialize
+      // 01 passive segment, need to be initialized manually with memory.init
+      // 02 include memory index, not used now
+      const uint8_t flags = stoul(s.substr(base_offset, 2), nullptr, 16);
+      base_offset += 2;
+      if (DEBUG_DATA_SECTION) {
+        cout << "Flags: " << to_string(flags) << endl;
+      }
+
+      auto [data_offset_type, bytes_read_init_type] = decode_uleb128(s, base_offset);
+      base_offset += bytes_read_init_type;
+
+      auto [data_offset_value, bytes_read_init_value] = decode_sleb128(s, base_offset);
+      base_offset += bytes_read_init_value;
+
+      if (data_offset_type == 0x41) { // i32.const
+        int32_t value = static_cast<int32_t>(data_offset_value);
+        if (DEBUG_GLOBAL_SECTION) {
+          cout << "Offset is i32.const: " << value << endl;
+        }
+      } else if (data_offset_type == 0x42) { // i64.const
+        int64_t value = static_cast<int64_t>(data_offset_value);
+        if (DEBUG_GLOBAL_SECTION) {
+          cout << "Offset is i64.const: " << value << endl;
+        }
+      } else if (data_offset_type == 0x43) { // f32.const
+        throw "f32.const not implemented yet";
+      } else if (data_offset_type == 0x44) { // f64.const
+        throw "f64.const not implemented yet";
+      } else if (data_offset_type == 0x23) { // global.get
+        // WARN: NOT COVERED BY TEST CASES YET!!
+        auto regType = globalTypeGetter[i];
+        size_t size_info = (regType == X_REG) ? 8 : 4;
+        if (DEBUG_GLOBAL_SECTION) {
+          cout << "Offset is global.get " << data_offset_value << endl;
+        }
+      } else {
+        cout << "Unknown offset type: " << data_offset_type << endl;
+      }
+
+      auto [data_offset_expr_end_end, bytes_read_init_expr_end_end] = decode_uleb128(s, base_offset);
+      base_offset += bytes_read_init_expr_end_end;
+
+      // start reading data from here!!
+      auto [data_segment_size, bytes_read_data_segment] = decode_uleb128(s, base_offset);
+      cout << "Data segment size is: " << data_segment_size << endl;
+      cout << "Data: ";
+      base_offset += bytes_read_data_segment;
+      for (int i = 0; i < data_segment_size; ++i) {
+        cout << static_cast<char>(stoul(s.substr(base_offset, 2), nullptr, 16));
+        base_offset += 2;
+      }
+      cout << endl;
+    }
+  }
+  void parse_data_count() {
+    // data count section is mainly used to help verify data section in one pass
+    auto [data_count, bytes_read] = decode_uleb128(s, 0);
+    cout << "Decoding data count section: " << s.substr(0, length * 2) << endl;
+    cout << "Total data count: " << data_count << endl;
   }
   void parse_global() {
     // global section
