@@ -128,6 +128,9 @@ public:
   void setImm12(auto imm12) {
     setField(imm12, 10, 12);
   }
+  void setImm14(auto imm14){
+    setField(imm14, 5, 14);
+  }
   void setImm16(auto imm16) {
     setField(imm16, 5, 16);
   }

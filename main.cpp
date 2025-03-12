@@ -37,6 +37,8 @@ void test_chapter(const string &chapter_number) {
     f = ifstream(base_path + "call_indirect.json");
   } else if (chapter_number == "10") {
     f = ifstream(base_path + "global.json");
+  } else if (chapter_number == "11"){
+    f = ifstream(base_path + "data.json");
   }
   json data = json::parse(f);
   multimap<string, json> command_map;
@@ -50,7 +52,7 @@ void test_chapter(const string &chapter_number) {
         wasmFile_map.insert({cur_wasm_file, std::move(cur_wasmFile)});
         wasmFile_map[cur_wasm_file].parse();
         cout.rdbuf(0);
-        wasmFile_map[cur_wasm_file].funcBatchProcess(); // do whole init now
+        // wasmFile_map[cur_wasm_file].funcBatchProcess(); // do whole init now
         cout.rdbuf(parser_cout.rdbuf());
         cout << endl;
       }
@@ -58,6 +60,7 @@ void test_chapter(const string &chapter_number) {
       command_map.insert({cur_wasm_file, data["commands"][i]});
     }
   }
+  return;
   for (auto &v : command_map) {
     cout << "=====================================================================" << endl;
     cout << v.first << " " << v.second << endl;
@@ -120,9 +123,9 @@ void test_chapter(const string &chapter_number) {
   }
 }
 int main() {
-  vector<string> test_chapters = {"02", "03", "04", "05", "06", "07", "08", "09", "10"};
+  // vector<string> test_chapters = {"02", "03", "04", "05", "06", "07", "08", "09", "10"};
 
-  // vector<string> test_chapters = {"11"};
+  vector<string> test_chapters = {"11"};
   cout << "A simple testing program to check our JIT works as intended." << endl;
   cout << "Chapters to test: " << test_chapters << endl;
   for (auto &chapter_number : test_chapters) {
