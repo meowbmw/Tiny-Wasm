@@ -35,6 +35,21 @@ string encodeBranchRegister(uint8_t rn, bool hasReturn = false, bool smallEndian
   return opcode.getInstruction();
 }
 
+// Reference: https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/TBNZ--Test-bit-and-branch-if-nonzero-
+// Test bit and branch if nonzero
+// This instruction compares the value of a bit in a general-purpose register with zero, and conditionally branches to a label at a PC-relative offset
+// if the comparison is not equal. It provides a hint that this is not a subroutine call or return. This instruction does not affect condition flags.
+// Usage: TBNZ <R><t>, #<imm>, <label>, label is encoded as "imm14" times 4.
+// <t> is the number [0-30] of the general-purpose register to be tested or the name ZR (31), encoded in the "Rt" field.
+string encodeTbnz(RegType regtype, uint8_t rt, uint8_t imm, uint16_t imm14) {
+  auto opcode = Arm64Opcode();
+  opcode.setSf(regtype);
+  opcode.setField(0b110111, 24);
+  opcode.setRt(rt);
+  opcode.setImm14(imm14);
+  return opcode.getInstruction();
+}
+
 string encodeAdr(uint8_t rd, int32_t imm, bool smallEndian = true) {
   // todo: need to check correctness!!
   auto opcode = Arm64Opcode(smallEndian);

@@ -44,7 +44,7 @@ public:
 
     cout << "Store return code:" << endl;
     // store return code 0 to x[0]
-    wasm_instructions += encodeMovz(11, 0x0, X_REG, 0);                     // x11=0, this register can be any that is not used and caller-saved
+    wasm_instructions += encodeMovz(X_REG, 11, 0x0, 0);                     // x11=0, this register can be any that is not used and caller-saved
     wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, REG_BUFFER, 0); // [x[REG_BUFFER]]=x11=0
 
     insertLabel("Finalize");
@@ -79,7 +79,7 @@ public:
 
     // store return code 1 to [x13]
     // todo: generate different return code based on exception type!
-    wasm_instructions += encodeMovz(11, 0x1, X_REG, 0);                     // x11=1, this register can be any that is not used and caller-saved
+    wasm_instructions += encodeMovz(X_REG, 11, 0x1, 0);                     // x11=1, this register can be any that is not used and caller-saved
     wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, REG_BUFFER, 0); // [x[REG_BUFFER]]=x11=1
     fakeInsertBranch("Finalize", "b");
   }
@@ -149,7 +149,7 @@ public:
 
     // initialize stack pointer with 0
     cout << "Initialze REG_POINTER_WASM_STACK: x" << +REG_POINTER_WASM_STACK << " with 0" << endl;
-    pre_instructions_for_param_loading += encodeMovz(REG_POINTER_WASM_STACK, 0, X_REG);
+    pre_instructions_for_param_loading += encodeMovz(X_REG, REG_POINTER_WASM_STACK, 0);
 
     cout << "---Loading parameters---" << endl;
     for (int i = 0; i < param_data.size(); ++i) {
@@ -273,6 +273,8 @@ public:
   string pop(RegType regType, bool tee = false, int reg = 11);
   void constructFullinstr(string sub_instr);
   void jiting_wasm_code(int i);
+  auto allocateMemory();
+  auto releaseMemory();
   // data section
   int stack_size = 0;
   int param_stack_start_location = 0;

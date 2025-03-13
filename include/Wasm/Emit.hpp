@@ -56,12 +56,12 @@ void WasmFunction::emitGlobalGet(uint64_t var_index) {
   cout << "Global.get " << var_index << endl;
   RegType regType = globalTypeGetter[var_index];
   wasm_instructions += encodeLoadStoreImm(regType, LDR, 11, REG_POINTER_GLOBAL_MEMORY, 8 * var_index); // load global variable to r11
-  wasm_instructions += push(regType);                                                          // push r11 to wasm stack
+  wasm_instructions += push(regType);                                                                  // push r11 to wasm stack
 }
 void WasmFunction::emitGlobalSet(uint64_t var_index) {
   cout << "Global.set " << var_index << endl;
   RegType regType = globalTypeGetter[var_index];
-  wasm_instructions += pop(regType);                                                           // pop from wasm stack to r11
+  wasm_instructions += pop(regType);                                                                   // pop from wasm stack to r11
   wasm_instructions += encodeLoadStoreImm(regType, STR, 11, REG_POINTER_GLOBAL_MEMORY, 8 * var_index); // store r11 to global variable
 }
 
@@ -105,8 +105,8 @@ void WasmFunction::emitCompareOp(RegType regtype, string condStr) {
     throw "Unsupported reg type (float or double)";
   }
   // todo: this could be simplified by one cset instruction
-  wasm_instructions += encodeMovz(3, 1, X_REG); // x3=1
-  wasm_instructions += encodeMovz(4, 0, X_REG); // x4=0
+  wasm_instructions += encodeMovz(X_REG, 3, 1); // x3=1
+  wasm_instructions += encodeMovz(X_REG, 4, 0); // x4=0
   // pop b
   string load_second_param_instr = pop(regtype, false, 12);
   // pop a
@@ -273,7 +273,7 @@ void WasmFunction::emitCallIndirect(size_t type_index, size_t table_index) {
   cout << format("{}Check Trap: Indirect Call Type Mismatch", commonIndentString) << endl;
   cout << format("{}Getting function index from table index", commonIndentString) << endl;
   wasm_instructions += WrapperEncodeMovInt64(10, reinterpret_cast<int64_t>(table_function_indices.data())); // x10 = table_function_indices
-  wasm_instructions += encodeMovz(13, sizeof(int), X_REG);                                                  // x13 = sizeof(int) = 4
+  wasm_instructions += encodeMovz(X_REG, 13, sizeof(int));                                                  // x13 = sizeof(int) = 4
   wasm_instructions += encodeMul(X_REG, 13, 11, 13);                                                        // x13 = x11 * x13
   wasm_instructions += encodeLoadStoreReg(W_REG, LDR, 11, 10, 13);                                          // w11 = [x10+x13]
 
@@ -281,20 +281,20 @@ void WasmFunction::emitCallIndirect(size_t type_index, size_t table_index) {
 
   cout << format("{}Get real type", commonIndentString) << endl;
   wasm_instructions += WrapperEncodeMovInt64(10, reinterpret_cast<int64_t>(wasmFunctionToTypeMapper.data())); // x10=type array
-  wasm_instructions += encodeMovz(13, sizeof(int), X_REG);                                                    // x13=4
+  wasm_instructions += encodeMovz(X_REG, 13, sizeof(int));                                                    // x13=4
   wasm_instructions += encodeMul(X_REG, 13, 11, 13);                                                          // x13=i*4
   wasm_instructions += encodeLoadStoreReg(W_REG, LDR, 12, 10, 13);                                            // w12=[x10,i*4]=type array[i]
 
   cout << format("{}Get abstract type", commonIndentString) << endl;
   wasm_instructions += WrapperEncodeMovInt64(10, reinterpret_cast<int64_t>(typeEquivalenceMap.data())); // x10=typeEquivalenceMap
-  wasm_instructions += encodeMovz(13, sizeof(size_t), X_REG);                                           // x13=8
+  wasm_instructions += encodeMovz(X_REG, 13, sizeof(size_t));                                           // x13=8
   wasm_instructions += encodeMul(X_REG, 13, 12, 13);                                                    // x13=w12*8
   wasm_instructions += encodeLoadStoreReg(W_REG, LDR, 12, 10, 13); // w12=[x10,x13]=typeEquivalenceMap[actual_type]
 
   cout << format("{}Get expected abstract type", commonIndentString) << endl;
   wasm_instructions += WrapperEncodeMovInt64(10, reinterpret_cast<int64_t>(typeEquivalenceMap.data())); // x10=typeEquivalenceMap
-  wasm_instructions += encodeMovz(13, sizeof(size_t), X_REG);                                           // x13=8
-  wasm_instructions += encodeMovz(14, type_index, W_REG);                                               // w14=type_index
+  wasm_instructions += encodeMovz(X_REG, 13, sizeof(size_t));                                           // x13=8
+  wasm_instructions += encodeMovz(W_REG, 14, type_index);                                               // w14=type_index
   wasm_instructions += encodeMul(X_REG, 13, 14, 13);                                                    // x13=w14*8
   wasm_instructions += encodeLoadStoreReg(W_REG, LDR, 14, 10, 13); // w14=[x10,x13]=typeEquivalenceMap[expected_type]
 
@@ -328,7 +328,7 @@ void WasmFunction::emitCallIndirect(size_t type_index, size_t table_index) {
   wasm_instructions += WrapperEncodeMovInt64(12, 0);
   // get function address first
   wasm_instructions += WrapperEncodeMovInt64(12, reinterpret_cast<uint64_t>(in_assembly_call_table));
-  wasm_instructions += encodeMovz(13, 8, X_REG); // x13 = 8
+  wasm_instructions += encodeMovz(X_REG, 13, 8); // x13 = 8
   cout << format("{}Restore x11", commonIndentString) << endl;
   wasm_instructions += encodeMovRegister(X_REG, 11, 16);
   wasm_instructions += encodeMul(X_REG, 11, 11, 13);                                     // x11 = x11 * x13 = x11 * 8
@@ -401,7 +401,7 @@ void WasmFunction::emitCtz(RegType regType) {
   // pop one element from stack to r11
   wasm_instructions += pop(regType);
   // moving 32/64 (depending on regType) to x1/w1
-  wasm_instructions += encodeMovz(1, (regType == X_REG) ? 64 : 32, regType);
+  wasm_instructions += encodeMovz(regType, 1, (regType == X_REG) ? 64 : 32);
   // store reversed r11 to r2
   wasm_instructions += encodeRBIT(regType, 2, 11);
   // count r2 leading zeros

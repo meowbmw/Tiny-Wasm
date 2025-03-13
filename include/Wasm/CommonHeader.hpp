@@ -41,7 +41,7 @@ string getSetJmpInstr() {
     instr += encodeLdpStp(X_REG, ldstType, 29, 30, 0, 10 << 3);
     instr += encodeMovSP(X_REG, 2, 31);
     instr += encodeLoadStoreImm(X_REG, ldstType, 2, 0, 13 << 3);
-    instr += encodeMovz(0, 0, W_REG, 0);
+    instr += encodeMovz(W_REG, 0, 0, 0);
     instr += encodeReturn();
   });
   // cout << "Function SetJmp: " << instr << endl;
@@ -76,7 +76,7 @@ string getLongJmpInstr() {
     instr += encodeLoadStoreImm(X_REG, ldstType, 5, 0, 13 << 3);
     instr += encodeMovSP(X_REG, 31, 5);
     instr += encodeCompareImm(X_REG, 1, 0);
-    instr += encodeMovz(0, 1, X_REG, 0);
+    instr += encodeMovz(X_REG, 0, 1, 0);
     instr += encodeCSEL(X_REG, 0, 1, 0, reverse_cond_str_map.at("ne"));
     instr += encodeBranchRegister(30);
   });
