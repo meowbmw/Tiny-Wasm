@@ -7,4 +7,5 @@
 #include "Wasm/Branch.hpp"
 #include "Wasm/Exception.hpp"
 #include "Wasm/JIT.hpp"
+#include "Wasm/Memory.hpp"
 

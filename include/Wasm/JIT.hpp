@@ -81,6 +81,62 @@ void WasmFunction::jiting_wasm_code(int i) {
       emitGlobalSet(var_index);
       i += bytes_read + 1;
     }
+    // load
+    else if (code_vec[i] == "28") { // i32.load
+      commonLoadStoreOp(i, W_REG, LDR, 32, false, false);
+    } else if (code_vec[i] == "29") { // i64.load
+      commonLoadStoreOp(i, X_REG, LDR, 64, false, false);
+    }
+    // store
+    else if (code_vec[i] == "36") { // i32.store
+
+    } else if (code_vec[i] == "37") { // i64.store
+
+    }
+    // extend load, signed
+    else if (code_vec[i] == "2c") { // i32.load8_s
+
+    } else if (code_vec[i] == "2e") { // i32.load16_s
+
+    } else if (code_vec[i] == "30") { // i64.load8_s
+
+    } else if (code_vec[i] == "32") { // i64.load16_s
+
+    } else if (code_vec[i] == "34") { // i64.load32_s
+
+    }
+    // extend load, unsigned
+    else if (code_vec[i] == "2d") { // i32.load8_u
+      commonLoadStoreOp(i, W_REG, LDR, 8, false, true);
+    } else if (code_vec[i] == "2f") { // i32.load16_u
+      commonLoadStoreOp(i, W_REG, LDR, 16, false, true);
+    } else if (code_vec[i] == "31") { // i64.load8_u
+      commonLoadStoreOp(i, X_REG, LDR, 8, false, true);
+    } else if (code_vec[i] == "33") { // i64.load16_u
+      commonLoadStoreOp(i, X_REG, LDR, 16, false, true);
+    } else if (code_vec[i] == "35") { // i64.load32_u
+      commonLoadStoreOp(i, X_REG, LDR, 32, false, true);
+    }
+    // wrapping store
+    else if (code_vec[i] == "2c") { // i32.store8
+
+    } else if (code_vec[i] == "2e") { // i32.store16
+
+    } else if (code_vec[i] == "30") { // i64.store8
+
+    } else if (code_vec[i] == "32") { // i64.store16
+
+    } else if (code_vec[i] == "34") { // i64.store32
+
+    }
+    // grow
+    else if (code_vec[i] == "40") { // memory.grow
+
+    }
+    // get current memory size
+    else if (code_vec[i] == "3f") { // memory.size
+
+    }
     // const
     else if (code_vec[i] == "41") { // i32.const
       auto [value, bytesRead] = decode_sleb128_from_vec(code_vec, i + 1);

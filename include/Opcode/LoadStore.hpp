@@ -27,22 +27,12 @@ string encodeLdpStp(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rt2,
   return opcode.getInstruction();
 }
 
-/**
- * Usage: LDR <Wt>, [<Xn|SP>], #<simm>
- * encodeLoadStoreImm(X_REG, LDR, 0, 31, 0x10); // LDR X0, [SP, #0x10]
- * encodeLoadStoreImm(W_REG, STR, 0, 31, 0x10); // STR W0, [SP, #0x10]
- * encodeLoadStoreImm(X_REG, LDR, 0, 31, 0x10, EncodingMode::PreIndex); // LDR X0, [SP, #0x10]!
- * encodeLoadStoreImm(X_REG, LDR, 0, 31, 0x10, EncodingMode::PostIndex); // LDR X0, [SP], #0x10
- *
- */
-string encodeLoadStoreImm(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rn, int16_t imm, EncodingMode mode = EncodingMode::UnSignedOffset,
-                          bool smallEndian = true) {
+string commonLoadStoreImm(RegType regType, LdStType ldstType, int operateSize, uint8_t rt, uint8_t rn, int16_t imm,
+                          EncodingMode mode = EncodingMode::UnSignedOffset, bool smallEndian = true) {
   auto opcode = Arm64Opcode(smallEndian);
-  opcode.setField(1, 31);
-  opcode.setField((int)(regType == X_REG), 30);
+  opcode.setField(operateSize / 16, 30);
   opcode.setField(0b111, 27);
   opcode.setField((int)(ldstType == LDR), 22);
-  opcode.setField((int)(mode == EncodingMode::UnSignedOffset), 24);
   switch (mode) {
   case EncodingMode::PostIndex:
     opcode.setImm9(imm);
@@ -53,7 +43,8 @@ string encodeLoadStoreImm(RegType regType, LdStType ldstType, uint8_t rt, uint8_
     opcode.setField(0b11, 10);
     break;
   case EncodingMode::UnSignedOffset:
-    opcode.setImm12(static_cast<uint16_t>(imm >> ((regType == X_REG) ? 3 : 2)));
+    opcode.setField(1, 24);
+    opcode.setImm12(static_cast<uint16_t>(imm >> (operateSize / 16)));
     break;
   default:
     throw "Unsupported Encode mode for LDR/STR immediate";
@@ -62,18 +53,33 @@ string encodeLoadStoreImm(RegType regType, LdStType ldstType, uint8_t rt, uint8_
   opcode.setRn(rn);
   return opcode.getInstruction();
 }
-
 /**
- * This is different from load store imm, i.e.
- * LDR Rt, [Rn, Rm]
+ * Usage: LDR <Wt>, [<Xn|SP>], #<simm>
+ * encodeLoadStoreImm(X_REG, LDR, 0, 31, 0x10); // LDR X0, [SP, #0x10]
+ * encodeLoadStoreImm(W_REG, STR, 0, 31, 0x10); // STR W0, [SP, #0x10]
+ * encodeLoadStoreImm(X_REG, LDR, 0, 31, 0x10, EncodingMode::PreIndex); // LDR X0, [SP, #0x10]!
+ * encodeLoadStoreImm(X_REG, LDR, 0, 31, 0x10, EncodingMode::PostIndex); // LDR X0, [SP], #0x10
+ *
  */
-string encodeLoadStoreReg(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rn, uint8_t rm, int option = 0b011, bool smallEndian = true) {
-  /**
-   * https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/LDR--register---Load-register--register--?lang=en
-   */
+string encodeLoadStoreImm(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rn, int16_t imm, EncodingMode mode = EncodingMode::UnSignedOffset,
+                          bool smallEndian = true) {
+  return commonLoadStoreImm(regType, ldstType, (regType == X_REG) ? 48 : 32, rt, rn, imm, mode, smallEndian);
+}
+
+string encodeWordLoadStoreImm(LdStType ldstType, uint8_t rt, uint8_t rn, int16_t imm, EncodingMode mode = EncodingMode::UnSignedOffset,
+                              bool smallEndian = true) {
+  return commonLoadStoreImm(W_REG, ldstType, 16, rt, rn, imm, mode, smallEndian);
+}
+
+string encodeByteLoadStoreImm(LdStType ldstType, uint8_t rt, uint8_t rn, int16_t imm, EncodingMode mode = EncodingMode::UnSignedOffset,
+                              bool smallEndian = true) {
+  return commonLoadStoreImm(W_REG, ldstType, 0, rt, rn, imm, mode, smallEndian);
+}
+
+string commonLoadStoreReg(RegType regType, LdStType ldstType, int operateSize, uint8_t rt, uint8_t rn, uint8_t rm, int option = 0b011,
+                          bool smallEndian = true) {
   auto opcode = Arm64Opcode(smallEndian);
-  opcode.setField(1, 31);
-  opcode.setField((int)(regType == X_REG), 30);
+  opcode.setField(operateSize / 16, 30);
   opcode.setField(0b111, 27);
   opcode.setField((int)(ldstType == LDR), 22);
   opcode.setField(1, 21);
@@ -91,4 +97,22 @@ string encodeLoadStoreReg(RegType regType, LdStType ldstType, uint8_t rt, uint8_
   opcode.setRn(rn);
   opcode.setRt(rt);
   return opcode.getInstruction();
+}
+/**
+ * This is different from load store imm, i.e.
+ * LDR Rt, [Rn, Rm]
+ */
+string encodeLoadStoreReg(RegType regType, LdStType ldstType, uint8_t rt, uint8_t rn, uint8_t rm, int option = 0b011, bool smallEndian = true) {
+  /**
+   * https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/LDR--register---Load-register--register--?lang=en
+   */
+  return commonLoadStoreReg(regType, ldstType, (regType == X_REG) ? 48 : 32, rt, rn, rm, option, smallEndian);
+}
+
+string encodeWordLoadStoreReg(LdStType ldstType, uint8_t rt, uint8_t rn, uint8_t rm, int option = 0b011, bool smallEndian = true) {
+  return commonLoadStoreReg(W_REG, ldstType, 16, rt, rn, rm, option, smallEndian);
+}
+
+string encodeByteLoadStoreReg(LdStType ldstType, uint8_t rt, uint8_t rn, uint8_t rm, int option = 0b011, bool smallEndian = true) {
+  return commonLoadStoreReg(W_REG, ldstType, 0, rt, rn, rm, option, smallEndian);
 }

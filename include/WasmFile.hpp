@@ -4,16 +4,16 @@
 #include "Wasm/WasmFunctionType.hpp"
 using namespace std;
 
-const bool DEBUG_EXPORT_SECTION = true;
+const bool DEBUG_EXPORT_SECTION = false;
 const bool DEBUG_FUNCTION_SECTION = false;
 const bool DEBUG_TYPE_SECTION = false;
 const bool DEBUG_CODE_SECTION = false;
 const bool DEBUG_TABLE_SECTION = false;
 const bool DEBUG_ELEMENT_SECTION = false;
 const bool DEBUG_GLOBAL_SECTION = false;
-const bool DEBUG_MEMORY_SECTION = true;
+const bool DEBUG_MEMORY_SECTION = false;
 const bool DEBUG_DATA_SECTION = true;
-const bool DEBUG_DATA_COUNT_SECTION = true;
+const bool DEBUG_DATA_COUNT_SECTION = false;
 
 class WasmFile {
 public:
@@ -241,23 +241,25 @@ public:
       if (DEBUG_MEMORY_SECTION) {
         cout << "--- Info for memory " << i << " ---" << endl;
       }
+      MemoryInfo memoryInfo;
       const uint8_t limit_type = stoul(s.substr(base_offset, 2), nullptr, 16);
       base_offset += 2;
       auto [min_size, min_bytes_read] = decode_uleb128(s, base_offset);
+      memoryInfo.min_page = min_size;
       base_offset += min_bytes_read;
-      uint64_t max_size = 0;
       if (limit_type == 0x01) {
         auto [parsed_max_size, max_bytes_read] = decode_uleb128(s, base_offset);
-        max_size = parsed_max_size;
+        memoryInfo.max_page = parsed_max_size;
         base_offset += max_bytes_read;
       }
       if (DEBUG_MEMORY_SECTION) {
-        cout << "Memory limits - Min size: " << min_size;
+        cout << "Memory limits - Min size: " << memoryInfo.min_page;
         if (limit_type == 0x01) {
-          cout << ", Max size: " << max_size;
+          cout << ", Max size: " << memoryInfo.max_page;
         }
         cout << endl;
       }
+      VecMemInfo.push_back(memoryInfo);
     }
   }
   void parse_data() {
@@ -285,15 +287,17 @@ public:
       auto [data_offset_value, bytes_read_init_value] = decode_sleb128(s, base_offset);
       base_offset += bytes_read_init_value;
 
+      int64_t cur_data_offset = 0;
+
       if (data_offset_type == 0x41) { // i32.const
-        int32_t value = static_cast<int32_t>(data_offset_value);
+        cur_data_offset = data_offset_value;
         if (DEBUG_GLOBAL_SECTION) {
-          cout << "Offset is i32.const: " << value << endl;
+          cout << "Offset is i32.const: " << data_offset_value << endl;
         }
       } else if (data_offset_type == 0x42) { // i64.const
-        int64_t value = static_cast<int64_t>(data_offset_value);
+        cur_data_offset = data_offset_value;
         if (DEBUG_GLOBAL_SECTION) {
-          cout << "Offset is i64.const: " << value << endl;
+          cout << "Offset is i64.const: " << data_offset_value << endl;
         }
       } else if (data_offset_type == 0x43) { // f32.const
         throw "f32.const not implemented yet";
@@ -302,7 +306,21 @@ public:
       } else if (data_offset_type == 0x23) { // global.get
         // WARN: NOT COVERED BY TEST CASES YET!!
         auto regType = globalTypeGetter[i];
-        size_t size_info = (regType == X_REG) ? 8 : 4;
+        switch (regType) {
+        case X_REG:
+          int64_t value_64;
+          memcpy(&value_64, globalMemory.get() + data_offset_value * 8, 8);
+          cur_data_offset = value_64;
+          break;
+        case W_REG:
+          int32_t value_32;
+          memcpy(&value_32, globalMemory.get() + data_offset_value * 8, 4);
+          cur_data_offset = static_cast<int64_t>(value_32);
+          break;
+        default:
+          throw "float unsupported yet!";
+          break;
+        }
         if (DEBUG_GLOBAL_SECTION) {
           cout << "Offset is global.get " << data_offset_value << endl;
         }
@@ -316,12 +334,21 @@ public:
       // start reading data from here!!
       auto [data_segment_size, bytes_read_data_segment] = decode_uleb128(s, base_offset);
       cout << "Data segment size is: " << data_segment_size << endl;
-      cout << "Data: ";
+      cout << "Data: " << endl;
       base_offset += bytes_read_data_segment;
+      memoryInitializeInstruction += allocateMemory(VecMemInfo[0].min_page); // todo: support multiple memories
+      memoryInitializeInstruction += encodeMovRegister(X_REG, REG_POINTER_WASM_MEMORY, 0);
       for (int i = 0; i < data_segment_size; ++i) {
-        cout << static_cast<char>(stoul(s.substr(base_offset, 2), nullptr, 16));
+        char cur_val = static_cast<char>(stoul(s.substr(base_offset, 2), nullptr, 16));
+        cout << cur_val;
         base_offset += 2;
+        // load data value into w0 (only 1 byte so wreg should be able to hold)
+        memoryInitializeInstruction += encodeMovz(W_REG, 0, cur_val);
+        // [REG_POINTER_WASM_MEMORY, cur_data_offset+i] = w[0]
+        memoryInitializeInstruction += encodeByteLoadStoreImm(STR, 0, REG_POINTER_WASM_MEMORY, cur_data_offset + i);
       }
+      memoryInitializeInstruction += encodeReturn();
+      memoryInitializeFunction = getFunctionPointer<void *>(memoryInitializeInstruction);
       cout << endl;
     }
   }
@@ -588,6 +615,7 @@ public:
     writeTable();
     writeCodeToMemory(i);
     wasmFunctionVec[i].table_function_indices = table_function_indices;
+    wasmFunctionVec[i].memoryInitializeFunction = memoryInitializeFunction;
     // cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
     // cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
     //      << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
@@ -621,12 +649,17 @@ public:
   string WASM_PATH;
   int64_t result;
   unsigned int length = 0;
+
   vector<TableInfo> tableInfoVec;               // store Table info, currently there should be only one table
   vector<ElementSegment> elementSegments;       // Table initializers are sometimes called "segments".
   vector<WasmFunction> wasmFunctionVec;         // used to store function code
   vector<WasmFunctionType> wasmFunctionTypeVec; // used to store type definition
   vector<int> wasmFunctionToTypeMapper;         // map function id to wasmType
   vector<int> table_function_indices;           // convert table index to function index
+
+  vector<MemoryInfo> VecMemInfo;
+  string memoryInitializeInstruction;
+  void *memoryInitializeFunction;
 
   map<string, int> funcNameIndexMapper; // function name to index
   map<int, string> funcIndexNameMapper; // function index to name

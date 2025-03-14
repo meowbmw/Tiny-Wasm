@@ -5,6 +5,7 @@
 string encodeMovSP(RegType regType, uint8_t rd, uint8_t rn, bool smallEndian = true) {
   return encodeAddSubImm(regType, false, rd, rn, 0);
 }
+
 string encodeMovRegister(RegType regType, uint8_t rd, uint8_t rm, bool smallEndian = true) {
   auto opcode = Arm64Opcode(smallEndian);
   opcode.setSf(regType);
@@ -36,7 +37,11 @@ string encodeMovk(RegType regType, uint8_t rd, uint16_t imm16, uint8_t shift, bo
   return opcode.getInstruction();
 }
 
-string encodeMovn(uint8_t rd, uint16_t imm16, RegType regType, uint8_t shift, bool smallEndian = true) {
+// Reference: https://developer.arm.com/documentation/ddi0602/2024-12/Base-Instructions/MOVN--Move-wide-with-NOT-
+// 将 imm16 左移 shift 位后取反，结果写入寄存器
+// Usage: movn <Rd>, #<imm16> [, LSL #<shift>]
+// shift can only be one of [0, 16, 32, 48]
+string encodeMovn(RegType regType, uint8_t rd, uint16_t imm16, uint8_t shift, bool smallEndian = true) {
   auto opcode = Arm64Opcode(smallEndian);
   opcode.setSf(regType);
   opcode.setField(0b100101, 23);

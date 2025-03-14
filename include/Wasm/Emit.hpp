@@ -55,14 +55,28 @@ void WasmFunction::emitSet(const uint64_t var_to_set, TypeCategory vecType, bool
 void WasmFunction::emitGlobalGet(uint64_t var_index) {
   cout << "Global.get " << var_index << endl;
   RegType regType = globalTypeGetter[var_index];
-  wasm_instructions += encodeLoadStoreImm(regType, LDR, 11, REG_POINTER_GLOBAL_MEMORY, 8 * var_index); // load global variable to r11
-  wasm_instructions += push(regType);                                                                  // push r11 to wasm stack
+  wasm_instructions += encodeLoadStoreImm(regType, LDR, 11, REG_POINTER_GLOBAL_VARIABLE, 8 * var_index); // load global variable to r11
+  wasm_instructions += push(regType);                                                                    // push r11 to wasm stack
 }
 void WasmFunction::emitGlobalSet(uint64_t var_index) {
   cout << "Global.set " << var_index << endl;
   RegType regType = globalTypeGetter[var_index];
-  wasm_instructions += pop(regType);                                                                   // pop from wasm stack to r11
-  wasm_instructions += encodeLoadStoreImm(regType, STR, 11, REG_POINTER_GLOBAL_MEMORY, 8 * var_index); // store r11 to global variable
+  wasm_instructions += pop(regType);                                                                     // pop from wasm stack to r11
+  wasm_instructions += encodeLoadStoreImm(regType, STR, 11, REG_POINTER_GLOBAL_VARIABLE, 8 * var_index); // store r11 to global variable
+}
+
+//  this function is used to read/write Wasm Memory
+//  Memory.load/store
+//  load/store to/from wasm memory
+//  e.g. stack[top] -> x/w11 -> memory[REG_POINTER_WASM_MEMORY + offset]
+void WasmFunction::emitMemoryLoadStore(RegType regtype, LdStType ldstType, int secondarySize, bool isSigned, bool isExtended, uint32_t alignment,
+                                       uint32_t offset) {
+  // if (ldstType == LDR) {
+  //   wasm_instructions += pop(regtype); // get offset to r11
+  //   wasm_instructions += encodeLoadStoreImm()
+
+  // } else {
+  // }
 }
 
 void WasmFunction::emitConst(wasm_type elem) {

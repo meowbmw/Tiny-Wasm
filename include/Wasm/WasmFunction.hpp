@@ -4,7 +4,8 @@
 const uint8_t REG_BUFFER = 19;
 const uint8_t REG_WASM_STACK = 20;
 const uint8_t REG_POINTER_WASM_STACK = 21;
-const uint8_t REG_POINTER_GLOBAL_MEMORY = 22;
+const uint8_t REG_POINTER_GLOBAL_VARIABLE = 22;
+const uint8_t REG_POINTER_WASM_MEMORY = 23;
 
 struct TableInfo {
   string elem_type;  // element type, currently can only be "70"（funcref）
@@ -17,6 +18,17 @@ struct ElementSegment {
   uint64_t table_index; // expected to be 0 (only 1 table)
   int64_t offset;       // offset in table
   vector<uint64_t> function_indices;
+};
+
+struct DataInitializer {
+  int memory_index = 0;
+  int64_t data_offset = 0; // used to hold where to start writing wasm memory
+  vector<char> data_vec;   // used to store values in this data initializer, i.e. "Hello world" (type is not limited to char though)
+};
+
+struct MemoryInfo {
+  uint16_t max_page = 1;
+  uint16_t min_page = 1;
 };
 class WasmFunction {
 public:
@@ -136,6 +148,19 @@ public:
    * function body.
    */
   void generatePreWasmInstructions() {
+    // initialize memory, this should only be executed once, we use [x4] to store initialize flag
+    // memory initialization function will be stored in x3
+    // cout << "--- Memory Initializer ---" << endl;
+    // pre_instructions_for_param_loading += encodeLoadStoreImm(W_REG, LDR, 11, 4, 0);
+    // pre_instructions_for_param_loading += encodeCompareImm(W_REG, 11, 1);
+    // // skip initialization if flag is equal to 1
+    // pre_instructions_for_param_loading += encodeBranchCondition(2, reverse_cond_str_map.at("eq"));
+    // pre_instructions_for_param_loading += encodeBranchRegister(3, true);
+    // // load #1 to w11
+    // pre_instructions_for_param_loading += encodeMovz(W_REG, 11, 1);
+    // // set memory initialze flag with #1 (w11)
+    // pre_instructions_for_param_loading += encodeLoadStoreImm(W_REG, STR, 11, 4, 0);
+
     cout << "--- Loading params to their respective registers ---" << endl;
     if (param_data.size() == 0) {
       cout << "No params need to be load" << endl;
@@ -144,8 +169,8 @@ public:
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_BUFFER, 0);
     cout << "Backing up x1 wasm_stack pointer to x" << +REG_WASM_STACK << endl;
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_WASM_STACK, 1);
-    cout << "Backing up x2 globalMemory to x" << +REG_POINTER_GLOBAL_MEMORY << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_POINTER_GLOBAL_MEMORY, 2);
+    cout << "Backing up x2 global variable pointer to x" << +REG_POINTER_GLOBAL_VARIABLE << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_POINTER_GLOBAL_VARIABLE, 2);
 
     // initialize stack pointer with 0
     cout << "Initialze REG_POINTER_WASM_STACK: x" << +REG_POINTER_WASM_STACK << " with 0" << endl;
@@ -249,6 +274,13 @@ public:
       throw "Too big index {" + to_string(var_index) + "} for local data; skipping current op;";
     }
   }
+  void commonLoadStoreOp(int &i, RegType regtype, LdStType ldstType, int secondary_size, bool isSigned, bool isExtended) {
+    auto [alignment, alignment_bytes_read] = decode_uleb128_from_vec(code_vec, i + 1);
+    i += alignment_bytes_read + 1;
+    auto [offset, offset_bytes_read] = decode_uleb128_from_vec(code_vec, i);
+    i += offset_bytes_read;
+    emitMemoryLoadStore(regtype, ldstType, secondary_size, isSigned, isExtended, alignment, offset);
+  }
   void emitGet(const uint64_t var_to_get, TypeCategory vecType);
   void emitSet(const uint64_t var_to_set, TypeCategory vecType, bool isTee = false);
   void emitConst(wasm_type elem);
@@ -269,12 +301,12 @@ public:
   void emitEqz(RegType regtype);
   void emitGlobalGet(uint64_t var_index);
   void emitGlobalSet(uint64_t var_index);
+  void emitMemoryLoadStore(RegType regtype, LdStType ldstType, int secondarySize, bool isSigned, bool isExtended, uint32_t alignment,
+                           uint32_t offset);
   string push(RegType regType, int reg = 11);
   string pop(RegType regType, bool tee = false, int reg = 11);
   void constructFullinstr(string sub_instr);
   void jiting_wasm_code(int i);
-  auto allocateMemory();
-  auto releaseMemory();
   // data section
   int stack_size = 0;
   int param_stack_start_location = 0;
@@ -289,6 +321,7 @@ public:
   const uint8_t called_function_register = 9;
   int jit_begin = 0;
   int jit_end = 0;
+  int64_t data_offset = 0;
 
   string functionName;
   string wasm_instructions;
@@ -314,6 +347,8 @@ public:
   map<int, void *> symbol_table;
   void *in_assembly_call_table;
   vector<size_t> typeEquivalenceMap; // classify type with same structure into same id, this is used for signature verify currently
+
+  void *memoryInitializeFunction; //
 
   char *globalMemory;                           // used to store global variables, globalMemory[i] = *(globalMemory + i*8)
   char *globalSizeArray;                        // used to store size of global variables, globalSizeArray[i] = *(globalSizeArray + i)
