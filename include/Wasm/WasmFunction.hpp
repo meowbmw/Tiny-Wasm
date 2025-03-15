@@ -1,11 +1,14 @@
 #pragma once
 #include "WasmFunctionType.hpp"
 
-const uint8_t REG_BUFFER = 19;
-const uint8_t REG_WASM_STACK = 20;
-const uint8_t REG_POINTER_WASM_STACK = 21;
-const uint8_t REG_POINTER_GLOBAL_VARIABLE = 22;
-const uint8_t REG_POINTER_WASM_MEMORY = 23;
+const uint8_t reg_buffer = 19;
+const uint8_t reg_wasm_stack = 20;
+const uint8_t reg_pointer_wasm_stack = 21;
+const uint8_t reg_pointer_globalvars = 22;
+const uint8_t reg_pointer_wasm_memory = 23;
+const uint8_t reg_memory_size = 24;
+
+const bool enable_exception_handling = true;
 
 struct TableInfo {
   string elem_type;  // element type, currently can only be "70"（funcref）
@@ -44,12 +47,16 @@ public:
     // start processing wasm_instructions here
     fakeInsertBranch("entry", "b"); // b main
 
-    injectExceptionHandling();
+    if (enable_exception_handling) {
+      injectExceptionHandling();
+    }
 
     insertLabel("entry");
     main_entry_initialize(offset);
 
-    enable_setjmp();
+    if (enable_exception_handling) {
+      enable_setjmp();
+    }
     jiting_wasm_code(offset);
 
     jit_end = wasm_instructions.size();
@@ -57,7 +64,7 @@ public:
     cout << "Store return code:" << endl;
     // store return code 0 to x[0]
     wasm_instructions += encodeMovz(X_REG, 11, 0x0, 0);                     // x11=0, this register can be any that is not used and caller-saved
-    wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, REG_BUFFER, 0); // [x[REG_BUFFER]]=x11=0
+    wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, reg_buffer, 0); // [x[reg_buffer]]=x11=0
 
     insertLabel("Finalize");
     getResult();
@@ -77,7 +84,7 @@ public:
     wasm_instructions += encodeMovRegister(
         X_REG, 14, 30); // x14 <- x30, this is just backing up, x14 can be any other register that isn't used, same thing applies to x15 <- sp
     wasm_instructions += encodeMovSP(X_REG, 15, 31);              // x15 <- sp
-    wasm_instructions += encodeMovRegister(X_REG, 0, REG_BUFFER); // x0 <- x[REG_BUFFER]
+    wasm_instructions += encodeMovRegister(X_REG, 0, reg_buffer); // x0 <- x[reg_buffer]
     fakeInsertBranch("longjmp", "b");
 
     insertLabel("longjmp");
@@ -92,7 +99,7 @@ public:
     // store return code 1 to [x13]
     // todo: generate different return code based on exception type!
     wasm_instructions += encodeMovz(X_REG, 11, 0x1, 0);                     // x11=1, this register can be any that is not used and caller-saved
-    wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, REG_BUFFER, 0); // [x[REG_BUFFER]]=x11=1
+    wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, reg_buffer, 0); // [x[reg_buffer]]=x11=1
     fakeInsertBranch("Finalize", "b");
   }
   void initParam();
@@ -140,7 +147,7 @@ public:
    *
    * This function handles the setup necessary before executing a WASM function:
    * 1. Backs up critical registers (x0 buffer and x1 WASM stack pointer)
-   * 2. Initializes the WASM stack pointer register (REG_POINTER_WASM_STACK) to 0
+   * 2. Initializes the WASM stack pointer register (reg_pointer_wasm_stack) to 0
    * 3. Loads all parameters into their appropriate registers according to their types
    *
    * The function generates all necessary instructions and appends them to the
@@ -148,33 +155,40 @@ public:
    * function body.
    */
   void generatePreWasmInstructions() {
-    // initialize memory, this should only be executed once, we use [x4] to store initialize flag
-    // memory initialization function will be stored in x3
-    // cout << "--- Memory Initializer ---" << endl;
-    // pre_instructions_for_param_loading += encodeLoadStoreImm(W_REG, LDR, 11, 4, 0);
-    // pre_instructions_for_param_loading += encodeCompareImm(W_REG, 11, 1);
-    // // skip initialization if flag is equal to 1
-    // pre_instructions_for_param_loading += encodeBranchCondition(2, reverse_cond_str_map.at("eq"));
-    // pre_instructions_for_param_loading += encodeBranchRegister(3, true);
-    // // load #1 to w11
-    // pre_instructions_for_param_loading += encodeMovz(W_REG, 11, 1);
-    // // set memory initialze flag with #1 (w11)
-    // pre_instructions_for_param_loading += encodeLoadStoreImm(W_REG, STR, 11, 4, 0);
-
     cout << "--- Loading params to their respective registers ---" << endl;
     if (param_data.size() == 0) {
       cout << "No params need to be load" << endl;
     }
-    cout << "Backing up x0 buffer to x" << +REG_BUFFER << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_BUFFER, 0);
-    cout << "Backing up x1 wasm_stack pointer to x" << +REG_WASM_STACK << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_WASM_STACK, 1);
-    cout << "Backing up x2 global variable pointer to x" << +REG_POINTER_GLOBAL_VARIABLE << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, REG_POINTER_GLOBAL_VARIABLE, 2);
+    cout << "Backing up x0 buffer to x" << +reg_buffer << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_buffer, 0);
+    cout << "Backing up x1 wasm_stack pointer to x" << +reg_wasm_stack << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_wasm_stack, 1);
+    cout << "Backing up x2 global variable pointer to x" << +reg_pointer_globalvars << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_pointer_globalvars, 2);
+    cout << "Backing up x4 memory initialized flag to x" << +reg_memory_size << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_memory_size, 4);
 
     // initialize stack pointer with 0
-    cout << "Initialze REG_POINTER_WASM_STACK: x" << +REG_POINTER_WASM_STACK << " with 0" << endl;
-    pre_instructions_for_param_loading += encodeMovz(X_REG, REG_POINTER_WASM_STACK, 0);
+    cout << "Initialze reg_pointer_wasm_stack: x" << +reg_pointer_wasm_stack << " with 0" << endl;
+    pre_instructions_for_param_loading += encodeMovz(X_REG, reg_pointer_wasm_stack, 0);
+
+    // initialize memory, this should only be executed once, we use [x4] to store initialize flag
+    // memory initialization function will be stored in x3
+    // ! only call memory initializer if there is a memory initialization function
+    if (memoryInitializeFunction != nullptr) {
+      cout << "--- Memory Initializer ---" << endl;
+      pre_instructions_for_param_loading += encodeLoadStoreImm(W_REG, LDR, 11, 4, 0);
+      pre_instructions_for_param_loading += encodeCompareImm(W_REG, 11, 1);
+      // skip initialization if flag is equal to 1
+      pre_instructions_for_param_loading += encodeBranchCondition(4, reverse_cond_str_map.at("eq"));
+      pre_instructions_for_param_loading += encodeMovRegister(X_REG, 14, 30); // backup x30 before blr
+      pre_instructions_for_param_loading += encodeBranchRegister(3, true);
+      pre_instructions_for_param_loading += encodeMovRegister(X_REG, 30, 14); // restore x30
+      // load #1 to w11
+      pre_instructions_for_param_loading += encodeMovz(W_REG, 11, 1);
+      // set memory initialze flag with #1 (w11)
+      pre_instructions_for_param_loading += encodeLoadStoreImm(W_REG, STR, 11, reg_memory_size, 0);
+    }
 
     cout << "---Loading parameters---" << endl;
     for (int i = 0; i < param_data.size(); ++i) {
@@ -207,7 +221,7 @@ public:
     cout << "Setting up setjmp" << endl;
     wasm_instructions += encodeLdpStp(X_REG, STR, 29, 30, 31, -0x20, EncodingMode::PreIndex); // stp x29, x30, [sp, #-0x20]!
 
-    wasm_instructions += encodeMovRegister(X_REG, 0, REG_BUFFER); // x0 <- x[REG_BUFFER]
+    wasm_instructions += encodeMovRegister(X_REG, 0, reg_buffer); // x0 <- x[reg_buffer]
     fakeInsertBranch("setjmp", "bl");                             // bl setjmp
 
     wasm_instructions += encodeCompareImm(X_REG, 0, 0);
@@ -350,7 +364,7 @@ public:
 
   void *memoryInitializeFunction; //
 
-  char *globalMemory;                           // used to store global variables, globalMemory[i] = *(globalMemory + i*8)
+  char *globalVars;                           // used to store global variables, globalVars[i] = *(globalVars + i*8)
   char *globalSizeArray;                        // used to store size of global variables, globalSizeArray[i] = *(globalSizeArray + i)
   unordered_map<int, RegType> globalTypeGetter; // this does what it says
 

@@ -19,7 +19,7 @@ string allocateMemory(uint16_t page_size) {
   instr += encodeSVC(0); // invoke system call
   instr +=
       encodeNop(); // todo: for some reason, the instruction immediately followed svc will be skipped, so we use nop here for that skipped instruction
-  cout << "Result address will be moved to REG_POINTER_WASM_MEMORY" << endl;
+  cout << "Result address will be moved to reg_pointer_wasm_memory" << endl;
   return instr;
 }
 

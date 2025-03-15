@@ -82,10 +82,10 @@ string WasmFunction::push(RegType regType, int save_reg) {
    */
   cout << commonIndentString + "+Push stack" << endl;
   string instr;
-  // store value in save_reg to wasm_stack[REG_POINTER_WASM_STACK]
-  instr += encodeLoadStoreReg(regType, STR, save_reg, REG_WASM_STACK, REG_POINTER_WASM_STACK);
-  // add REG_POINTER_WASM_STACK by 8
-  instr += encodeAddSubImm(X_REG, false, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
+  // store value in save_reg to wasm_stack[reg_pointer_wasm_stack]
+  instr += encodeLoadStoreReg(regType, STR, save_reg, reg_wasm_stack, reg_pointer_wasm_stack);
+  // add reg_pointer_wasm_stack by 8
+  instr += encodeAddSubImm(X_REG, false, reg_pointer_wasm_stack, reg_pointer_wasm_stack, 8);
   cout << commonIndentString + "+Push stack End" << endl;
   return instr;
 }
@@ -100,12 +100,12 @@ string WasmFunction::pop(RegType regType, bool tee, int save_reg) {
 
   cout << format("{}{} stack", commonIndentString, tee == true ? "|Tee" : "-Pop") << endl;
   string instr;
-  // decrease REG_POINTER_WASM_STACK
-  instr += encodeAddSubImm(X_REG, true, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
-  instr += encodeLoadStoreReg(regType, LDR, save_reg, REG_WASM_STACK, REG_POINTER_WASM_STACK);
+  // decrease reg_pointer_wasm_stack
+  instr += encodeAddSubImm(X_REG, true, reg_pointer_wasm_stack, reg_pointer_wasm_stack, 8);
+  instr += encodeLoadStoreReg(regType, LDR, save_reg, reg_wasm_stack, reg_pointer_wasm_stack);
   if (tee) {
     cout << commonIndentString + "Teeing so restoring stack pointers!" << endl;
-    instr += encodeAddSubImm(X_REG, false, REG_POINTER_WASM_STACK, REG_POINTER_WASM_STACK, 8);
+    instr += encodeAddSubImm(X_REG, false, reg_pointer_wasm_stack, reg_pointer_wasm_stack, 8);
   }
   cout << format("{}{} stack end", commonIndentString, tee == true ? "|Tee" : "-Pop") << endl;
   return instr;

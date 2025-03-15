@@ -37,7 +37,7 @@ void test_chapter(const string &chapter_number) {
     f = ifstream(base_path + "call_indirect.json");
   } else if (chapter_number == "10") {
     f = ifstream(base_path + "global.json");
-  } else if (chapter_number == "11"){
+  } else if (chapter_number == "11") {
     f = ifstream(base_path + "data.json");
   }
   json data = json::parse(f);

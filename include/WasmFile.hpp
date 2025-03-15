@@ -200,7 +200,7 @@ public:
      *
      * Also, maybe the initialization can be done with C++? maybe no need to use assembly?
      */
-    char *memPointer = globalMemory.get() + i * 8;
+    char *memPointer = globalVars.get() + i * 8;
     if (global_init_type == 0x41) { // i32.const
       int32_t value = static_cast<int32_t>(global_init_value);
       memcpy(memPointer, &value, sizeof(int32_t));
@@ -223,7 +223,7 @@ public:
       // WARN: NOT COVERED BY TEST CASES YET!!
       auto regType = globalTypeGetter[i];
       size_t size_info = (regType == X_REG) ? 8 : 4;
-      memcpy(memPointer, globalMemory.get() + global_init_value * 8, size_info);
+      memcpy(memPointer, globalVars.get() + global_init_value * 8, size_info);
       globalTypeGetter[i] = regType;
       if (DEBUG_GLOBAL_SECTION) {
         cout << "Initialized with global.get " << global_init_value << endl;
@@ -309,12 +309,12 @@ public:
         switch (regType) {
         case X_REG:
           int64_t value_64;
-          memcpy(&value_64, globalMemory.get() + data_offset_value * 8, 8);
+          memcpy(&value_64, globalVars.get() + data_offset_value * 8, 8);
           cur_data_offset = value_64;
           break;
         case W_REG:
           int32_t value_32;
-          memcpy(&value_32, globalMemory.get() + data_offset_value * 8, 4);
+          memcpy(&value_32, globalVars.get() + data_offset_value * 8, 4);
           cur_data_offset = static_cast<int64_t>(value_32);
           break;
         default:
@@ -337,15 +337,15 @@ public:
       cout << "Data: " << endl;
       base_offset += bytes_read_data_segment;
       memoryInitializeInstruction += allocateMemory(VecMemInfo[0].min_page); // todo: support multiple memories
-      memoryInitializeInstruction += encodeMovRegister(X_REG, REG_POINTER_WASM_MEMORY, 0);
+      memoryInitializeInstruction += encodeMovRegister(X_REG, reg_pointer_wasm_memory, 0);
       for (int i = 0; i < data_segment_size; ++i) {
         char cur_val = static_cast<char>(stoul(s.substr(base_offset, 2), nullptr, 16));
         cout << cur_val;
         base_offset += 2;
         // load data value into w0 (only 1 byte so wreg should be able to hold)
         memoryInitializeInstruction += encodeMovz(W_REG, 0, cur_val);
-        // [REG_POINTER_WASM_MEMORY, cur_data_offset+i] = w[0]
-        memoryInitializeInstruction += encodeByteLoadStoreImm(STR, 0, REG_POINTER_WASM_MEMORY, cur_data_offset + i);
+        // [reg_pointer_wasm_memory, cur_data_offset+i] = w[0]
+        memoryInitializeInstruction += encodeByteLoadStoreImm(STR, 0, reg_pointer_wasm_memory, cur_data_offset + i);
       }
       memoryInitializeInstruction += encodeReturn();
       memoryInitializeFunction = getFunctionPointer<void *>(memoryInitializeInstruction);
@@ -368,7 +368,7 @@ public:
     cout << "Total global count: " << global_count << endl;
 
     // allocate memory for global variables
-    globalMemory.reset(new char[global_count * 8]()); // use 8 byte for i32, i64 regardless of its type
+    globalVars.reset(new char[global_count * 8]()); // use 8 byte for i32, i64 regardless of its type
 
     for (int i = 0; i < global_count; ++i) {
       /**
@@ -608,7 +608,7 @@ public:
     wasmFunctionVec[i].symbol_table = symbol_table;
     wasmFunctionVec[i].tableInfoVec = tableInfoVec;
     wasmFunctionVec[i].typeEquivalenceMap = typeEquivalenceMap;
-    wasmFunctionVec[i].globalMemory = globalMemory.get();
+    wasmFunctionVec[i].globalVars = globalVars.get();
     wasmFunctionVec[i].globalTypeGetter = globalTypeGetter;
     wasmFunctionVec[i].generatePreWasmInstructions();
     wasmFunctionVec[i].processCodeVec();
@@ -659,7 +659,7 @@ public:
 
   vector<MemoryInfo> VecMemInfo;
   string memoryInitializeInstruction;
-  void *memoryInitializeFunction;
+  void *memoryInitializeFunction = nullptr;
 
   map<string, int> funcNameIndexMapper; // function name to index
   map<int, string> funcIndexNameMapper; // function index to name
@@ -668,6 +668,6 @@ public:
   void *in_assembly_call_table;      // used to store call_indirect address
   vector<size_t> typeEquivalenceMap; // classify type with same structure into same id, this is used for signature verify currently
 
-  unique_ptr<char[]> globalMemory;              // used to store global variables, globalMemory[i] = *(globalMemory + i*8)
+  unique_ptr<char[]> globalVars;              // used to store global variables, globalVars[i] = *(globalVars + i*8)
   unordered_map<int, RegType> globalTypeGetter; // this does what it says
 };
