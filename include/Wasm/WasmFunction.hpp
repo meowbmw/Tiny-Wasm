@@ -7,6 +7,7 @@ const uint8_t reg_pointer_wasm_stack = 21;
 const uint8_t reg_pointer_globalvars = 22;
 const uint8_t reg_pointer_wasm_memory = 23;
 const uint8_t reg_memory_size = 24;
+const uint8_t reg_pointer_memcpy = 25;
 
 const bool enable_exception_handling = true;
 
@@ -167,6 +168,8 @@ public:
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_pointer_globalvars, 2);
     cout << "Backing up x3 memory size pointer to x" << +reg_memory_size << endl;
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_memory_size, 3);
+    cout << "Backing up x5 memcpy pointer to x" << +reg_pointer_memcpy << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_pointer_memcpy, 5);
 
     // initialize stack pointer with 0
     cout << "Initialze reg_pointer_wasm_stack: x" << +reg_pointer_wasm_stack << " with 0" << endl;
@@ -316,6 +319,9 @@ public:
   void emitGlobalGet(uint64_t var_index);
   void emitGlobalSet(uint64_t var_index);
   void emitMemoryLoadStore(RegType regtype, LdStType ldstType, DataWidth datawidth, ExtendMode extendMode, uint32_t offset);
+  void emitCheckMemoryBoundary();
+  void emitMemorySize();
+  void emitMemoryGrow();
   string push(RegType regType, int reg = 11);
   string pop(RegType regType, bool tee = false, int reg = 11);
   void constructFullinstr(string sub_instr);
@@ -367,7 +373,7 @@ public:
   char *globalSizeArray;                        // used to store size of global variables, globalSizeArray[i] = *(globalSizeArray + i)
   unordered_map<int, RegType> globalTypeGetter; // this does what it says
 
-  int *memorySizeKeeper; // also used as a flag to check if memory has been initialized, should be pass in from WasmFile
+  int32_t *memorySizeKeeper; // also used as a flag to check if memory has been initialized, should be pass in from WasmFile
 
   unordered_multimap<string, pair<int64_t, string>> fake_insert_map;
   unordered_map<string, int64_t> label_map;

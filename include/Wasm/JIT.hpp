@@ -83,13 +83,15 @@ void WasmFunction::jiting_wasm_code(int i) {
     }
     // load
     else if (code_vec[i] == "28") { // i32.load
+      commonLoadStoreOp(i, W_REG, LDR, DataWidth::doubleword, ZeroExtend);
     } else if (code_vec[i] == "29") { // i64.load
+      commonLoadStoreOp(i, X_REG, LDR, DataWidth::quadword, ZeroExtend);
     }
     // store
     else if (code_vec[i] == "36") { // i32.store
-
+      commonLoadStoreOp(i, W_REG, STR, DataWidth::doubleword, ZeroExtend);
     } else if (code_vec[i] == "37") { // i64.store
-
+      commonLoadStoreOp(i, X_REG, STR, DataWidth::quadword, ZeroExtend);
     }
     // extend load, signed
     else if (code_vec[i] == "2c") { // i32.load8_s
@@ -129,11 +131,13 @@ void WasmFunction::jiting_wasm_code(int i) {
     }
     // grow
     else if (code_vec[i] == "40") { // memory.grow
-
+      emitMemoryGrow();
+      i += 2; // there should be a memidx, but it is not used yet. So i += 2
     }
     // get current memory size
     else if (code_vec[i] == "3f") { // memory.size
-
+      emitMemorySize();
+      i += 2; // there should be a memidx, but it is not used yet. So i += 2
     }
     // const
     else if (code_vec[i] == "41") { // i32.const

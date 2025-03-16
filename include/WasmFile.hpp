@@ -662,7 +662,7 @@ public:
   string memoryInitializeInstruction;
   void *memoryInitializeFunction = nullptr;
 
-  int memorySizeKeeper = 0; // also used as a flag to check if memory has been initialized
+  int32_t memorySizeKeeper = 0; // also used as a flag to check if memory has been initialized
 
   map<string, int> funcNameIndexMapper; // function name to index
   map<int, string> funcIndexNameMapper; // function index to name

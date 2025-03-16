@@ -65,15 +65,70 @@ void WasmFunction::emitGlobalSet(uint64_t var_index) {
   wasm_instructions += encodeLoadStoreImm(regType, STR, 11, reg_pointer_globalvars, 8 * var_index); // store r11 to global variable
 }
 
+void WasmFunction::emitCheckMemoryBoundary() {
+  cout << format("{}*Checking Memory Boundary before memory read/write", commonIndentString) << endl;
+  wasm_instructions += encodeLoadStoreImm(W_REG, LDR, 11, reg_memory_size, 0); // get current page size to w11
+  wasm_instructions += WrapperEncodeMovInt32(10, 65536);                       // 65536 is how much bytes a page has
+  wasm_instructions += encodeMul(W_REG, 11, 11, 10);                           // store current memory size(limit) in w11
+  wasm_instructions += encodeCompareShift(W_REG, 11, 12);                      // limit <> address
+  cout << format("{}if limit <= address, goes to longjmp", commonIndentString) << endl;
+  fakeInsertBranch("preparelongjmp", "ble"); // throw if limit <= address
+}
+
 //  this function is used to read/write Wasm Memory
 //  Memory.load/store
 void WasmFunction::emitMemoryLoadStore(RegType regtype, LdStType ldstType, DataWidth datawidth, ExtendMode extendMode, uint32_t offset) {
-  if (ldstType == LDR) {
-    wasm_instructions += pop(W_REG); // pop offset to r11
-    wasm_instructions += commonLoadStoreReg(regtype, ldstType, datawidth, 12, reg_pointer_wasm_memory, 11, extendMode);
-    wasm_instructions += push(regtype, 12);
-  } else {
+  string typePrefix = (regtype == X_REG) ? "i64" : "i32";
+  string opType = (ldstType == LDR) ? "load" : "store";
+  string widthSuffix = "";
+  string extendSuffix = "";
+
+  switch (datawidth) {
+  case DataWidth::byte:
+    widthSuffix = "8";
+    break;
+  case DataWidth::word:
+    widthSuffix = "16";
+    break;
+  default:
+    break;
   }
+
+  if (ldstType == LDR && !widthSuffix.empty()) {
+    extendSuffix = (extendMode == ZeroExtend) ? "_u" : "_s";
+  }
+
+  cout << format("{}.{}{}{} offset={}", typePrefix, opType, widthSuffix, extendSuffix, offset) << endl;
+
+  if (ldstType == LDR) {
+    cout << format("{}Getting base", commonIndentString) << endl;
+    wasm_instructions += pop(W_REG, false, 12); // pop base to w12
+    cout << format("{}Adding offset to base", commonIndentString) << endl;
+    wasm_instructions += encodeAddSubImm(W_REG, false, 12, 12, offset); // add offset to base
+    emitCheckMemoryBoundary();
+    cout << format("{}Loading memory", commonIndentString) << endl;
+    wasm_instructions += commonLoadStoreReg(regtype, ldstType, datawidth, 11, reg_pointer_wasm_memory, 12, extendMode);
+    wasm_instructions += push(regtype);
+  } else {
+    cout << format("{}Getting value", commonIndentString) << endl;
+    wasm_instructions += pop(W_REG);                                    // pop value to w11
+    cout << format("{}Getting base", commonIndentString) << endl;
+    wasm_instructions += pop(W_REG, false, 12);                         // pop base to w12
+    cout << format("{}Adding offset to base", commonIndentString) << endl;
+    wasm_instructions += encodeAddSubImm(W_REG, false, 12, 12, offset); // add offset to base
+    emitCheckMemoryBoundary();
+    cout << format("{}Storing memory", commonIndentString) << endl;
+    wasm_instructions += commonLoadStoreReg(regtype, ldstType, datawidth, 11, reg_pointer_wasm_memory, 12, extendMode);
+  }
+}
+
+void WasmFunction::emitMemoryGrow() {
+  wasm_instructions += pop(W_REG); // pop delta (pages to increase based on old size)
+}
+
+void WasmFunction::emitMemorySize() {
+  wasm_instructions += encodeLoadStoreImm(W_REG, LDR, 11, reg_memory_size, 0);
+  wasm_instructions += push(W_REG);
 }
 
 void WasmFunction::emitConst(wasm_type elem) {

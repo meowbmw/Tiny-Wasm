@@ -3,6 +3,8 @@
 #include "../Opcode.hpp"
 #include "../OverloadOperator.h"
 #include "../Utils.h"
+#include <dlfcn.h>
+
 using namespace std;
 using ArithOperation = std::function<wasm_type(wasm_type, wasm_type)>;
 
