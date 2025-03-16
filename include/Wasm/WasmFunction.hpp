@@ -165,28 +165,28 @@ public:
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_wasm_stack, 1);
     cout << "Backing up x2 global variable pointer to x" << +reg_pointer_globalvars << endl;
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_pointer_globalvars, 2);
-    cout << "Backing up x4 memory initialized flag to x" << +reg_memory_size << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_memory_size, 4);
+    cout << "Backing up x3 memory size pointer to x" << +reg_memory_size << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_memory_size, 3);
 
     // initialize stack pointer with 0
     cout << "Initialze reg_pointer_wasm_stack: x" << +reg_pointer_wasm_stack << " with 0" << endl;
     pre_instructions_for_param_loading += encodeMovz(X_REG, reg_pointer_wasm_stack, 0);
 
-    // initialize memory, this should only be executed once, we use [x4] to store initialize flag
-    // memory initialization function will be stored in x3
+    // initialize memory, this should only be executed once, we use [x3] to store memory size
+    // memory initialization function will be stored in x4
     // ! only call memory initializer if there is a memory initialization function
     if (memoryInitializeFunction != nullptr) {
       cout << "--- Memory Initializer ---" << endl;
-      pre_instructions_for_param_loading += encodeLoadStoreImm(W_REG, LDR, 11, 4, 0);
-      pre_instructions_for_param_loading += encodeCompareImm(W_REG, 11, 1);
-      // skip initialization if flag is equal to 1
-      pre_instructions_for_param_loading += encodeBranchCondition(4, reverse_cond_str_map.at("eq"));
+      pre_instructions_for_param_loading += encodeLoadStoreImm(W_REG, LDR, 11, 3, 0);
+      pre_instructions_for_param_loading += encodeCompareImm(W_REG, 11, 0);
+      // skip initialization if memory size is not 0 (it should be 0 for the first time)
+      pre_instructions_for_param_loading += encodeBranchCondition(4, reverse_cond_str_map.at("ne"));
       pre_instructions_for_param_loading += encodeMovRegister(X_REG, 14, 30); // backup x30 before blr
-      pre_instructions_for_param_loading += encodeBranchRegister(3, true);
+      pre_instructions_for_param_loading += encodeBranchRegister(4, true);
       pre_instructions_for_param_loading += encodeMovRegister(X_REG, 30, 14); // restore x30
-      // load #1 to w11
-      pre_instructions_for_param_loading += encodeMovz(W_REG, 11, 1);
-      // set memory initialze flag with #1 (w11)
+      // load memory size to w11
+      pre_instructions_for_param_loading += encodeMovz(W_REG, 11, 1); // todo: write memory size to it
+      // set memory size
       pre_instructions_for_param_loading += encodeLoadStoreImm(W_REG, STR, 11, reg_memory_size, 0);
     }
 
@@ -288,12 +288,12 @@ public:
       throw "Too big index {" + to_string(var_index) + "} for local data; skipping current op;";
     }
   }
-  void commonLoadStoreOp(int &i, RegType regtype, LdStType ldstType, int secondary_size, bool isSigned, bool isExtended) {
+  void commonLoadStoreOp(int &i, RegType regtype, LdStType ldstType, DataWidth datawidth, ExtendMode extendMode) {
     auto [alignment, alignment_bytes_read] = decode_uleb128_from_vec(code_vec, i + 1);
-    i += alignment_bytes_read + 1;
+    i += alignment_bytes_read + 1; // WARN: aligement doesn't actually change anything so it will be discarded for now!!!
     auto [offset, offset_bytes_read] = decode_uleb128_from_vec(code_vec, i);
     i += offset_bytes_read;
-    emitMemoryLoadStore(regtype, ldstType, secondary_size, isSigned, isExtended, alignment, offset);
+    emitMemoryLoadStore(regtype, ldstType, datawidth, extendMode, offset);
   }
   void emitGet(const uint64_t var_to_get, TypeCategory vecType);
   void emitSet(const uint64_t var_to_set, TypeCategory vecType, bool isTee = false);
@@ -315,8 +315,7 @@ public:
   void emitEqz(RegType regtype);
   void emitGlobalGet(uint64_t var_index);
   void emitGlobalSet(uint64_t var_index);
-  void emitMemoryLoadStore(RegType regtype, LdStType ldstType, int secondarySize, bool isSigned, bool isExtended, uint32_t alignment,
-                           uint32_t offset);
+  void emitMemoryLoadStore(RegType regtype, LdStType ldstType, DataWidth datawidth, ExtendMode extendMode, uint32_t offset);
   string push(RegType regType, int reg = 11);
   string pop(RegType regType, bool tee = false, int reg = 11);
   void constructFullinstr(string sub_instr);
@@ -364,9 +363,11 @@ public:
 
   void *memoryInitializeFunction; //
 
-  char *globalVars;                           // used to store global variables, globalVars[i] = *(globalVars + i*8)
+  char *globalVars;                             // used to store global variables, globalVars[i] = *(globalVars + i*8)
   char *globalSizeArray;                        // used to store size of global variables, globalSizeArray[i] = *(globalSizeArray + i)
   unordered_map<int, RegType> globalTypeGetter; // this does what it says
+
+  int *memorySizeKeeper; // also used as a flag to check if memory has been initialized, should be pass in from WasmFile
 
   unordered_multimap<string, pair<int64_t, string>> fake_insert_map;
   unordered_map<string, int64_t> label_map;

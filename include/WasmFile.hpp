@@ -345,7 +345,7 @@ public:
         // load data value into w0 (only 1 byte so wreg should be able to hold)
         memoryInitializeInstruction += encodeMovz(W_REG, 0, cur_val);
         // [reg_pointer_wasm_memory, cur_data_offset+i] = w[0]
-        memoryInitializeInstruction += encodeByteLoadStoreImm(STR, 0, reg_pointer_wasm_memory, cur_data_offset + i);
+        memoryInitializeInstruction += commonLoadStoreImm(W_REG, STR, DataWidth::byte, 0, reg_pointer_wasm_memory, cur_data_offset + i, ZeroExtend);
       }
       memoryInitializeInstruction += encodeReturn();
       memoryInitializeFunction = getFunctionPointer<void *>(memoryInitializeInstruction);
@@ -616,6 +616,7 @@ public:
     writeCodeToMemory(i);
     wasmFunctionVec[i].table_function_indices = table_function_indices;
     wasmFunctionVec[i].memoryInitializeFunction = memoryInitializeFunction;
+    wasmFunctionVec[i].memorySizeKeeper = &memorySizeKeeper; // all wasmFunction memorySizeKeeper should point to the one in WasmFile
     // cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
     // cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
     //      << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
@@ -661,6 +662,8 @@ public:
   string memoryInitializeInstruction;
   void *memoryInitializeFunction = nullptr;
 
+  int memorySizeKeeper = 0; // also used as a flag to check if memory has been initialized
+
   map<string, int> funcNameIndexMapper; // function name to index
   map<int, string> funcIndexNameMapper; // function index to name
 
@@ -668,6 +671,6 @@ public:
   void *in_assembly_call_table;      // used to store call_indirect address
   vector<size_t> typeEquivalenceMap; // classify type with same structure into same id, this is used for signature verify currently
 
-  unique_ptr<char[]> globalVars;              // used to store global variables, globalVars[i] = *(globalVars + i*8)
+  unique_ptr<char[]> globalVars;                // used to store global variables, globalVars[i] = *(globalVars + i*8)
   unordered_map<int, RegType> globalTypeGetter; // this does what it says
 };

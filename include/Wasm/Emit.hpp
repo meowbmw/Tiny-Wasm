@@ -56,23 +56,22 @@ void WasmFunction::emitGlobalGet(uint64_t var_index) {
   cout << "Global.get " << var_index << endl;
   RegType regType = globalTypeGetter[var_index];
   wasm_instructions += encodeLoadStoreImm(regType, LDR, 11, reg_pointer_globalvars, 8 * var_index); // load global variable to r11
-  wasm_instructions += push(regType);                                                                    // push r11 to wasm stack
+  wasm_instructions += push(regType);                                                               // push r11 to wasm stack
 }
 void WasmFunction::emitGlobalSet(uint64_t var_index) {
   cout << "Global.set " << var_index << endl;
   RegType regType = globalTypeGetter[var_index];
-  wasm_instructions += pop(regType);                                                                     // pop from wasm stack to r11
+  wasm_instructions += pop(regType);                                                                // pop from wasm stack to r11
   wasm_instructions += encodeLoadStoreImm(regType, STR, 11, reg_pointer_globalvars, 8 * var_index); // store r11 to global variable
 }
 
 //  this function is used to read/write Wasm Memory
 //  Memory.load/store
-//  load/store to/from wasm memory
-//  e.g. stack[top] -> x/w11 -> memory[reg_pointer_wasm_memory + offset]
-void WasmFunction::emitMemoryLoadStore(RegType regtype, LdStType ldstType, int secondarySize, bool isSigned, bool isExtended, uint32_t alignment,
-                                       uint32_t offset) {
+void WasmFunction::emitMemoryLoadStore(RegType regtype, LdStType ldstType, DataWidth datawidth, ExtendMode extendMode, uint32_t offset) {
   if (ldstType == LDR) {
-
+    wasm_instructions += pop(W_REG); // pop offset to r11
+    wasm_instructions += commonLoadStoreReg(regtype, ldstType, datawidth, 12, reg_pointer_wasm_memory, 11, extendMode);
+    wasm_instructions += push(regtype, 12);
   } else {
   }
 }

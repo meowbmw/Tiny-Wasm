@@ -83,9 +83,7 @@ void WasmFunction::jiting_wasm_code(int i) {
     }
     // load
     else if (code_vec[i] == "28") { // i32.load
-      commonLoadStoreOp(i, W_REG, LDR, 32, false, false);
     } else if (code_vec[i] == "29") { // i64.load
-      commonLoadStoreOp(i, X_REG, LDR, 64, false, false);
     }
     // store
     else if (code_vec[i] == "36") { // i32.store
@@ -107,15 +105,15 @@ void WasmFunction::jiting_wasm_code(int i) {
     }
     // extend load, unsigned
     else if (code_vec[i] == "2d") { // i32.load8_u
-      commonLoadStoreOp(i, W_REG, LDR, 8, false, true);
+      commonLoadStoreOp(i, W_REG, LDR, DataWidth::byte, ZeroExtend);
     } else if (code_vec[i] == "2f") { // i32.load16_u
-      commonLoadStoreOp(i, W_REG, LDR, 16, false, true);
+      commonLoadStoreOp(i, W_REG, LDR, DataWidth::word, ZeroExtend);
     } else if (code_vec[i] == "31") { // i64.load8_u
-      commonLoadStoreOp(i, X_REG, LDR, 8, false, true);
+      commonLoadStoreOp(i, X_REG, LDR, DataWidth::byte, ZeroExtend);
     } else if (code_vec[i] == "33") { // i64.load16_u
-      commonLoadStoreOp(i, X_REG, LDR, 16, false, true);
+      commonLoadStoreOp(i, X_REG, LDR, DataWidth::word, ZeroExtend);
     } else if (code_vec[i] == "35") { // i64.load32_u
-      commonLoadStoreOp(i, X_REG, LDR, 32, false, true);
+      commonLoadStoreOp(i, X_REG, LDR, DataWidth::doubleword, ZeroExtend);
     }
     // wrapping store
     else if (code_vec[i] == "2c") { // i32.store8

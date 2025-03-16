@@ -8,6 +8,8 @@
  */
 
 enum class EncodingMode { PostIndex, PreIndex, SignedOffset, UnSignedOffset };
+enum class DataWidth { byte, word, doubleword, quadword };
+enum ExtendMode { SignExtend, ZeroExtend }; // used in load memory to indicate extend method
 enum LdStType { STR, LDR };
 enum RegType { W_REG, X_REG, S_REG, D_REG };
 unordered_map<RegType, string> reg_char_map = {{W_REG, "w"}, {X_REG, "x"}, {S_REG, "s"}, {D_REG, "d"}};
@@ -128,7 +130,7 @@ public:
   void setImm12(auto imm12) {
     setField(imm12, 10, 12);
   }
-  void setImm14(auto imm14){
+  void setImm14(auto imm14) {
     setField(imm14, 5, 14);
   }
   void setImm16(auto imm16) {
