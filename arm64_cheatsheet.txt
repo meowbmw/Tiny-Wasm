@@ -1,4 +1,13 @@
 cheatsheet
+memory read -f x -c 20 `$x23`
+const uint8_t reg_buffer = 19;
+const uint8_t reg_wasm_stack = 20;
+const uint8_t reg_pointer_wasm_stack = 21;
+const uint8_t reg_pointer_globalvars = 22;
+const uint8_t reg_pointer_wasm_memory = 23;
+const uint8_t reg_memory_size = 24;
+const uint8_t reg_pointer_memcpy = 25;
+const uint8_t reg_max_memory_size = 26;
 
 mov r0, r1   r0<-r1
 ldr r0, [r1] r0<-[r1]

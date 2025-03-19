@@ -50,6 +50,11 @@ public:
       s = s.substr(length * 2); // move forward, remeber we need to times 2 because we are processing 2 char at a time; 2 char = 2 * 4 bits = 1 byte
       // cout << type << " " << length << endl;
     }
+    if (VecMemInfo.size() > 0 && VecMemInfo[0].min_page > 0 && memoryInitializeFunction == nullptr) {
+      cout << "No data section but have memory size, adding return" << endl;
+      memoryInitializeInstruction += encodeReturn();
+      memoryInitializeFunction = getFunctionPointer<void *>(memoryInitializeInstruction);
+    }
   }
   void initial_check() {
     // check magic number and version
@@ -185,9 +190,13 @@ public:
         base_offset += func_idx_bytes_read;
 
         elem_segment.function_indices.push_back(func_idx);
-        cout << func_idx << " ";
+        if (DEBUG_ELEMENT_SECTION) {
+          cout << func_idx << " ";
+        }
       }
-      cout << endl;
+      if (DEBUG_ELEMENT_SECTION) {
+        cout << endl;
+      }
       elementSegments.push_back(elem_segment);
     }
     buildFunctionIndexTable(); // we can now use element section info to build the table to translate table index to function index
@@ -261,6 +270,8 @@ public:
       }
       VecMemInfo.push_back(memoryInfo);
     }
+    memoryInitializeInstruction += allocateMemory(VecMemInfo[0].min_page); // todo: support multiple memories
+    memoryInitializeInstruction += encodeMovRegister(X_REG, reg_pointer_wasm_memory, 0);
   }
   void parse_data() {
     auto [data_count, bytes_read] = decode_uleb128(s, 0);
@@ -336,8 +347,6 @@ public:
       cout << "Data segment size is: " << data_segment_size << endl;
       cout << "Data: " << endl;
       base_offset += bytes_read_data_segment;
-      memoryInitializeInstruction += allocateMemory(VecMemInfo[0].min_page); // todo: support multiple memories
-      memoryInitializeInstruction += encodeMovRegister(X_REG, reg_pointer_wasm_memory, 0);
       for (int i = 0; i < data_segment_size; ++i) {
         char cur_val = static_cast<char>(stoul(s.substr(base_offset, 2), nullptr, 16));
         cout << cur_val;
@@ -610,13 +619,14 @@ public:
     wasmFunctionVec[i].typeEquivalenceMap = typeEquivalenceMap;
     wasmFunctionVec[i].globalVars = globalVars.get();
     wasmFunctionVec[i].globalTypeGetter = globalTypeGetter;
+    wasmFunctionVec[i].VecMemInfo = VecMemInfo;
     wasmFunctionVec[i].generatePreWasmInstructions();
     wasmFunctionVec[i].processCodeVec();
     writeTable();
     writeCodeToMemory(i);
     wasmFunctionVec[i].table_function_indices = table_function_indices;
     wasmFunctionVec[i].memoryInitializeFunction = memoryInitializeFunction;
-    wasmFunctionVec[i].memorySizeKeeper = &memorySizeKeeper; // all wasmFunction memorySizeKeeper should point to the one in WasmFile
+    wasmFunctionVec[i].memorySizeKeeper = memorySizeKeeper; // all wasmFunction memorySizeKeeper should point to the one in WasmFile
     // cout << "Total param count: " << wasmFunctionVec[i].param_data.size() << endl;
     // cout << "Total local count: " << wasmFunctionVec[i].local_data.size()
     //      << endl; // NOTE: only output local count after processCodeVec or it will be wrong number!
@@ -662,7 +672,7 @@ public:
   string memoryInitializeInstruction;
   void *memoryInitializeFunction = nullptr;
 
-  int32_t memorySizeKeeper = 0; // also used as a flag to check if memory has been initialized
+  void *memorySizeKeeper = calloc(1, 4); // also used as a flag to check if memory has been initialized
 
   map<string, int> funcNameIndexMapper; // function name to index
   map<int, string> funcIndexNameMapper; // function index to name

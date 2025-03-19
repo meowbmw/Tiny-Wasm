@@ -39,7 +39,7 @@ enable_testing()
 target_link_libraries(wasm_test gtest_main capstone)
 
 # 定义测试编号数组
-set(TEST_NUMBERS 2 3 4 5 6 7 8 9 10) 
+set(TEST_NUMBERS 2 3 4 5 6 7 8 9 10 11) 
 
 # 遍历测试编号数组，自动生成测试
 foreach(TEST_NUM IN LISTS TEST_NUMBERS)

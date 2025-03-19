@@ -9,38 +9,24 @@ using json = nlohmann::json;
     aarch64-linux-gnu-g++ main.cpp -o main && qemu-aarch64 -L /usr/aarch64-linux-gnu ./main
     ccache /usr/bin/clang++ --target=aarch64-linux-gnu -std=c++20 -g main.cpp -o main -lcapstone
  * HINT: lldb read memory usage
- * read 4 bytes from [x20, x21]
- * memory read -f x -c 4 `$x20 + $x21`
+ * read 20 bytes from [x20, x21]
+ * memory read -f x -c 20 `$x20 + $x21`
+ * memory read -f x -c 20 `$x23`
+ * memory read -f x -c 20 `$x24`
  */
 auto normal_cout = cout.rdbuf();
+map<string, vector<string>> json_map = {{"02", {"local.json"}},  {"03", {"arithmetic.json"}},
+                                        {"04", {"div.json"}},    {"05", {"if.json"}},
+                                        {"06", {"block.json"}},  {"07", {"loop.json"}},
+                                        {"08", {"call.json"}},   {"09", {"call_indirect.json"}},
+                                        {"10", {"global.json"}}, {"11", {"data.json", "store.json", "load.json", "grow.json"}}};
 
-void test_chapter(const string &chapter_number) {
+void test_chapter(const string &chapter_number, const string &json_file) {
   ofstream parser_cout("parserOutput.txt");
   cout.rdbuf(parser_cout.rdbuf()); // Redirect parser output to file; it's too much...
   ifstream f;
   string base_path = format("test/CH{}/", chapter_number);
-  if (chapter_number == "02") {
-    f = ifstream(base_path + "local.json");
-  } else if (chapter_number == "03") {
-    f = ifstream(base_path + "arithmetic.json");
-  } else if (chapter_number == "04") {
-    f = ifstream(base_path + "div.json");
-  } else if (chapter_number == "05") {
-    f = ifstream(base_path + "if.json");
-  } else if (chapter_number == "06") {
-    f = ifstream(base_path + "block.json");
-  } else if (chapter_number == "07") {
-    f = ifstream(base_path + "loop.json");
-  } else if (chapter_number == "08") {
-    f = ifstream(base_path + "call.json");
-  } else if (chapter_number == "09") {
-    f = ifstream(base_path + "call_indirect.json");
-  } else if (chapter_number == "10") {
-    f = ifstream(base_path + "global.json");
-  } else if (chapter_number == "11") {
-    f = ifstream(base_path + "data.json");
-  }
-  json data = json::parse(f);
+  json data = json::parse(ifstream(base_path + json_file));
   multimap<string, json> command_map;
   map<string, WasmFile> wasmFile_map;
   string cur_wasm_file;
@@ -122,16 +108,19 @@ void test_chapter(const string &chapter_number) {
   }
 }
 int main() {
-  // vector<string> test_chapters = {"02", "03", "04", "05", "06", "07", "08", "09", "10", "11"};
+  vector<string> test_chapters = {"02", "03", "04", "05", "06", "07", "08", "09", "10", "11"};
 
-  vector<string> test_chapters = {"11"};
+  // vector<string> test_chapters = {"11"};
   cout << "A simple testing program to check our JIT works as intended." << endl;
   cout << "Chapters to test: " << test_chapters << endl;
   for (auto &chapter_number : test_chapters) {
     cout << "--- Testing chapter " << chapter_number << " ---" << endl;
-    test_chapter(chapter_number);
-    cout.rdbuf(normal_cout); // Restore cout
-    cout << "Ok" << endl;
+    for (string json_file : json_map[chapter_number]) {
+      cout << json_file << " " << flush;
+      test_chapter(chapter_number, json_file);
+      cout.rdbuf(normal_cout); // Restore cout
+      cout << "Ok" << endl;
+    }
   }
   return 0;
 }

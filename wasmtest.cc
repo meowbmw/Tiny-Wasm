@@ -125,6 +125,13 @@ TEST(WASM_TEST, CH10) {
   test_chapter("10", "global.json");
 }
 
+TEST(WASM_TEST, CH11) {
+  test_chapter("11", "data.json");
+  test_chapter("11", "store.json");
+  test_chapter("11", "load.json");
+  test_chapter("11", "grow.json");
+}
+
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   ::testing::GTEST_FLAG(break_on_failure) = true; // NOTE: stop immediately when one assertion has failed

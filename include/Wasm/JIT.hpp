@@ -95,15 +95,15 @@ void WasmFunction::jiting_wasm_code(int i) {
     }
     // extend load, signed
     else if (code_vec[i] == "2c") { // i32.load8_s
-
+      commonLoadStoreOp(i, W_REG, LDR, DataWidth::byte, SignExtend);
     } else if (code_vec[i] == "2e") { // i32.load16_s
-
+      commonLoadStoreOp(i, W_REG, LDR, DataWidth::word, SignExtend);
     } else if (code_vec[i] == "30") { // i64.load8_s
-
+      commonLoadStoreOp(i, X_REG, LDR, DataWidth::byte, SignExtend);
     } else if (code_vec[i] == "32") { // i64.load16_s
-
+      commonLoadStoreOp(i, X_REG, LDR, DataWidth::word, SignExtend);
     } else if (code_vec[i] == "34") { // i64.load32_s
-
+      commonLoadStoreOp(i, X_REG, LDR, DataWidth::doubleword, SignExtend);
     }
     // extend load, unsigned
     else if (code_vec[i] == "2d") { // i32.load8_u
@@ -118,16 +118,16 @@ void WasmFunction::jiting_wasm_code(int i) {
       commonLoadStoreOp(i, X_REG, LDR, DataWidth::doubleword, ZeroExtend);
     }
     // wrapping store
-    else if (code_vec[i] == "2c") { // i32.store8
-
-    } else if (code_vec[i] == "2e") { // i32.store16
-
-    } else if (code_vec[i] == "30") { // i64.store8
-
-    } else if (code_vec[i] == "32") { // i64.store16
-
-    } else if (code_vec[i] == "34") { // i64.store32
-
+    else if (code_vec[i] == "3a") { // i32.store8
+      commonLoadStoreOp(i, W_REG, STR, DataWidth::byte, ZeroExtend);
+    } else if (code_vec[i] == "3b") { // i32.store16
+      commonLoadStoreOp(i, W_REG, STR, DataWidth::word, ZeroExtend);
+    } else if (code_vec[i] == "3c") { // i64.store8
+      commonLoadStoreOp(i, X_REG, STR, DataWidth::byte, ZeroExtend);
+    } else if (code_vec[i] == "3d") { // i64.store16
+      commonLoadStoreOp(i, X_REG, STR, DataWidth::word, ZeroExtend);
+    } else if (code_vec[i] == "3e") { // i64.store32
+      commonLoadStoreOp(i, X_REG, STR, DataWidth::doubleword, ZeroExtend);
     }
     // grow
     else if (code_vec[i] == "40") { // memory.grow
@@ -260,6 +260,12 @@ void WasmFunction::jiting_wasm_code(int i) {
       i += 1;
     } else if (code_vec[i] == "50") { // i64.eqz
       emitEqz(X_REG);
+      i += 1;
+    } else if (code_vec[i] == "67") { // i32.clz
+      emitClz(W_REG);
+      i += 1;
+    } else if (code_vec[i] == "79") { // i64.clz
+      emitClz(X_REG);
       i += 1;
     } else if (code_vec[i] == "68") { // i32.ctz
       emitCtz(W_REG);

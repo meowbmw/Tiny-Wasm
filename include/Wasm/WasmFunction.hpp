@@ -8,6 +8,7 @@ const uint8_t reg_pointer_globalvars = 22;
 const uint8_t reg_pointer_wasm_memory = 23;
 const uint8_t reg_memory_size = 24;
 const uint8_t reg_pointer_memcpy = 25;
+const uint8_t reg_max_memory_size = 26;
 
 const bool enable_exception_handling = true;
 
@@ -31,8 +32,8 @@ struct DataInitializer {
 };
 
 struct MemoryInfo {
-  uint16_t max_page = 1;
-  uint16_t min_page = 1;
+  int max_page = 65535;
+  int min_page = 1;
 };
 class WasmFunction {
 public:
@@ -170,6 +171,8 @@ public:
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_memory_size, 3);
     cout << "Backing up x5 memcpy pointer to x" << +reg_pointer_memcpy << endl;
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_pointer_memcpy, 5);
+    cout << "Backing up x6 max memory size to x" << +reg_max_memory_size << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_max_memory_size, 6);
 
     // initialize stack pointer with 0
     cout << "Initialze reg_pointer_wasm_stack: x" << +reg_pointer_wasm_stack << " with 0" << endl;
@@ -178,17 +181,18 @@ public:
     // initialize memory, this should only be executed once, we use [x3] to store memory size
     // memory initialization function will be stored in x4
     // ! only call memory initializer if there is a memory initialization function
-    if (memoryInitializeFunction != nullptr) {
+    if (VecMemInfo.size() > 0 && VecMemInfo[0].min_page > 0) {
+      // 我们规定reg_memory_size里面存的是页数，在计算具体内存地址的时候*65536
       cout << "--- Memory Initializer ---" << endl;
-      pre_instructions_for_param_loading += encodeLoadStoreImm(W_REG, LDR, 11, 3, 0);
+      pre_instructions_for_param_loading += encodeLoadStoreImm(W_REG, LDR, 11, reg_memory_size, 0); // r11=[current memory size]
       pre_instructions_for_param_loading += encodeCompareImm(W_REG, 11, 0);
       // skip initialization if memory size is not 0 (it should be 0 for the first time)
-      pre_instructions_for_param_loading += encodeBranchCondition(4, reverse_cond_str_map.at("ne"));
+      pre_instructions_for_param_loading += encodeBranchCondition(6, reverse_cond_str_map.at("ne"));
       pre_instructions_for_param_loading += encodeMovRegister(X_REG, 14, 30); // backup x30 before blr
       pre_instructions_for_param_loading += encodeBranchRegister(4, true);
       pre_instructions_for_param_loading += encodeMovRegister(X_REG, 30, 14); // restore x30
       // load memory size to w11
-      pre_instructions_for_param_loading += encodeMovz(W_REG, 11, 1); // todo: write memory size to it
+      pre_instructions_for_param_loading += WrapperEncodeMovInt32(11, VecMemInfo[0].min_page);
       // set memory size
       pre_instructions_for_param_loading += encodeLoadStoreImm(W_REG, STR, 11, reg_memory_size, 0);
     }
@@ -314,16 +318,18 @@ public:
   void emitEndOp();
   void emitReturnOp();
   void emitDrop();
+  void emitClz(RegType regtype);
   void emitCtz(RegType regtype);
   void emitEqz(RegType regtype);
   void emitGlobalGet(uint64_t var_index);
   void emitGlobalSet(uint64_t var_index);
   void emitMemoryLoadStore(RegType regtype, LdStType ldstType, DataWidth datawidth, ExtendMode extendMode, uint32_t offset);
-  void emitCheckMemoryBoundary();
+  void emitCheckMemoryBoundary(DataWidth datawidth);
   void emitMemorySize();
   void emitMemoryGrow();
   string push(RegType regType, int reg = 11);
   string pop(RegType regType, bool tee = false, int reg = 11);
+  string growMemory();
   void constructFullinstr(string sub_instr);
   void jiting_wasm_code(int i);
   // data section
@@ -335,6 +341,7 @@ public:
   int if_label = 0;
   int block_label = 0;
   int loop_label = 0;
+  int grow_label = 0;
   int type;
   u_int64_t local_var_declare_count = 0;
   const uint8_t called_function_register = 9;
@@ -373,7 +380,8 @@ public:
   char *globalSizeArray;                        // used to store size of global variables, globalSizeArray[i] = *(globalSizeArray + i)
   unordered_map<int, RegType> globalTypeGetter; // this does what it says
 
-  int32_t *memorySizeKeeper; // also used as a flag to check if memory has been initialized, should be pass in from WasmFile
+  vector<MemoryInfo> VecMemInfo;
+  void *memorySizeKeeper; // also used as a flag to check if memory has been initialized, should be pass in from WasmFile
 
   unordered_multimap<string, pair<int64_t, string>> fake_insert_map;
   unordered_map<string, int64_t> label_map;

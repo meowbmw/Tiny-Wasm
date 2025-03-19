@@ -22,7 +22,6 @@ auto getSignature(string s) {
   }
   return signature;
 }
-
 void WasmFunction::emitGet(const uint64_t var_to_get, TypeCategory vecType) {
   /**
    * Local.get i
@@ -65,14 +64,32 @@ void WasmFunction::emitGlobalSet(uint64_t var_index) {
   wasm_instructions += encodeLoadStoreImm(regType, STR, 11, reg_pointer_globalvars, 8 * var_index); // store r11 to global variable
 }
 
-void WasmFunction::emitCheckMemoryBoundary() {
+void WasmFunction::emitCheckMemoryBoundary(DataWidth datawidth) {
   cout << format("{}*Checking Memory Boundary before memory read/write", commonIndentString) << endl;
+  int minus = 0;
+  switch (datawidth) {
+  case DataWidth::byte:
+    /* code */
+    minus = 1;
+    break;
+  case DataWidth::word:
+    minus = 2;
+    break;
+  case DataWidth::doubleword:
+    minus = 4;
+    break;
+  case DataWidth::quadword:
+    minus = 8;
+    break;
+  default:
+    break;
+  }
   wasm_instructions += encodeLoadStoreImm(W_REG, LDR, 11, reg_memory_size, 0); // get current page size to w11
-  wasm_instructions += WrapperEncodeMovInt32(10, 65536);                       // 65536 is how much bytes a page has
-  wasm_instructions += encodeMul(W_REG, 11, 11, 10);                           // store current memory size(limit) in w11
-  wasm_instructions += encodeCompareShift(W_REG, 11, 12);                      // limit <> address
-  cout << format("{}if limit <= address, goes to longjmp", commonIndentString) << endl;
-  fakeInsertBranch("preparelongjmp", "ble"); // throw if limit <= address
+  wasm_instructions += encodeLSLImm(W_REG, 11, 11, 16);                        // w11=w11*65536
+  wasm_instructions += encodeAddSubImm(W_REG, true, 11, 11, minus);            // w11-=1/2/4/8, we need to make sure all memory access is valid!!
+  wasm_instructions += encodeCompareShift(W_REG, 11, 12);                      // make sure current page size > address
+  cout << format("{}if limit < address, goes to longjmp", commonIndentString) << endl;
+  fakeInsertBranch("preparelongjmp", "blt"); // throw if limit < address
 }
 
 //  this function is used to read/write Wasm Memory
@@ -105,28 +122,56 @@ void WasmFunction::emitMemoryLoadStore(RegType regtype, LdStType ldstType, DataW
     wasm_instructions += pop(W_REG, false, 12); // pop base to w12
     cout << format("{}Adding offset to base", commonIndentString) << endl;
     wasm_instructions += encodeAddSubImm(W_REG, false, 12, 12, offset); // add offset to base
-    emitCheckMemoryBoundary();
+    wasm_instructions += encodeCompareImm(W_REG, 12, 0);
+    fakeInsertBranch("preparelongjmp", "blt"); // if address < 0, goes to longjmp
+    emitCheckMemoryBoundary(datawidth);
     cout << format("{}Loading memory", commonIndentString) << endl;
     wasm_instructions += commonLoadStoreReg(regtype, ldstType, datawidth, 11, reg_pointer_wasm_memory, 12, extendMode);
     wasm_instructions += push(regtype);
   } else {
     cout << format("{}Getting value", commonIndentString) << endl;
-    wasm_instructions += pop(W_REG);                                    // pop value to w11
+    wasm_instructions += pop(W_REG, false, 13); // pop value to w13
     cout << format("{}Getting base", commonIndentString) << endl;
-    wasm_instructions += pop(W_REG, false, 12);                         // pop base to w12
+    wasm_instructions += pop(W_REG, false, 12); // pop base to w12
     cout << format("{}Adding offset to base", commonIndentString) << endl;
     wasm_instructions += encodeAddSubImm(W_REG, false, 12, 12, offset); // add offset to base
-    emitCheckMemoryBoundary();
+    wasm_instructions += encodeCompareImm(W_REG, 12, 0);
+    fakeInsertBranch("preparelongjmp", "blt"); // if address < 0, goes to longjmp
+    emitCheckMemoryBoundary(datawidth);
     cout << format("{}Storing memory", commonIndentString) << endl;
-    wasm_instructions += commonLoadStoreReg(regtype, ldstType, datawidth, 11, reg_pointer_wasm_memory, 12, extendMode);
+    wasm_instructions += commonLoadStoreReg(regtype, ldstType, datawidth, 13, reg_pointer_wasm_memory, 12, extendMode);
   }
 }
 
 void WasmFunction::emitMemoryGrow() {
-  wasm_instructions += pop(W_REG); // pop delta (pages to increase based on old size)
+  cout << "Memory.grow" << endl;
+  cout << format("{}Step 0. Getting new page size", commonIndentString) << endl;
+  cout << format("{}Getting delta page size", commonIndentString) << endl;
+  wasm_instructions += pop(W_REG, false, 1); // pop delta to w1 (pages to increase based on old size)
+  cout << format("{}Getting old page size", commonIndentString) << endl;
+  wasm_instructions += encodeLoadStoreImm(W_REG, LDR, 13, reg_memory_size, 0);
+  cout << format("{}Calculates new page size", commonIndentString) << endl;
+  wasm_instructions += encodeAddSubShift(false, W_REG, 1, 1, 13);               // new = old + delta
+  wasm_instructions += encodeCompareShift(W_REG, 1, 13);                        // compare new with old, we need to make sure they are not equal
+  wasm_instructions += encodeBranchCondition(5, reverse_cond_str_map.at("ne")); // goto compare with max page size if not equal
+  wasm_instructions += encodeMovRegister(W_REG, 11, 1);                         // otherwise it's equal, move w1 to w11
+  wasm_instructions += push(W_REG);                                             // push w11 as result
+  fakeInsertBranch("Grow_fin" + to_string(grow_label), "b");                    // return
+  wasm_instructions += encodeCompareShift(W_REG, 1, reg_max_memory_size);       // check with max page size before grow
+  fakeInsertBranch("Grow_fail", "bgt");                                         // if >max_memory_size, goes to grow_fail
+  // otherwise falls through
+  wasm_instructions += encodeLSLImm(X_REG, 1, 1, 16);
+  wasm_instructions += growMemory();
+  fakeInsertBranch("Grow_fin" + to_string(grow_label), "b");
+  insertLabel("Grow_fail");
+  wasm_instructions += WrapperEncodeMovInt32(11, -1);
+  wasm_instructions += push(W_REG);
+  insertLabel("Grow_fin" + to_string(grow_label));
+  grow_label += 1;
 }
 
 void WasmFunction::emitMemorySize() {
+  cout << "Memory.size" << endl;
   wasm_instructions += encodeLoadStoreImm(W_REG, LDR, 11, reg_memory_size, 0);
   wasm_instructions += push(W_REG);
 }
@@ -477,6 +522,15 @@ void WasmFunction::emitCtz(RegType regType) {
   // csel r11, r1, r2, eq
   wasm_instructions += encodeCSEL(regType, 11, 1, 2, reverse_cond_str_map.at("eq"));
   // push r11 to stack
+  wasm_instructions += push(regType);
+}
+// The clz instruction returns the number of leading zeros in its operand. The leading zeros are the longest contiguous sequence of zero-bits starting
+// at the most significant bit and extending downward.
+// This instruction is fully defined when all bits are zero; it returns the number of bits in the operand type.
+void WasmFunction::emitClz(RegType regType) {
+  cout << format("{}.clz", regType == X_REG ? "i64" : "i32") << endl;
+  wasm_instructions += pop(regType);
+  wasm_instructions += encodeCLZ(regType, 11, 11);
   wasm_instructions += push(regType);
 }
 // The eqz instruction returns true if the operand is equal to zero, or false otherwise.
