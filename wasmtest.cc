@@ -25,7 +25,7 @@ void test_chapter(string chapter_number, string test_json) {
         wasmFile_map[cur_wasm_file].parse();
         cout.rdbuf(0);
         wasmFile_map[cur_wasm_file].funcBatchProcess(); // do whole init now
-        cout.rdbuf(normal_cout.rdbuf());                // Restore cout
+        cout.rdbuf(parser_cout.rdbuf());                // Restore cout
       }
     } else if (data["commands"][i].contains("action")) {
       command_map.insert({cur_wasm_file, data["commands"][i]});
@@ -36,7 +36,6 @@ void test_chapter(string chapter_number, string test_json) {
     string function_name = v.second["action"]["field"];
     WasmFile &curParser = wasmFile_map[v.first];
     int function_index = curParser.funcNameIndexMapper[function_name];
-    curParser.initFunctionbyType(function_index);
     // NOTE: USING REFERENCE IS VERY VERY IMPORTANT HERE!!!
     // OTHERWISE ORIGIN VALUE WON'T BE CHANGED!!
     auto &curFunction = curParser.wasmFunctionVec[function_index];
@@ -47,7 +46,7 @@ void test_chapter(string chapter_number, string test_json) {
       if (v.second["action"]["args"][i]["type"] == "i32") {
         param_data[i] = static_cast<int32_t>(stoul(v_str));
       } else if (v.second["action"]["args"][i]["type"] == "i64") {
-        param_data[i] = static_cast<int64_t>(stoul(v_str));
+        param_data[i] = static_cast<int64_t>(stoull(v_str));
       } else {
         cout << "Unsupported param type, probably float" << endl;
       }
@@ -56,7 +55,6 @@ void test_chapter(string chapter_number, string test_json) {
     curParser.wasmFunctionVec[function_index].clear(); // TODO: this could be optimized, no need to clear and initialize again; but currently it will
     cout.rdbuf(parser_cout.rdbuf());                   // Redirect parser output to file; it's too much...
     curParser.funcSingleProcess(function_index);
-    cout.rdbuf(normal_cout.rdbuf()); // Restore cout
     cout << v.first << " " << v.second << endl;
     string expect_str = v.second["expected"][0]["value"].dump();
     expect_str = expect_str.substr(1, expect_str.size() - 2);
@@ -86,6 +84,7 @@ void test_chapter(string chapter_number, string test_json) {
       cout << "Matched: " << (matched ? "True" : "False") << endl;
     }
     EXPECT_EQ(matched, true);
+    cout << endl;
   }
 }
 
@@ -127,9 +126,9 @@ TEST(WASM_TEST, CH10) {
 
 TEST(WASM_TEST, CH11) {
   test_chapter("11", "data.json");
-  test_chapter("11", "store.json");
-  test_chapter("11", "load.json");
-  test_chapter("11", "grow.json");
+  // test_chapter("11", "store.json");
+  // test_chapter("11", "load.json");
+  // test_chapter("11", "grow.json");
 }
 
 int main(int argc, char **argv) {

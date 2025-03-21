@@ -15,11 +15,12 @@ using json = nlohmann::json;
  * memory read -f x -c 20 `$x24`
  */
 auto normal_cout = cout.rdbuf();
-map<string, vector<string>> json_map = {{"02", {"local.json"}},  {"03", {"arithmetic.json"}},
-                                        {"04", {"div.json"}},    {"05", {"if.json"}},
-                                        {"06", {"block.json"}},  {"07", {"loop.json"}},
-                                        {"08", {"call.json"}},   {"09", {"call_indirect.json"}},
-                                        {"10", {"global.json"}}, {"11", {"data.json", "store.json", "load.json", "grow.json"}}};
+map<string, vector<string>> json_map = {{"02", {"local.json"}},         {"03", {"arithmetic.json"}},
+                                        {"04", {"div.json"}},           {"05", {"if.json"}},
+                                        {"06", {"block.json"}},         {"07", {"loop.json"}},
+                                        {"08", {"call.json"}},          {"09", {"call_indirect.json"}},
+                                        {"10", {"global.json"}},        {"11", {"data.json", "store.json", "load.json", "grow.json"}},
+                                        {"12", {"stack_overflow.json"}}};
 
 void test_chapter(const string &chapter_number, const string &json_file) {
   ofstream parser_cout("parserOutput.txt");
@@ -53,7 +54,6 @@ void test_chapter(const string &chapter_number, const string &json_file) {
     string function_name = v.second["action"]["field"];
     WasmFile &curParser = wasmFile_map[v.first];
     int function_index = curParser.funcNameIndexMapper[function_name];
-    // curParser.initFunctionbyType(function_index);
     // NOTE: USING REFERENCE IS VERY VERY IMPORTANT HERE!!!
     // OTHERWISE ORIGIN VALUE WON'T BE CHANGED!!
     auto &curFunction = curParser.wasmFunctionVec[function_index];
@@ -85,7 +85,7 @@ void test_chapter(const string &chapter_number, const string &json_file) {
     } catch (string s) {
       exceptionThrown = true;
     }
-    if (v.second["type"] == "assert_trap") {
+    if (v.second["type"] == "assert_trap" || v.second["type"] == "assert_exhaustion") {
       cout << format("Expecting: {}", "trap") << endl;
       cout << "Result: " << ((exceptionThrown) ? "trap" : to_string(ans)) << endl;
       matched = exceptionThrown;
@@ -108,9 +108,9 @@ void test_chapter(const string &chapter_number, const string &json_file) {
   }
 }
 int main() {
-  vector<string> test_chapters = {"02", "03", "04", "05", "06", "07", "08", "09", "10", "11"};
+  vector<string> test_chapters = {"02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"};
 
-  // vector<string> test_chapters = {"11"};
+  // test_chapters = {"04"};
   cout << "A simple testing program to check our JIT works as intended." << endl;
   cout << "Chapters to test: " << test_chapters << endl;
   for (auto &chapter_number : test_chapters) {

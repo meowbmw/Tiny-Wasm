@@ -9,6 +9,7 @@ const uint8_t reg_pointer_wasm_memory = 23;
 const uint8_t reg_memory_size = 24;
 const uint8_t reg_pointer_memcpy = 25;
 const uint8_t reg_max_memory_size = 26;
+const uint8_t reg_min_allowed_sp_value = 27;
 
 const bool enable_exception_handling = true;
 
@@ -43,6 +44,13 @@ public:
     printOriginWasmOpcode(offset);
 
     getStackPreallocateSize(offset);
+
+    // backup origin sp
+    wasm_instructions += encodeMovSP(X_REG, reg_min_allowed_sp_value, 31);
+    // get minimum allowed sp
+    wasm_instructions += WrapperEncodeMovInt32(10, 128 * 1.5); // 8192 is needed to pass ch08 test cases, this value is customary
+    wasm_instructions += encodeAddSubShift(true, X_REG, reg_min_allowed_sp_value, reg_min_allowed_sp_value, 10);
+
     prepareSp();
     jit_begin = wasm_instructions.size();
 
@@ -96,9 +104,9 @@ public:
     // doing this because the sp we backed up is wrong, its after stp (sp is decreased)
     // also x30 is set to the instruction after bl setjmp, not the origin return address, so it's also wrong
     wasm_instructions += encodeMovRegister(X_REG, 30, 14); // x30 <- x14
-    wasm_instructions += encodeMovSP(X_REG, 31, 15);       // sp <- x31
+    wasm_instructions += encodeMovSP(X_REG, 31, 15);       // sp <- x15
 
-    // store return code 1 to [x13]
+    // store return code 1 to [reg_buffer]
     // todo: generate different return code based on exception type!
     wasm_instructions += encodeMovz(X_REG, 11, 0x1, 0);                     // x11=1, this register can be any that is not used and caller-saved
     wasm_instructions += encodeLoadStoreImm(X_REG, STR, 11, reg_buffer, 0); // [x[reg_buffer]]=x11=1
@@ -329,6 +337,10 @@ public:
   void emitMemoryGrow();
   string push(RegType regType, int reg = 11);
   string pop(RegType regType, bool tee = false, int reg = 11);
+  string allocateMemory();
+  string allocateMemory(uint16_t page_size);
+  string releaseMemory();
+  string releaseMemory(uint16_t page_size);
   string growMemory();
   void constructFullinstr(string sub_instr);
   void jiting_wasm_code(int i);

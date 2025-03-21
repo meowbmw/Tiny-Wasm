@@ -270,7 +270,7 @@ public:
       }
       VecMemInfo.push_back(memoryInfo);
     }
-    memoryInitializeInstruction += allocateMemory(VecMemInfo[0].min_page); // todo: support multiple memories
+    memoryInitializeInstruction += wasmFunctionVec[0].allocateMemory(VecMemInfo[0].min_page); // todo: support multiple memories, and we shouldn't reference 0 here!! It's only because this function is defined in wasmFunction class
     memoryInitializeInstruction += encodeMovRegister(X_REG, reg_pointer_wasm_memory, 0);
   }
   void parse_data() {
@@ -510,7 +510,7 @@ public:
   }
   // preallocate memory for function and save it to symbol table
   // it will be written when real code is generated
-  void preAllocateMemory(int i) {
+  void getSymbolTableMemory(int i) {
     size_t estimatedSize = wasmFunctionVec[i].code_vec.size() * 8; // a rough estimate of how much memory to allocate based on code_vec.size()
     estimatedSize = max(estimatedSize, size_t(4096));
     void *functionAddr = mmap(nullptr, estimatedSize, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -520,13 +520,13 @@ public:
     }
     symbol_table[i] = reinterpret_cast<void *>(functionAddr);
   }
-  void writeCodeToMemory(int i) {
+  void setSymbolTableMemory(int i) {
     // now that we have the jit code, we can fill in the blanks
     // TODO: refactor this into a function
     const string instructions =
         wasmFunctionVec[i].prep_sp_instr + wasmFunctionVec[i].init_param_instr + wasmFunctionVec[i].init_local_instr +
         wasmFunctionVec[i].wasm_instructions.substr(wasmFunctionVec[i].jit_begin, wasmFunctionVec[i].jit_end - wasmFunctionVec[i].jit_begin) +
-        wasmFunctionVec[i].restore_sp_instr + encodeReturn(30, true, false);
+        encodeNop(false) + encodeNop(false) + wasmFunctionVec[i].restore_sp_instr + encodeReturn(30, true, false);
     char *functionAddr = reinterpret_cast<char *>(symbol_table[i]);
     const size_t arraySize = instructions.length() / 2;
     for (size_t j = 0; j < arraySize; j++) {
@@ -623,7 +623,7 @@ public:
     wasmFunctionVec[i].generatePreWasmInstructions();
     wasmFunctionVec[i].processCodeVec();
     writeTable();
-    writeCodeToMemory(i);
+    setSymbolTableMemory(i);
     wasmFunctionVec[i].table_function_indices = table_function_indices;
     wasmFunctionVec[i].memoryInitializeFunction = memoryInitializeFunction;
     wasmFunctionVec[i].memorySizeKeeper = memorySizeKeeper; // all wasmFunction memorySizeKeeper should point to the one in WasmFile
@@ -638,7 +638,7 @@ public:
     // generate respective machine code
     for (int i = 0; i < wasmFunctionToTypeMapper.size(); ++i) {
       initFunctionbyType(i);
-      preAllocateMemory(i);
+      getSymbolTableMemory(i);
     }
     computeTypeEquivalence();
     for (int i = 0; i < wasmFunctionToTypeMapper.size(); ++i) {

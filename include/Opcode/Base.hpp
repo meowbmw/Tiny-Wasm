@@ -183,8 +183,8 @@ public:
   bool smallEndian = true;
 };
 
-string encodeNop(bool smallEndian = true) {
-  auto opcode = Arm64Opcode(smallEndian);
+string encodeNop(bool printFlag = true, bool smallEndian = true) {
+  auto opcode = Arm64Opcode(smallEndian, printFlag);
   opcode.setField(0b11010101000000110010000000011111, 0);
   return opcode.getInstruction();
 }

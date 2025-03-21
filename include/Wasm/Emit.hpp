@@ -325,6 +325,11 @@ void WasmFunction::emitBlock(int i) {
 }
 void WasmFunction::emitCall(int function_index) {
   cout << format("Call {}", function_index) << endl;
+  // need to check sp boundary before performing call emit
+  cout << commonIndentString + "Need to check sp boundary first" << endl;
+  wasm_instructions += encodeMovSP(X_REG, 10, 31);
+  wasm_instructions += encodeCompareShift(X_REG, 10, reg_min_allowed_sp_value);
+  fakeInsertBranch("preparelongjmp", "blt"); // abort if sp is too small!
   cout << commonIndentString + "Loading parameters to register before calling" << endl;
   const WasmFunctionType v = getWasmFunctionType(function_index);
 

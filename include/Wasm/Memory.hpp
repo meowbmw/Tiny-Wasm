@@ -4,7 +4,7 @@
 // use mmap to allocateMemory
 // Usage: mmap (void *__addr, size_t __len, int __prot,
 //    int __flags, int __filedescripter, __off_t __offset);
-string allocateMemory() {
+string WasmFunction::allocateMemory() {
   string instr;
   instr += encodeMovz(X_REG, 0, 0); // x0 = addr (usually kernel will provide this)
   instr += encodeMovz(X_REG, 2, PROT_READ | PROT_WRITE);
@@ -19,18 +19,17 @@ string allocateMemory() {
       encodeNop(); // todo: for some reason, the instruction immediately followed svc will be skipped, so we use nop here for that skipped instruction
   return instr;
 }
-string allocateMemory(uint16_t page_size) {
+string WasmFunction::allocateMemory(uint16_t page_size) {
   cout << format("Allocating Memory with page size: {}", page_size) << endl;
   string instr;
   instr += WrapperEncodeMovInt64(1, page_size * 65536); // x1 = allocate size
   instr += allocateMemory();
-  cout << "Result address will be moved to reg_pointer_wasm_memory" << endl;
   return instr;
 }
 
 // use munmap to free memory
 // Usage: int munmap (void *__addr, size_t __len);
-string releaseMemory() {
+string WasmFunction::releaseMemory() {
   string instr;
   instr += encodeMovz(X_REG, 8, __NR_munmap); // x8 is syscall number(215 is munmap)
   instr += encodeSVC(0);                      // invoke system call
@@ -39,7 +38,7 @@ string releaseMemory() {
 
   return instr;
 }
-string releaseMemory(uint16_t page_size) {
+string WasmFunction::releaseMemory(uint16_t page_size) {
   string instr;
   instr += WrapperEncodeMovInt64(1, page_size * 65536); // x1 = size to release
   instr += releaseMemory();

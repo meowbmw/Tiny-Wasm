@@ -1,15 +1,33 @@
 #pragma once
+#include <dlfcn.h>
+
 #include "../FloatUtils.h"
 #include "../Opcode.hpp"
 #include "../OverloadOperator.h"
 #include "../Utils.h"
-#include <dlfcn.h>
 
 using namespace std;
 using ArithOperation = std::function<wasm_type(wasm_type, wasm_type)>;
+/**
+ *  void func(jmp_buf parent_buf) {
+      jmp_buf local_buf;
 
+      if (!setjmp(local_buf)) {
+          // 递归调用时传递当前上下文
+          func(local_buf);
+      } else {
+          // 跳转到父级 setjmp 点
+          longjmp(parent_buf, 1);
+      }
+    }
+    // 初始调用
+    jmp_buf root_buf;
+    if (!setjmp(root_buf)) {
+        func(root_buf);
+    }
+ */
 struct controlFlowElement {
-  controlFlowElement(string s,  vector<wasm_type> v) {
+  controlFlowElement(string s, vector<wasm_type> v) {
     label = s;
     signature = v;
   }
@@ -30,11 +48,26 @@ string getSetJmpInstr() {
         str	x2,  [x0, 13<<3]
         mov	w0, #0
         ret
+
+
+    setjmp buffer should be only set once
+    we could use a flag to make sure of that
    */
   static std::once_flag flag;
   static std::string instr;
   std::call_once(flag, []() {
     LdStType ldstType = LdStType::STR;
+    // check flag before writing anything
+    instr += encodeLoadStoreImm(X_REG, LDR, 2, 0, 16 << 3);           // x2=[x0,128]
+    instr += encodeCompareImm(X_REG, 2, 1);                           // check if x2==1
+    instr += encodeBranchCondition(5, reverse_cond_str_map.at("ne")); // if x2!=1 continue executing
+    instr += encodeMovSP(X_REG, 2, 31);
+    instr += encodeLoadStoreImm(X_REG, ldstType, 2, 0, 13 << 3);
+    instr += encodeMovz(W_REG, 0, 0, 0);
+    instr += encodeReturn(); // else return
+    // following is setting up a flag to make sure buffer is set only once
+    instr += encodeMovz(X_REG, 2, 1);                            // set x2=1
+    instr += encodeLoadStoreImm(X_REG, ldstType, 2, 0, 16 << 3); // [x0, 128]=x2=1
     instr += encodeLdpStp(X_REG, ldstType, 19, 20, 0, 0);
     instr += encodeLdpStp(X_REG, ldstType, 21, 22, 0, 2 << 3);
     instr += encodeLdpStp(X_REG, ldstType, 23, 24, 0, 4 << 3);
