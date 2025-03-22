@@ -6,8 +6,6 @@ void WasmFunction::jiting_wasm_code(int i) {
   // This instruction is necessary for "end" to pop off control stack
   control_flow_stack.push_back(controlFlowElement(
       "Function end", result_data)); // TODO: this might need to be called on every function enter, currently it is only executed once.
-  // backup x30, i.e. [sp, stacksize-8] = x30
-  wasm_instructions += encodeLoadStoreImm(X_REG, STR, 30, 31, stack_size - 8);
   while (i < code_vec.size()) {
     /**
      * WebAssembly Opcodes
@@ -275,6 +273,4 @@ void WasmFunction::jiting_wasm_code(int i) {
       i += 1;
     }
   }
-  // restore x30, i.e. x30 = [sp, stacksize-8]
-  wasm_instructions += encodeLoadStoreImm(X_REG, LDR, 30, 31, stack_size - 8);
 }

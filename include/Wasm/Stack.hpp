@@ -33,8 +33,10 @@ void WasmFunction::getStackPreallocateSize(const int offset) {
   cout.rdbuf(old);
 }
 void WasmFunction::prepareSp() {
-  cout << commonIndentString + "-Sub sp register" << endl;
-  string instr = encodeAddSubImm(X_REG, true, 31, 31, stack_size); // sub sp, sp, stack_size
+  cout << commonIndentString + "-Prepare function entering" << endl;
+  string instr = encodeLdpStp(X_REG, STR, 29, 30, 31, -stack_size, EncodingMode::PreIndex); // stp x29, x30, [sp, #-0x20]!
+  instr += encodeMovSP(X_REG, 29, 31);                                                      // x29 = sp
+  instr += encodeAddSubImm(X_REG, true, 31, 31, stack_size);                                // sub sp, sp, stack_size
   prep_sp_instr = instr;
   constructFullinstr(instr);
 }
@@ -68,8 +70,9 @@ void WasmFunction::getResult() {
   constructFullinstr(prepare_ans_instr);
 }
 void WasmFunction::restoreSP() {
-  cout << "Restore sp register" << endl;
-  const string restore_sp_instr = encodeAddSubImm(X_REG, false, 31, 31, stack_size); // add sp, sp, stack_size
+  cout << "Prepare function return" << endl;
+  string restore_sp_instr = encodeAddSubImm(X_REG, false, 31, 31, stack_size);                   // add sp, sp, stack_size
+  restore_sp_instr += encodeLdpStp(X_REG, LDR, 29, 30, 31, stack_size, EncodingMode::PostIndex); // ldp	x29, x30, [sp], #16
   this->restore_sp_instr = restore_sp_instr;
   constructFullinstr(restore_sp_instr);
 }

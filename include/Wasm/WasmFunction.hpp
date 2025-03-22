@@ -11,6 +11,8 @@ const uint8_t reg_pointer_memcpy = 25;
 const uint8_t reg_max_memory_size = 26;
 const uint8_t reg_min_allowed_sp_value = 27;
 
+int max_allowed_size = 8192*2; // 8192 is needed to pass ch08 test cases, this value is customary
+
 const bool enable_exception_handling = true;
 
 struct TableInfo {
@@ -45,10 +47,11 @@ public:
 
     getStackPreallocateSize(offset);
 
+    cout << commonIndentString + "Getting minimum allowed sp" << endl;
     // backup origin sp
     wasm_instructions += encodeMovSP(X_REG, reg_min_allowed_sp_value, 31);
     // get minimum allowed sp
-    wasm_instructions += WrapperEncodeMovInt32(10, 128 * 1.5); // 8192 is needed to pass ch08 test cases, this value is customary
+    wasm_instructions += WrapperEncodeMovInt32(10, max_allowed_size);
     wasm_instructions += encodeAddSubShift(true, X_REG, reg_min_allowed_sp_value, reg_min_allowed_sp_value, 10);
 
     prepareSp();
@@ -91,9 +94,6 @@ public:
     wasm_instructions += getSetJmpInstr();
 
     insertLabel("preparelongjmp");
-    wasm_instructions += encodeMovRegister(
-        X_REG, 14, 30); // x14 <- x30, this is just backing up, x14 can be any other register that isn't used, same thing applies to x15 <- sp
-    wasm_instructions += encodeMovSP(X_REG, 15, 31);              // x15 <- sp
     wasm_instructions += encodeMovRegister(X_REG, 0, reg_buffer); // x0 <- x[reg_buffer]
     fakeInsertBranch("longjmp", "b");
 
@@ -101,10 +101,6 @@ public:
     wasm_instructions += getLongJmpInstr();
 
     insertLabel("raiseException");
-    // doing this because the sp we backed up is wrong, its after stp (sp is decreased)
-    // also x30 is set to the instruction after bl setjmp, not the origin return address, so it's also wrong
-    wasm_instructions += encodeMovRegister(X_REG, 30, 14); // x30 <- x14
-    wasm_instructions += encodeMovSP(X_REG, 31, 15);       // sp <- x15
 
     // store return code 1 to [reg_buffer]
     // todo: generate different return code based on exception type!
@@ -234,14 +230,14 @@ public:
   }
   void enable_setjmp() {
     cout << "Setting up setjmp" << endl;
-    wasm_instructions += encodeLdpStp(X_REG, STR, 29, 30, 31, -0x20, EncodingMode::PreIndex); // stp x29, x30, [sp, #-0x20]!
 
     wasm_instructions += encodeMovRegister(X_REG, 0, reg_buffer); // x0 <- x[reg_buffer]
     fakeInsertBranch("setjmp", "bl");                             // bl setjmp
+    // 一旦bl进setjmp后x30的值就被更改了，就会导致丢失先前的x30值，所以必须要有一种机制去做备份和还原
+    // 不管是进入setjmp之前还是setjmp之后的x30都有必要去做备份
 
     wasm_instructions += encodeCompareImm(X_REG, 0, 0);
     fakeInsertBranch("raiseException", "bne");                                                // todo: if not equal, goto exception handling
-    wasm_instructions += encodeLdpStp(X_REG, LDR, 29, 30, 31, 0x20, EncodingMode::PostIndex); // ldp x29, x30, [sp], #0x20
   }
   void fakeInsertBranch(string label, string BranchStr);
   void insertLabel(string label);
