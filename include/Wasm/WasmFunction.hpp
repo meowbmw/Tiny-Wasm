@@ -11,7 +11,7 @@ const uint8_t reg_pointer_memcpy = 25;
 const uint8_t reg_max_memory_size = 26;
 const uint8_t reg_min_allowed_sp_value = 27;
 
-int max_allowed_size = 8192*2; // 8192 is needed to pass ch08 test cases, this value is customary
+int max_allowed_size = 8192 * 2; // 8192 is needed to pass ch08 test cases, this value is customary
 
 const bool enable_exception_handling = true;
 
@@ -237,7 +237,7 @@ public:
     // 不管是进入setjmp之前还是setjmp之后的x30都有必要去做备份
 
     wasm_instructions += encodeCompareImm(X_REG, 0, 0);
-    fakeInsertBranch("raiseException", "bne");                                                // todo: if not equal, goto exception handling
+    fakeInsertBranch("raiseException", "bne"); // if not equal, goto exception handling
   }
   void fakeInsertBranch(string label, string BranchStr);
   void insertLabel(string label);
