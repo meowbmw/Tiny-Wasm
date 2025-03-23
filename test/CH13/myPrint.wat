@@ -1,4 +1,4 @@
-(module $main.wasm
+(module $myPrint.wasm
   (type (;0;) (func (param i32 i32) (result i32)))
   (type (;1;) (func))
   (import "env" "myPrintf" (func $myPrintf (type 0)))

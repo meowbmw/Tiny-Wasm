@@ -1,0 +1,17 @@
+{
+    "commands": [
+        {
+            "type": "module",
+            "filename": "myPrint.wasm"
+        },
+        {
+            "type": "assert_return",
+            "action": {
+                "type": "invoke",
+                "field": "_start",
+                "args": []
+            },
+            "expected": []
+        }
+    ]
+}
