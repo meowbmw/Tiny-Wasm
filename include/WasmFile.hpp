@@ -4,6 +4,7 @@
 #include "Wasm/WasmFunctionType.hpp"
 using namespace std;
 
+const bool DEBUG_IMPORT_SECTION = true;
 const bool DEBUG_EXPORT_SECTION = false;
 const bool DEBUG_FUNCTION_SECTION = false;
 const bool DEBUG_TYPE_SECTION = false;
@@ -31,7 +32,7 @@ public:
       } else if (type == "01") {
         parse_type();
       } else if (type == "02") {
-        parse_name();
+        parse_import();
       } else if (type == "03") {
         parse_function();
       } else if (type == "04") {
@@ -104,7 +105,39 @@ public:
       wasmFunctionTypeVec.push_back(curType);
     }
   }
-  void parse_name() {
+  void parse_import() {
+    // import section
+    auto [import_count, bytes_read_count] = decode_uleb128(s, 0);
+    uint64_t base_offset = bytes_read_count;
+
+    cout << "Decoding import section: " << s.substr(0, length * 2) << endl;
+    cout << "Total import count: " << import_count << endl;
+    for (int i = 0; i < import_count; ++i) {
+      auto [module_name_length, bytes_module_name] = decode_uleb128(s, base_offset);
+      base_offset += bytes_module_name;
+      const string module_name = hexToAscii(s.substr(base_offset, module_name_length * 2));
+      base_offset += module_name_length * 2;
+      auto [field_name_length, bytes_field_name] = decode_uleb128(s, base_offset);
+      base_offset += bytes_field_name;
+      const string field_name = hexToAscii(s.substr(base_offset, field_name_length * 2));
+      base_offset += field_name_length * 2;
+
+      auto [import_kind, bytes_kind] = decode_uleb128(s, base_offset);
+      base_offset += bytes_kind;
+      int sig_index = 0;
+      switch (import_kind) {
+      case 0: {
+        auto pair_ = decode_uleb128(s, base_offset);
+        sig_index = pair_.first;
+        base_offset += pair_.second;
+      }
+      break;
+
+      default:
+        throw "Other import types not supported yet!";
+        break;
+      }
+    }
   }
   void parse_table() {
     // table section
@@ -495,7 +528,8 @@ public:
       WasmFunction curFunc;
       auto [func_size, bytes_func_size] = decode_uleb128(s, base_offset);
       base_offset += bytes_func_size;
-      auto [local_var_declare_count, bytes_declare_count] = decode_uleb128(s, base_offset); // Warn!!! One declare could imply multiple variables so this does not really equal to the real variable count!!!
+      auto [local_var_declare_count, bytes_declare_count] = decode_uleb128(
+          s, base_offset); // Warn!!! One declare could imply multiple variables so this does not really equal to the real variable count!!!
       base_offset += bytes_declare_count;
       if (DEBUG_CODE_SECTION) {
         cout << "--- Info for function " << i << " ---" << endl;
