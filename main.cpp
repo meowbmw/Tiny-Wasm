@@ -15,12 +15,18 @@ using json = nlohmann::json;
  * memory read -f x -c 20 `$x24`
  */
 auto normal_cout = cout.rdbuf();
-map<string, vector<string>> json_map = {{"02", {"local.json"}},         {"03", {"arithmetic.json"}},
-                                        {"04", {"div.json"}},           {"05", {"if.json"}},
-                                        {"06", {"block.json"}},         {"07", {"loop.json"}},
-                                        {"08", {"call.json"}},          {"09", {"call_indirect.json"}},
-                                        {"10", {"global.json"}},        {"11", {"data.json", "store.json", "load.json", "grow.json"}},
-                                        {"12", {"stack_overflow.json"}}};
+map<string, vector<string>> json_map = {{"02", {"local.json"}},
+                                        {"03", {"arithmetic.json"}},
+                                        {"04", {"div.json"}},
+                                        {"05", {"if.json"}},
+                                        {"06", {"block.json"}},
+                                        {"07", {"loop.json"}},
+                                        {"08", {"call.json"}},
+                                        {"09", {"call_indirect.json"}},
+                                        {"10", {"global.json"}},
+                                        {"11", {"data.json", "store.json", "load.json", "grow.json"}},
+                                        {"12", {"stack_overflow.json"}},
+                                        {"13", {"myPrint.json"}}};
 
 void test_chapter(const string &chapter_number, const string &json_file) {
   ofstream parser_cout("parserOutput.txt");

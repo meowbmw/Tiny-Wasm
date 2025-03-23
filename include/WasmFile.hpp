@@ -26,8 +26,12 @@ public:
       auto [value, bytesRead] = decode_uleb128(s, 0);
       length = value;
       s = s.substr(bytesRead);
-      if (type == "01") {
+      if (type == "00") {
+        parse_custom();
+      } else if (type == "01") {
         parse_type();
+      } else if (type == "02") {
+        parse_name();
       } else if (type == "03") {
         parse_function();
       } else if (type == "04") {
@@ -58,7 +62,7 @@ public:
   }
   void initial_check() {
     // check magic number and version
-    cout << "Full Binary: " << s << endl;
+    // cout << "Full Binary: " << s << endl;
     const string magic_number = s.substr(0, 8);
     if (magic_number == "0061736d") {
       cout << "Initial checking..\nMagic number: Matched" << endl;
@@ -71,10 +75,12 @@ public:
     cout << "Webassembly version is: " << s.substr(0, 2) << endl;
     s = s.substr(8); // crop version
   }
+  void parse_custom() {
+  }
   void parse_type() {
     // type section
     auto [type_count, bytes_read] = decode_uleb128(s, 0);
-    uint64_t base_offset = 2; // Warn: skip one byte: 60 (function type identifier) as it is fixed
+    uint64_t base_offset = bytes_read;
     cout << "Decoding type section: " << s.substr(0, length * 2) << endl;
     cout << "Total type count: " << type_count << endl;
     for (int i = 0; i < type_count; ++i) {
@@ -97,6 +103,8 @@ public:
       base_offset = base_offset + bytesRead_result + 2 * result_count;
       wasmFunctionTypeVec.push_back(curType);
     }
+  }
+  void parse_name() {
   }
   void parse_table() {
     // table section
@@ -270,7 +278,9 @@ public:
       }
       VecMemInfo.push_back(memoryInfo);
     }
-    memoryInitializeInstruction += wasmFunctionVec[0].allocateMemory(VecMemInfo[0].min_page); // todo: support multiple memories, and we shouldn't reference 0 here!! It's only because this function is defined in wasmFunction class
+    memoryInitializeInstruction +=
+        wasmFunctionVec[0].allocateMemory(VecMemInfo[0].min_page); // todo: support multiple memories, and we shouldn't reference 0 here!! It's only
+                                                                   // because this function is defined in wasmFunction class
     memoryInitializeInstruction += encodeMovRegister(X_REG, reg_pointer_wasm_memory, 0);
   }
   void parse_data() {
@@ -477,16 +487,16 @@ public:
   }
   void parse_code() {
     // code section
-    const u_int64_t func_count = stoul(s.substr(0, 2), nullptr, 16);
-    uint64_t base_offset = 0;
+    auto [func_count, bytes_read_count] = decode_uleb128(s, 0);
+    uint64_t base_offset = bytes_read_count;
     cout << "Decoding code section: " << s.substr(0, length * 2) << endl;
     cout << "Total function count: " << func_count << endl;
     for (int i = 0; i < func_count; ++i) {
       WasmFunction curFunc;
-      const u_int64_t func_size = stoul(s.substr(base_offset + 2, 2), nullptr, 16);
-      const u_int64_t local_var_declare_count =
-          stoul(s.substr(base_offset + 4, 2), nullptr,
-                16); // Warn!!! One declare could imply multiple variables so this does not really equal to the real variable count!!!
+      auto [func_size, bytes_func_size] = decode_uleb128(s, base_offset);
+      base_offset += bytes_func_size;
+      auto [local_var_declare_count, bytes_declare_count] = decode_uleb128(s, base_offset); // Warn!!! One declare could imply multiple variables so this does not really equal to the real variable count!!!
+      base_offset += bytes_declare_count;
       if (DEBUG_CODE_SECTION) {
         cout << "--- Info for function " << i << " ---" << endl;
         cout << "Func size: " << func_size << endl;
@@ -494,7 +504,8 @@ public:
       }
       vector<string> opcodes;
       for (int i = 0; i < func_size - 1; ++i) {
-        opcodes.push_back(s.substr(base_offset + 6 + i * 2, 2));
+        opcodes.push_back(s.substr(base_offset, 2));
+        base_offset += 2;
       }
       if (DEBUG_CODE_SECTION) {
         cout << "Opcode: ";
@@ -503,7 +514,6 @@ public:
         }
         cout << endl;
       }
-      base_offset = base_offset + 2 * func_size + 2;
       curFunc.set_code_vec(opcodes, local_var_declare_count);
       wasmFunctionVec.push_back(curFunc);
     }
