@@ -1,11 +1,5 @@
 #pragma once
 #include "../Utils.h"
-/**
- * TODO: work in progress
- * only implement very basic instruction format
- * currently support add/sub immediate; ldr/str unsigned offset
- *
- */
 
 enum class EncodingMode { PostIndex, PreIndex, SignedOffset, UnSignedOffset };
 enum class DataWidth { byte, word, doubleword, quadword };

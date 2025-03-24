@@ -130,8 +130,9 @@ public:
         auto pair_ = decode_uleb128(s, base_offset);
         sig_index = pair_.first;
         base_offset += pair_.second;
-      }
-      break;
+        funcNameIndexMapper[field_name] = sig_index;
+        funcIndexNameMapper[sig_index] = field_name;
+      } break;
 
       default:
         throw "Other import types not supported yet!";
@@ -711,6 +712,8 @@ public:
   vector<WasmFunctionType> wasmFunctionTypeVec; // used to store type definition
   vector<int> wasmFunctionToTypeMapper;         // map function id to wasmType
   vector<int> table_function_indices;           // convert table index to function index
+
+  set<int> importFunctionSet; // A set consist of import function index
 
   vector<MemoryInfo> VecMemInfo;
   string memoryInitializeInstruction;

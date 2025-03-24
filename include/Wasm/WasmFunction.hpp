@@ -10,6 +10,7 @@ const uint8_t reg_memory_size = 24;
 const uint8_t reg_pointer_memcpy = 25;
 const uint8_t reg_max_memory_size = 26;
 const uint8_t reg_min_allowed_sp_value = 27;
+const uint8_t reg_pointer_printf = 28;
 
 int max_allowed_size = 8192 * 2; // 8192 is needed to pass ch08 test cases, this value is customary
 
@@ -173,8 +174,10 @@ public:
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_memory_size, 2);
     cout << "Backing up x4 memcpy pointer to x" << +reg_pointer_memcpy << endl;
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_pointer_memcpy, 4);
-    cout << "Backing up x5 max memory size to x" << +reg_max_memory_size << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_max_memory_size, 5);
+    cout << "Backing up x5 printf pointer to x" << +reg_pointer_memcpy << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_pointer_printf, 5);
+    cout << "Backing up x6 max memory size to x" << +reg_max_memory_size << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_max_memory_size, 6);
 
     // initialize memory, this should only be executed once, we use [x3] to store memory size
     // memory initialization function will be stored in x4
@@ -202,7 +205,6 @@ public:
     pre_instructions_for_param_loading += allocateMemory(1);
     cout << "Backing up wasm_stack pointer to x" << +reg_wasm_stack << endl;
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_wasm_stack, 0);
-
 
     cout << "---Loading parameters---" << endl;
     for (int i = 0; i < param_data.size(); ++i) {
