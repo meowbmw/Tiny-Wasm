@@ -167,20 +167,14 @@ public:
     }
     cout << "Backing up x0 buffer to x" << +reg_buffer << endl;
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_buffer, 0);
-    cout << "Backing up x1 wasm_stack pointer to x" << +reg_wasm_stack << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_wasm_stack, 1);
-    cout << "Backing up x2 global variable pointer to x" << +reg_pointer_globalvars << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_pointer_globalvars, 2);
-    cout << "Backing up x3 memory size pointer to x" << +reg_memory_size << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_memory_size, 3);
-    cout << "Backing up x5 memcpy pointer to x" << +reg_pointer_memcpy << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_pointer_memcpy, 5);
-    cout << "Backing up x6 max memory size to x" << +reg_max_memory_size << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_max_memory_size, 6);
-
-    // initialize stack pointer with 0
-    cout << "Initialze reg_pointer_wasm_stack: x" << +reg_pointer_wasm_stack << " with 0" << endl;
-    pre_instructions_for_param_loading += encodeMovz(X_REG, reg_pointer_wasm_stack, 0);
+    cout << "Backing up x1 global variable pointer to x" << +reg_pointer_globalvars << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_pointer_globalvars, 1);
+    cout << "Backing up x2 memory size pointer to x" << +reg_memory_size << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_memory_size, 2);
+    cout << "Backing up x4 memcpy pointer to x" << +reg_pointer_memcpy << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_pointer_memcpy, 4);
+    cout << "Backing up x5 max memory size to x" << +reg_max_memory_size << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_max_memory_size, 5);
 
     // initialize memory, this should only be executed once, we use [x3] to store memory size
     // memory initialization function will be stored in x4
@@ -193,13 +187,22 @@ public:
       // skip initialization if memory size is not 0 (it should be 0 for the first time)
       pre_instructions_for_param_loading += encodeBranchCondition(6, reverse_cond_str_map.at("ne"));
       pre_instructions_for_param_loading += encodeMovRegister(X_REG, 14, 30); // backup x30 before blr
-      pre_instructions_for_param_loading += encodeBranchRegister(4, true);
+      pre_instructions_for_param_loading += encodeBranchRegister(3, true);
       pre_instructions_for_param_loading += encodeMovRegister(X_REG, 30, 14); // restore x30
       // load memory size to w11
       pre_instructions_for_param_loading += WrapperEncodeMovInt32(11, VecMemInfo[0].min_page);
       // set memory size
       pre_instructions_for_param_loading += encodeLoadStoreImm(W_REG, STR, 11, reg_memory_size, 0);
     }
+
+    // initialize stack pointer with 0
+    cout << "Initialze reg_pointer_wasm_stack: x" << +reg_pointer_wasm_stack << " with 0" << endl;
+    pre_instructions_for_param_loading += encodeMovz(X_REG, reg_pointer_wasm_stack, 0);
+    cout << "Allocating memory for wasm stack" << endl;
+    pre_instructions_for_param_loading += allocateMemory(1);
+    cout << "Backing up wasm_stack pointer to x" << +reg_wasm_stack << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_wasm_stack, 0);
+
 
     cout << "---Loading parameters---" << endl;
     for (int i = 0; i < param_data.size(); ++i) {
