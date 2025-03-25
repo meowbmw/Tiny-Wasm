@@ -12,7 +12,7 @@ const uint8_t reg_max_memory_size = 26;
 const uint8_t reg_min_allowed_sp_value = 27;
 const uint8_t reg_pointer_printf = 28;
 
-int max_allowed_size = 8192 * 2; // 8192 is needed to pass ch08 test cases, this value is customary
+int max_allowed_size = 1024 * 10; // 8192 is needed to pass ch08 test cases, this value is customary
 
 const bool enable_exception_handling = true;
 
@@ -44,7 +44,7 @@ public:
   void processCodeVec() {
     int offset = 0;
     local_var_initialize(offset); // doesn't modify wasm_instructions
-    printOriginWasmOpcode(offset);
+    // printOriginWasmOpcode(offset);
 
     getStackPreallocateSize(offset);
 

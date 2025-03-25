@@ -4,7 +4,7 @@
 #include "Wasm/WasmFunctionType.hpp"
 using namespace std;
 
-const bool DEBUG_IMPORT_SECTION = true;
+const bool DEBUG_IMPORT_SECTION = false;
 const bool DEBUG_EXPORT_SECTION = false;
 const bool DEBUG_FUNCTION_SECTION = false;
 const bool DEBUG_TYPE_SECTION = false;
@@ -13,7 +13,7 @@ const bool DEBUG_TABLE_SECTION = false;
 const bool DEBUG_ELEMENT_SECTION = false;
 const bool DEBUG_GLOBAL_SECTION = false;
 const bool DEBUG_MEMORY_SECTION = false;
-const bool DEBUG_DATA_SECTION = true;
+const bool DEBUG_DATA_SECTION = false;
 const bool DEBUG_DATA_COUNT_SECTION = false;
 
 class WasmFile {
@@ -122,16 +122,21 @@ public:
       const string field_name = hexToAscii(s.substr(base_offset, field_name_length * 2));
       base_offset += field_name_length * 2;
 
-      auto [import_kind, bytes_kind] = decode_uleb128(s, base_offset);
+      auto [import_type, bytes_kind] = decode_uleb128(s, base_offset);
       base_offset += bytes_kind;
-      int sig_index = 0;
-      switch (import_kind) {
+      switch (import_type) {
       case 0: {
-        auto pair_ = decode_uleb128(s, base_offset);
-        sig_index = pair_.first;
-        base_offset += pair_.second;
-        funcNameIndexMapper[field_name] = sig_index;
-        funcIndexNameMapper[sig_index] = field_name;
+        auto [import_function_type, bytes_read_type] = decode_uleb128(s, base_offset);
+        base_offset += bytes_read_type;
+        int cur_index = wasmFunctionToTypeMapper.size();
+        wasmFunctionToTypeMapper.push_back(import_function_type);
+        funcNameIndexMapper[field_name] = cur_index;
+        funcIndexNameMapper[cur_index] = field_name;
+        importFunctionCount++;
+        wasmFunctionVec.push_back(WasmFunction()); // push an empty WasmFunction without codevec here
+        if (field_name == "myPrintf") {
+          symbol_table[cur_index] = get_printf_address();
+        }
       } break;
 
       default:
@@ -312,9 +317,9 @@ public:
       }
       VecMemInfo.push_back(memoryInfo);
     }
-    memoryInitializeInstruction +=
-        wasmFunctionVec[0].allocateMemory(VecMemInfo[0].min_page); // todo: support multiple memories, and we shouldn't reference 0 here!! It's only
-                                                                   // because this function is defined in wasmFunction class
+    memoryInitializeInstruction += wasmFunctionVec[wasmFunctionVec.size() - 1].allocateMemory(
+        VecMemInfo[0].min_page); // todo: support multiple memories, and we shouldn't reference specific wasmFunctionVec here!! It's only
+                                 // because this function is defined in wasmFunction class
     memoryInitializeInstruction += encodeMovRegister(X_REG, reg_pointer_wasm_memory, 0);
   }
   void parse_data() {
@@ -388,19 +393,24 @@ public:
 
       // start reading data from here!!
       auto [data_segment_size, bytes_read_data_segment] = decode_uleb128(s, base_offset);
-      cout << "Data segment size is: " << data_segment_size << endl;
-      cout << "Data: " << endl;
+      if (DEBUG_DATA_SECTION) {
+        cout << "Data segment size is: " << data_segment_size << endl;
+        cout << "Data: " << endl;
+      }
+      auto normal_cout = cout.rdbuf();
       base_offset += bytes_read_data_segment;
       for (int i = 0; i < data_segment_size; ++i) {
         char cur_val = static_cast<char>(stoul(s.substr(base_offset, 2), nullptr, 16));
-        cout << cur_val;
         base_offset += 2;
+        cout.rdbuf(0);
+        cout << cur_val;
         // load data value into w0 (only 1 byte so wreg should be able to hold)
         memoryInitializeInstruction += encodeMovz(W_REG, 0, cur_val);
         // [reg_pointer_wasm_memory, cur_data_offset+i] = w[0]
         memoryInitializeInstruction += commonLoadStoreImm(W_REG, STR, DataWidth::byte, 0, reg_pointer_wasm_memory, cur_data_offset + i, ZeroExtend);
       }
       memoryInitializeInstruction += encodeReturn();
+      cout.rdbuf(normal_cout);
       memoryInitializeFunction = getFunctionPointer<void *>(memoryInitializeInstruction);
       cout << endl;
     }
@@ -683,10 +693,12 @@ public:
     // generate respective machine code
     for (int i = 0; i < wasmFunctionToTypeMapper.size(); ++i) {
       initFunctionbyType(i);
-      getSymbolTableMemory(i);
+      if (i >= importFunctionCount) {
+        getSymbolTableMemory(i);
+      }
     }
     computeTypeEquivalence();
-    for (int i = 0; i < wasmFunctionToTypeMapper.size(); ++i) {
+    for (int i = importFunctionCount; i < wasmFunctionToTypeMapper.size(); ++i) {
       funcSingleProcess(i);
       if (execute) {
         cout << "Executing function " << i << ": " << funcIndexNameMapper[i] << endl;
@@ -710,10 +722,10 @@ public:
   vector<ElementSegment> elementSegments;       // Table initializers are sometimes called "segments".
   vector<WasmFunction> wasmFunctionVec;         // used to store function code
   vector<WasmFunctionType> wasmFunctionTypeVec; // used to store type definition
-  vector<int> wasmFunctionToTypeMapper;         // map function id to wasmType
+  vector<int> wasmFunctionToTypeMapper;         // map function id to function type
   vector<int> table_function_indices;           // convert table index to function index
 
-  set<int> importFunctionSet; // A set consist of import function index
+  int importFunctionCount = 0;
 
   vector<MemoryInfo> VecMemInfo;
   string memoryInitializeInstruction;
