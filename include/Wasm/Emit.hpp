@@ -130,7 +130,7 @@ void WasmFunction::emitMemoryLoadStore(RegType regtype, LdStType ldstType, DataW
     wasm_instructions += push(regtype);
   } else {
     cout << format("{}Getting value", commonIndentString) << endl;
-    wasm_instructions += pop(W_REG, false, 13); // pop value to w13
+    wasm_instructions += pop(regtype, false, 13); // pop value to r13
     cout << format("{}Getting base", commonIndentString) << endl;
     wasm_instructions += pop(W_REG, false, 12); // pop base to w12
     cout << format("{}Adding offset to base", commonIndentString) << endl;
@@ -325,6 +325,7 @@ void WasmFunction::emitBlock(int i) {
 }
 void WasmFunction::emitCall(int function_index) {
   cout << format("Call {}", function_index) << endl;
+  bool isImport = (function_index < importFunctionCount);
   // need to check sp boundary before performing call emit
   cout << commonIndentString + "Need to check sp boundary first" << endl;
   wasm_instructions += encodeMovSP(X_REG, 10, 31);
@@ -338,9 +339,15 @@ void WasmFunction::emitCall(int function_index) {
     switch (getWasmType(t)) {
     case X_REG:
       wasm_instructions += pop(X_REG, false, i);
+      if (isImport) {
+        wasm_instructions += encodeAddSubShift(false, X_REG, i, i, reg_pointer_wasm_memory);
+      }
       break;
     case W_REG:
       wasm_instructions += pop(W_REG, false, i);
+      if (isImport) {
+        wasm_instructions += encodeAddSubShift(false, X_REG, i, i, reg_pointer_wasm_memory);
+      }
       break;
     default:
       throw "Float type unsupported yet";

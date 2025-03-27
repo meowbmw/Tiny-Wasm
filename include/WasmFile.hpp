@@ -2,6 +2,7 @@
 #include "Wasm.hpp"
 #include "Wasm/WasmFunction.hpp"
 #include "Wasm/WasmFunctionType.hpp"
+#include "customPrint.hpp"
 using namespace std;
 
 const bool DEBUG_IMPORT_SECTION = false;
@@ -13,7 +14,7 @@ const bool DEBUG_TABLE_SECTION = false;
 const bool DEBUG_ELEMENT_SECTION = false;
 const bool DEBUG_GLOBAL_SECTION = false;
 const bool DEBUG_MEMORY_SECTION = false;
-const bool DEBUG_DATA_SECTION = false;
+const bool DEBUG_DATA_SECTION = true;
 const bool DEBUG_DATA_COUNT_SECTION = false;
 
 class WasmFile {
@@ -135,7 +136,7 @@ public:
         importFunctionCount++;
         wasmFunctionVec.push_back(WasmFunction()); // push an empty WasmFunction without codevec here
         if (field_name == "myPrintf") {
-          symbol_table[cur_index] = get_printf_address();
+          symbol_table[cur_index] = get_my_printf_address();
         }
       } break;
 
@@ -351,12 +352,12 @@ public:
 
       if (data_offset_type == 0x41) { // i32.const
         cur_data_offset = data_offset_value;
-        if (DEBUG_GLOBAL_SECTION) {
+        if (DEBUG_DATA_SECTION) {
           cout << "Offset is i32.const: " << data_offset_value << endl;
         }
       } else if (data_offset_type == 0x42) { // i64.const
         cur_data_offset = data_offset_value;
-        if (DEBUG_GLOBAL_SECTION) {
+        if (DEBUG_DATA_SECTION) {
           cout << "Offset is i64.const: " << data_offset_value << endl;
         }
       } else if (data_offset_type == 0x43) { // f32.const
@@ -381,7 +382,7 @@ public:
           throw "float unsupported yet!";
           break;
         }
-        if (DEBUG_GLOBAL_SECTION) {
+        if (DEBUG_DATA_SECTION) {
           cout << "Offset is global.get " << data_offset_value << endl;
         }
       } else {
@@ -402,7 +403,9 @@ public:
       for (int i = 0; i < data_segment_size; ++i) {
         char cur_val = static_cast<char>(stoul(s.substr(base_offset, 2), nullptr, 16));
         base_offset += 2;
-        cout.rdbuf(0);
+        if (!DEBUG_DATA_SECTION) {
+          cout.rdbuf(0);
+        }
         cout << cur_val;
         // load data value into w0 (only 1 byte so wreg should be able to hold)
         memoryInitializeInstruction += encodeMovz(W_REG, 0, cur_val);
@@ -620,6 +623,7 @@ public:
     wasmFunctionVec[i].result_data = wasmFunctionTypeVec[wasmFunctionToTypeMapper[i]].result_data;
     wasmFunctionVec[i].wasmFunctionTypeVec = wasmFunctionTypeVec;
     wasmFunctionVec[i].wasmFunctionToTypeMapper = wasmFunctionToTypeMapper;
+    wasmFunctionVec[i].importFunctionCount = importFunctionCount;
   }
   // merge type with same structure
   void computeTypeEquivalence() {

@@ -74,7 +74,9 @@
         "list": "cpp",
         "unordered_set": "cpp",
         "future": "cpp",
-        "csetjmp": "cpp"
+        "csetjmp": "cpp",
+        "__bit_reference": "cpp",
+        "__locale": "cpp"
     },
     "makefile.configureOnOpen": false,
     "code-runner.executorMap": {

@@ -12,7 +12,7 @@ const uint8_t reg_max_memory_size = 26;
 const uint8_t reg_min_allowed_sp_value = 27;
 const uint8_t reg_pointer_printf = 28;
 
-int max_allowed_size = 1024 * 10; // 8192 is needed to pass ch08 test cases, this value is customary
+int max_allowed_size = 8192 * 2; // 8192 is needed to pass ch08 test cases, this value is customary
 
 const bool enable_exception_handling = true;
 
@@ -174,10 +174,8 @@ public:
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_memory_size, 2);
     cout << "Backing up x4 memcpy pointer to x" << +reg_pointer_memcpy << endl;
     pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_pointer_memcpy, 4);
-    cout << "Backing up x5 printf pointer to x" << +reg_pointer_memcpy << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_pointer_printf, 5);
-    cout << "Backing up x6 max memory size to x" << +reg_max_memory_size << endl;
-    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_max_memory_size, 6);
+    cout << "Backing up x5 max memory size to x" << +reg_max_memory_size << endl;
+    pre_instructions_for_param_loading += encodeMovRegister(X_REG, reg_max_memory_size, 5);
 
     // initialize memory, this should only be executed once, we use [x3] to store memory size
     // memory initialization function will be stored in x4
@@ -361,6 +359,8 @@ public:
   int jit_begin = 0;
   int jit_end = 0;
   int64_t data_offset = 0;
+
+  int importFunctionCount = 0;
 
   string functionName;
   string wasm_instructions;

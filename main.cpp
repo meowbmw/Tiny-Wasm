@@ -114,7 +114,7 @@ void test_chapter(const string &chapter_number, const string &json_file) {
   }
 }
 int main() {
-  vector<string> test_chapters = {"02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"};
+  vector<string> test_chapters = {"02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13"};
 
   test_chapters = {"13"};
   cout << "A simple testing program to check our JIT works as intended." << endl;
@@ -123,6 +123,9 @@ int main() {
     cout << "--- Testing chapter " << chapter_number << " ---" << endl;
     for (string json_file : json_map[chapter_number]) {
       cout << json_file << " " << flush;
+      if (chapter_number == "13") {
+        cout << endl;
+      }
       test_chapter(chapter_number, json_file);
       cout.rdbuf(normal_cout); // Restore cout
       cout << "Ok" << endl;
